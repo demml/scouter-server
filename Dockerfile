@@ -1,4 +1,4 @@
-FROM postgres:16.3 as builder
+FROM postgres as builder
 
 RUN apt-get update \
     && apt-get install -y \

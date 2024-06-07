@@ -196,48 +196,53 @@ impl PostgresClient {
 
         let bin = (time_window / max_data_points) as f32;
 
-        let query_vec = features
+        let async_tasks = features
             .iter()
             .map(|feature| {
-                tokio::spawn(async move {
-                    self.run_feature_query(
-                        &bin,
-                        feature.clone(),
-                        version,
-                        time_window,
-                        service_name,
-                    )
-                    .await
-                })
+                self.run_feature_query(
+                    &bin,
+                    feature.to_string(),
+                    version,
+                    time_window,
+                    service_name,
+                )
             })
             .collect::<Vec<_>>();
 
-        let query_results = QueryResult {
+        let results = join_all(async_tasks).await;
+
+        // parse results
+        let mut query_result = QueryResult {
             features: HashMap::new(),
         };
-        // iterate over the results and create a hashmap with keys of created_at and values with values of vec string and vec f64, respectively
-        join_all(query_vec).await.iter().for_each(
-            |result: &Result<Result<Vec<PgRow>, Error>, JoinError>| match result {
-                Ok(result) => {
-                    let data: &Vec<PgRow> = result.unwrap().as_ref();
+
+        for data in results {
+            match data {
+                Ok(data) => {
                     let feature_name = data[0].get("feature");
-                    let created_at = Vec::new();
-                    let values = Vec::new();
+                    let mut created_at = Vec::new();
+                    let mut values = Vec::new();
 
                     for row in data {
                         created_at.push(row.get("created_at"));
                         values.push(row.get("value"));
                     }
-                    // append to query_results
-                    query_results
+
+                    query_result
                         .features
                         .insert(feature_name, FeatureResult { created_at, values });
                 }
-                Err(e) => error!("Failed to run query: {:?}", e),
-            },
-        );
+                Err(e) => {
+                    error!("Failed to run query: {:?}", e);
+                    return Err(sqlx::Error::Io(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        "Failed to run query",
+                    )));
+                }
+            }
+        }
 
-        Ok(query_results)
+        Ok(query_result)
     }
 }
 

@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::hash::Hash;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DriftRecord {
     pub service_name: String,
     pub feature: String,
@@ -8,14 +10,11 @@ pub struct DriftRecord {
     pub version: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Alert {
-    pub alert_type: String,
-    pub zone: String,
+pub struct FeatureResult {
+    pub created_at: Vec<String>,
+    pub values: Vec<f64>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct AlertRecord {
-    pub service_name: String,
-    pub alert: Alert,
+pub struct QueryResult {
+    pub features: HashMap<String, FeatureResult>,
 }

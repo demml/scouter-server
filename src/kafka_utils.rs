@@ -93,9 +93,7 @@ impl ScouterConsumer {
                         }
                     };
 
-                    let query_result = postgres_client
-                        .insert_drift_record(drift_record, &table_name)
-                        .await;
+                    let query_result = postgres_client.insert_drift_record(drift_record).await;
 
                     match query_result {
                         Ok(_) => (),

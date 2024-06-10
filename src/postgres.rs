@@ -196,7 +196,7 @@ impl PostgresClient {
 
         let bin = (time_window / max_data_points) as f32;
 
-        let async_tasks = features
+        let async_queries = features
             .iter()
             .map(|feature| {
                 self.run_feature_query(
@@ -209,14 +209,14 @@ impl PostgresClient {
             })
             .collect::<Vec<_>>();
 
-        let results = join_all(async_tasks).await;
+        let query_results = join_all(async_queries).await;
 
         // parse results
         let mut query_result = QueryResult {
             features: HashMap::new(),
         };
 
-        for data in results {
+        for data in query_results {
             match data {
                 Ok(data) => {
                     let feature_name = data[0].get("feature");

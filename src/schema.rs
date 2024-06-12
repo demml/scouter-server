@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::hash::Hash;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DriftRecord {
@@ -10,11 +9,13 @@ pub struct DriftRecord {
     pub version: String,
 }
 
+#[derive(Debug, Clone)]
 pub struct FeatureResult {
-    pub created_at: Vec<String>,
+    pub created_at: Vec<chrono::NaiveDateTime>,
     pub values: Vec<f64>,
 }
 
+#[derive(Debug, Clone)]
 pub struct QueryResult {
     pub features: HashMap<String, FeatureResult>,
 }

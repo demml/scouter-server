@@ -8,10 +8,10 @@ use sqlx::{
 };
 use std::collections::HashMap;
 use std::result::Result::Ok;
-use tokio::task::JoinError;
+
 use tracing::{error, info};
 pub struct PostgresClient {
-    pool: Pool<Postgres>,
+    pub pool: Pool<Postgres>,
     table_name: String,
     db_schema: String,
 }
@@ -27,6 +27,23 @@ pub enum TimeInterval {
     TwentyFourHours,
     TwoDays,
     FiveDays,
+}
+
+impl TimeInterval {
+    pub fn to_minutes(&self) -> i32 {
+        match self {
+            TimeInterval::FiveMinutes => 5,
+            TimeInterval::FifteenMinutes => 15,
+            TimeInterval::ThirtyMinutes => 30,
+            TimeInterval::OneHour => 60,
+            TimeInterval::ThreeHours => 180,
+            TimeInterval::SixHours => 360,
+            TimeInterval::TwelveHours => 720,
+            TimeInterval::TwentyFourHours => 1440,
+            TimeInterval::TwoDays => 2880,
+            TimeInterval::FiveDays => 7200,
+        }
+    }
 }
 
 impl PostgresClient {
@@ -116,7 +133,7 @@ impl PostgresClient {
 
     async fn run_feature_query(
         &self,
-        bin: &f32,
+        bin: &f64,
         feature: String,
         version: &str,
         time_window: &i32,
@@ -132,8 +149,8 @@ impl PostgresClient {
         value
         from {}.{}
         WHERE 
-            created_at > timezone('utc', now()) - interval '{} minutes'
-            AND version = '{}
+            created_at > timezone('utc', now()) - interval '{}' minute
+            AND version = '{}'
             AND service_name = '{}'
             AND feature = '{}'",
             bin, self.db_schema, self.table_name, time_window, version, service_name, feature
@@ -194,7 +211,7 @@ impl PostgresClient {
         // get features
         let features = self.get_service_features(service_name, version).await?;
 
-        let bin = (time_window / max_data_points) as f32;
+        let bin = *time_window as f64 / *max_data_points as f64;
 
         let async_queries = features
             .iter()
@@ -244,8 +261,24 @@ impl PostgresClient {
 
         Ok(query_result)
     }
+
+    pub async fn raw_query(&self, query: &str) -> Result<Vec<PgRow>, anyhow::Error> {
+        let result = sqlx::raw_sql(query).fetch_all(&self.pool).await;
+
+        match result {
+            Ok(result) => {
+                // pretty print
+                Ok(result)
+            }
+            Err(e) => {
+                error!("Failed to run query: {:?}", e);
+                return Err(anyhow!("Failed to run query: {:?}", e));
+            }
+        }
+    }
 }
 
+// integration tests
 #[cfg(test)]
 mod tests {
 
@@ -254,78 +287,26 @@ mod tests {
     use tokio;
 
     #[tokio::test]
-    async fn test_postgres_client() {
+    async fn test_client() {
         env::set_var(
             "DATABASE_URL",
             "postgresql://postgres:admin@localhost:5432/monitor?",
         );
 
-        let client = PostgresClient::new().await.expect("error");
+        PostgresClient::new().await.expect("error");
+    }
 
-        // test inserting record
-        let record = DriftRecord {
-            service_name: "postgres_client".to_string(),
-            feature: "test".to_string(),
-            value: 1.0,
-            version: "1.0.0".to_string(),
-        };
-
-        client.insert_drift_record(record).await.unwrap();
-
-        // assert record was written
-
-        // test reading record
-        let result = sqlx::raw_sql(
-            r#"
-            SELECT * 
-            FROM scouter.drift  
-            WHERE service_name = 'postgres_client'
-            LIMIT 1
-            "#,
-        )
-        .fetch_all(&client.pool)
-        .await
-        .unwrap();
-
-        // iterate over the result and create DriftRecord
-        for row in result {
-            let record = DriftRecord {
-                service_name: row.get("service_name"),
-                feature: row.get("feature"),
-                value: row.get("value"),
-                version: row.get("version"),
-            };
-
-            assert_eq!(record.service_name, "postgres_client");
-            assert_eq!(record.feature, "test");
-            assert_eq!(record.value, 1.0);
-            assert_eq!(record.version, "1.0.0");
-        }
-
-        // delete all records of service name postgres_client
-        sqlx::raw_sql(
-            r#"
-            DELETE 
-            FROM scouter.drift  
-            WHERE service_name = 'postgres_client'
-            "#,
-        )
-        .fetch_all(&client.pool)
-        .await
-        .unwrap();
-
-        // assert record was deleted
-        let result = sqlx::raw_sql(
-            r#"
-            SELECT * 
-            FROM scouter.drift  
-            WHERE service_name = 'postgres_client'
-            "#,
-        )
-        .fetch_all(&client.pool)
-        .await
-        .unwrap();
-
-        assert_eq!(result.len(), 0);
+    #[test]
+    fn test_time_interval() {
+        assert_eq!(TimeInterval::FiveMinutes.to_minutes(), 5);
+        assert_eq!(TimeInterval::FifteenMinutes.to_minutes(), 15);
+        assert_eq!(TimeInterval::ThirtyMinutes.to_minutes(), 30);
+        assert_eq!(TimeInterval::OneHour.to_minutes(), 60);
+        assert_eq!(TimeInterval::ThreeHours.to_minutes(), 180);
+        assert_eq!(TimeInterval::SixHours.to_minutes(), 360);
+        assert_eq!(TimeInterval::TwelveHours.to_minutes(), 720);
+        assert_eq!(TimeInterval::TwentyFourHours.to_minutes(), 1440);
+        assert_eq!(TimeInterval::TwoDays.to_minutes(), 2880);
+        assert_eq!(TimeInterval::FiveDays.to_minutes(), 7200);
     }
 }

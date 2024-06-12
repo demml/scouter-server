@@ -1,16 +1,14 @@
 use crate::postgres::PostgresClient;
 use crate::schema::DriftRecord;
 use anyhow::*;
-use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage};
-use sqlx::{Pool, Postgres};
+use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage, MessageSets};
 use std::result::Result::Ok;
-use std::time::Duration;
 use tracing::{error, info};
 
 // Get table name constant
 
 pub struct ScouterConsumer {
-    consumer: Consumer,
+    pub consumer: Consumer,
 }
 
 impl ScouterConsumer {
@@ -62,101 +60,97 @@ impl ScouterConsumer {
         Ok(Self { consumer })
     }
 
+    pub async fn get_messages(&mut self) -> Result<MessageSets, anyhow::Error> {
+        let consumer_poll = match self.consumer.poll() {
+            Ok(consumer_poll) => consumer_poll,
+            Err(e) => {
+                error!("Failed to poll consumer: {:?}", e);
+                return Err(e.into());
+            }
+        };
+
+        Ok(consumer_poll)
+    }
+
+    pub async fn insert_messages(
+        &mut self,
+        messages: MessageSets,
+        db_client: &PostgresClient,
+    ) -> Result<(), anyhow::Error> {
+        if messages.is_empty() {
+            info!("No messages to insert");
+            return Ok(());
+        }
+
+        for ms in messages.iter() {
+            for m in ms.messages() {
+                // deserialize the message data to DriftRecord
+                let drift_record: DriftRecord = match serde_json::from_slice(m.value) {
+                    Ok(record) => record,
+                    Err(e) => {
+                        error!("Failed to deserialize message: {:?}", e);
+                        return Err(e.into());
+                    }
+                };
+
+                let query_result = db_client.insert_drift_record(drift_record).await;
+
+                match query_result {
+                    Ok(_) => (),
+                    Err(e) => {
+                        error!("Failed to insert record into database: {:?}", e);
+                        return Err(e.into());
+                    }
+                }
+            }
+            match self.consumer.consume_messageset(ms) {
+                Ok(_) => (),
+                Err(e) => {
+                    error!("Failed to consume messageset: {:?}", e);
+                    return Err(e.into());
+                }
+            }
+        }
+        match self.consumer.commit_consumed() {
+            Ok(_) => (),
+            Err(e) => {
+                error!("Failed to commit consumed messages: {:?}", e);
+                return Err(e.into());
+            }
+        }
+
+        Ok(())
+    }
+
+    pub async fn poll_current(&mut self, db_client: &PostgresClient) -> Result<(), anyhow::Error> {
+        // get messages
+        let messages = self
+            .get_messages()
+            .await
+            .with_context(|| "Failed to get messages")?;
+
+        // insert messages
+        self.insert_messages(messages, db_client)
+            .await
+            .with_context(|| "Failed to insert messages")?;
+        Ok(())
+    }
+
     // Runs indefinite loop that consumes messages from Kafka and inserts them into the database
     //
     // # Arguments
     //
     // * `pool` - A connection pool to the Postgres database
     //
-    pub async fn poll(&mut self, postgres_client: &PostgresClient) -> Result<(), Error> {
-        let table_name = std::env::var("TABLE_NAME").unwrap_or_else(|_| "drift".to_string());
-
+    pub async fn poll_loop(&mut self, db_client: &PostgresClient) -> Result<(), Error> {
         loop {
-            // check consumer poll
-            let consumer_poll = match self.consumer.poll() {
-                Ok(consumer_poll) => consumer_poll,
-                Err(e) => {
-                    error!("Failed to poll consumer: {:?}", e);
-                    continue;
-                }
-            };
-
-            // start polling for messages
-            for ms in consumer_poll.iter() {
-                for m in ms.messages() {
-                    // deserialize the message data to DriftRecord
-                    let drift_record: DriftRecord = match serde_json::from_slice(m.value) {
-                        Ok(record) => record,
-                        Err(e) => {
-                            error!("Failed to deserialize message: {:?}", e);
-                            continue;
-                        }
-                    };
-
-                    let query_result = postgres_client.insert_drift_record(drift_record).await;
-
-                    match query_result {
-                        Ok(_) => (),
-                        Err(e) => error!("Failed to insert record into database: {:?}", e),
-                    }
-                }
-                match self.consumer.consume_messageset(ms) {
-                    Ok(_) => (),
-                    Err(e) => {
-                        error!("Failed to consume messageset: {:?}", e);
-                        continue;
-                    }
-                }
-            }
-            match self.consumer.commit_consumed() {
+            match self.poll_current(db_client).await {
                 Ok(_) => (),
                 Err(e) => {
-                    error!("Failed to commit consumed messages: {:?}", e);
+                    error!("Failed to poll current: {:?}", e);
                     continue;
                 }
             }
-        }
-    }
-}
-
-// tests
-#[cfg(test)]
-mod tests {
-
-    use super::*;
-    use kafka::producer::{Producer, Record, RequiredAcks};
-    use std::env;
-
-    #[test]
-    fn test_scouter_consumer() {
-        env::set_var("KAFKA_BROKER", "localhost:9092");
-
-        // populate the kafka topic
-        let mut producer = Producer::from_hosts(vec!["localhost:9092".to_owned()])
-            .with_ack_timeout(Duration::from_secs(1))
-            .with_required_acks(RequiredAcks::One)
-            .create()
-            .unwrap();
-
-        let mut buf = String::with_capacity(10);
-        for i in 0..10 {
-            let record = DriftRecord {
-                service_name: "test".to_string(),
-                feature: "test".to_string(),
-                value: i as f64,
-                version: "test".to_string(),
-            };
-            producer
-                .send(&Record::from_value(
-                    "scouter_monitoring",
-                    serde_json::to_string(&record).unwrap().as_bytes(),
-                ))
-                .unwrap();
-            buf.clear();
-
-            let scouter_consumer = ScouterConsumer::new().unwrap();
-
-            // poll the consumer
         }
     }
 }

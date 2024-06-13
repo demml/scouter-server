@@ -1,4 +1,4 @@
-use crate::sql::query::{GetFeatureValuesParams, GetFeaturesParams, InsertParams, Queries};
+use crate::sql::query::{GetBinnedFeatureValuesParams, GetFeaturesParams, InsertParams, Queries};
 use crate::sql::schema::{DriftRecord, FeatureResult, QueryResult};
 use anyhow::*;
 use futures::future::join_all;
@@ -13,7 +13,6 @@ use std::result::Result::Ok;
 use tracing::{error, info};
 pub struct PostgresClient {
     pub pool: Pool<Postgres>,
-
     qualified_table_name: String,
 }
 
@@ -90,7 +89,7 @@ impl PostgresClient {
     pub async fn insert_drift_record(
         &self,
         record: DriftRecord,
-    ) -> Result<PgQueryResult, sqlx::Error> {
+    ) -> Result<PgQueryResult, anyhow::Error> {
         let query = Queries::InsertDriftRecord.get_query();
 
         let params = InsertParams {
@@ -107,7 +106,13 @@ impl PostgresClient {
                 .await;
 
         //drop params
-        query_result
+        match query_result {
+            Ok(result) => Ok(result),
+            Err(e) => {
+                error!("Failed to insert record into database: {:?}", e);
+                Err(anyhow!("Failed to insert record into database: {:?}", e))
+            }
+        }
     }
 
     // Queries the database for all features under a service
@@ -116,7 +121,7 @@ impl PostgresClient {
         &self,
         service_name: &str,
         version: &str,
-    ) -> Result<Vec<String>, sqlx::Error> {
+    ) -> Result<Vec<String>, anyhow::Error> {
         let query = Queries::GetFeatures.get_query();
 
         let params = GetFeaturesParams {
@@ -145,9 +150,10 @@ impl PostgresClient {
         version: &str,
         time_window: &i32,
         service_name: &str,
-    ) -> Result<Vec<PgRow>, Error> {
-        let query = Queries::GetFeatureValues.get_query();
-        let params = GetFeatureValuesParams {
+    ) -> Result<Vec<PgRow>, anyhow::Error> {
+        let query = Queries::GetBinnedFeatureValues.get_query();
+
+        let params = GetBinnedFeatureValuesParams {
             table: self.qualified_table_name.to_string(),
             service_name: service_name.to_string(),
             feature,
@@ -187,7 +193,7 @@ impl PostgresClient {
         version: &str,
         max_data_points: &i32,
         time_window: &i32,
-    ) -> Result<QueryResult, sqlx::Error> {
+    ) -> Result<QueryResult, anyhow::Error> {
         // get features
         let features = self.get_service_features(service_name, version).await?;
 
@@ -231,10 +237,7 @@ impl PostgresClient {
                 }
                 Err(e) => {
                     error!("Failed to run query: {:?}", e);
-                    return Err(sqlx::Error::Io(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        "Failed to run query",
-                    )));
+                    return Err(anyhow!("Failed to run query: {:?}", e));
                 }
             }
         }

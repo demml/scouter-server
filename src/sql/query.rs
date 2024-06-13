@@ -1,5 +1,12 @@
 use std::collections::BTreeMap;
 
+//constants
+
+const INSERT_DRIFT_RECORD: &'static str = include_str!("scripts/insert_drift_record.sql");
+const GET_FEATURES: &'static str = include_str!("scripts/unique_features.sql");
+const GET_BINNED_FEATURE_VALUES: &'static str = include_str!("scripts/binned_feature_values.sql");
+const GET_FEATURE_VALUES: &'static str = include_str!("scripts/feature_values.sql");
+
 pub trait ToMap {
     fn to_map(&self) -> BTreeMap<String, String>;
 }
@@ -42,7 +49,7 @@ impl ToMap for GetFeaturesParams {
     }
 }
 
-pub struct GetFeatureValuesParams {
+pub struct GetBinnedFeatureValuesParams {
     pub table: String,
     pub service_name: String,
     pub feature: String,
@@ -51,7 +58,7 @@ pub struct GetFeatureValuesParams {
     pub bin: String,
 }
 
-impl ToMap for GetFeatureValuesParams {
+impl ToMap for GetBinnedFeatureValuesParams {
     fn to_map(&self) -> BTreeMap<String, String> {
         let mut params = BTreeMap::new();
         params.insert("table".to_string(), self.table.clone());
@@ -65,48 +72,42 @@ impl ToMap for GetFeatureValuesParams {
     }
 }
 
+pub struct GetFeatureValuesParams {
+    pub table: String,
+    pub service_name: String,
+    pub feature: String,
+    pub version: String,
+    pub time_window: String,
+}
+
+impl ToMap for GetFeatureValuesParams {
+    fn to_map(&self) -> BTreeMap<String, String> {
+        let mut params = BTreeMap::new();
+        params.insert("table".to_string(), self.table.clone());
+        params.insert("service_name".to_string(), self.service_name.clone());
+        params.insert("feature".to_string(), self.feature.clone());
+        params.insert("version".to_string(), self.version.clone());
+        params.insert("time_window".to_string(), self.time_window.clone());
+
+        params
+    }
+}
+
 pub enum Queries {
     GetFeatures,
     InsertDriftRecord,
+    GetBinnedFeatureValues,
     GetFeatureValues,
 }
 
 impl Queries {
     pub fn get_query(&self) -> SqlQuery {
         match self {
-
-            Queries::GetFeatures => SqlQuery::new("SELECT DISTINCT feature FROM $table WHERE service_name = '$service_name' AND version = '$version';"),
-            Queries::InsertDriftRecord => SqlQuery::new("INSERT INTO $table (service_name, feature, value, version) VALUES ('$service_name', '$feature', '$value', '$version');"),
-            Queries::GetFeatureValues => SqlQuery::new("with subquery as (
-                SELECT 
-                date_bin('$bin minutes', created_at, TIMESTAMP '1970-01-01') as created_at,
-                service_name,
-                feature,
-                version,
-                value
-                from $table
-                WHERE 
-                    created_at > timezone('utc', now()) - interval '$time_window' minute
-                    AND version = '$version'
-                    AND service_name = '$service_name'
-                    AND feature = '$feature'
-            )
-
-            SELECT
-            created_at,
-            service_name,
-            feature,
-            version,
-            avg(value) as value
-            FROM subquery
-            GROUP BY 
-                created_at,
-                service_name,
-                feature,
-                version
-            ORDER BY
-                created_at DESC;
-            "),
+            // load sql file from scripts/insert.sql
+            Queries::GetFeatures => SqlQuery::new(GET_FEATURES),
+            Queries::InsertDriftRecord => SqlQuery::new(INSERT_DRIFT_RECORD),
+            Queries::GetBinnedFeatureValues => SqlQuery::new(GET_BINNED_FEATURE_VALUES),
+            Queries::GetFeatureValues => SqlQuery::new(GET_FEATURE_VALUES),
         }
     }
 }
@@ -173,15 +174,20 @@ mod tests {
 
         assert_eq!(
             formatted_sql,
-            "SELECT DISTINCT feature FROM schema.table WHERE service_name = 'test' AND version = 'test';"
+            "SELECT
+DISTINCT feature
+FROM schema.table
+WHERE
+   service_name = 'test'
+   AND version = 'test';"
         );
     }
 
     #[test]
     fn test_get_features_values_query() {
-        let query = Queries::GetFeatureValues.get_query();
+        let query = Queries::GetBinnedFeatureValues.get_query();
 
-        let params = GetFeatureValuesParams {
+        let params = GetBinnedFeatureValuesParams {
             table: "schema.table".to_string(),
             service_name: "test".to_string(),
             feature: "test".to_string(),
@@ -223,6 +229,37 @@ mod tests {
                 version
             ORDER BY
                 created_at DESC;
+            "
+        );
+    }
+
+    #[test]
+    fn test_get_feature_values_query() {
+        let query = Queries::GetFeatureValues.get_query();
+
+        let params = GetFeatureValuesParams {
+            table: "schema.table".to_string(),
+            service_name: "test".to_string(),
+            feature: "test".to_string(),
+            version: "test".to_string(),
+            time_window: "10".to_string(),
+        };
+
+        let formatted_sql = query.format(&params);
+
+        assert_eq!(
+            formatted_sql,
+            "SELECT 
+            created_at,  
+            feature,
+            value,
+            version
+            FROM schema.table 
+            WHERE
+                created_at > timezone('utc', now()) - interval '10' minute
+                AND version = 'test'
+                AND service_name = 'test'
+                AND feature = 'test';
             "
         );
     }

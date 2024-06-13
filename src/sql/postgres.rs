@@ -7,14 +7,10 @@ use sqlx::{
     postgres::{PgPoolOptions, PgQueryResult, PgRow},
     Pool, Postgres,
 };
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::result::Result::Ok;
 
 use tracing::{error, info};
-pub struct PostgresClient {
-    pub pool: Pool<Postgres>,
-    qualified_table_name: String,
-}
 
 pub enum TimeInterval {
     FiveMinutes,
@@ -44,6 +40,28 @@ impl TimeInterval {
             TimeInterval::FiveDays => 7200,
         }
     }
+
+    pub fn from_string(time_window: &str) -> TimeInterval {
+        match time_window {
+            "5minute" => TimeInterval::FiveMinutes,
+            "15minute" => TimeInterval::FifteenMinutes,
+            "30minute" => TimeInterval::ThirtyMinutes,
+            "1hour" => TimeInterval::OneHour,
+            "3hour" => TimeInterval::ThreeHours,
+            "6hour" => TimeInterval::SixHours,
+            "12hour" => TimeInterval::TwelveHours,
+            "24hour" => TimeInterval::TwentyFourHours,
+            "2day" => TimeInterval::TwoDays,
+            "5day" => TimeInterval::FiveDays,
+            _ => TimeInterval::SixHours,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct PostgresClient {
+    pub pool: Pool<Postgres>,
+    qualified_table_name: String,
 }
 
 impl PostgresClient {
@@ -216,7 +234,7 @@ impl PostgresClient {
 
         // parse results
         let mut query_result = QueryResult {
-            features: HashMap::new(),
+            features: BTreeMap::new(),
         };
 
         for data in query_results {
@@ -245,6 +263,7 @@ impl PostgresClient {
         Ok(query_result)
     }
 
+    #[allow(dead_code)]
     pub async fn raw_query(&self, query: &str) -> Result<Vec<PgRow>, anyhow::Error> {
         let result = sqlx::raw_sql(query).fetch_all(&self.pool).await;
 

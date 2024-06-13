@@ -142,7 +142,9 @@ impl ScouterConsumer {
     //
     // * `pool` - A connection pool to the Postgres database
     //
-    pub async fn poll_loop(&mut self, db_client: &PostgresClient) -> Result<(), Error> {
+    pub async fn poll_loop(&mut self, db_client: &PostgresClient) -> () {
+        info!("Starting poll loop");
+
         loop {
             match self.poll_current(db_client).await {
                 Ok(_) => (),

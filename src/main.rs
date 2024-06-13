@@ -1,64 +1,64 @@
-mod handler;
+mod api;
 mod kafka;
 mod model;
-
-mod route;
 mod sql;
 
+use anyhow::Context;
+use kafka::consumer::ScouterConsumer;
+use sql::postgres::PostgresClient;
 use std::sync::Arc;
-use tracing::{error, info};
+use tracing::info;
 use tracing_subscriber;
 
 use axum::http::{
     header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE},
-    HeaderValue, Method,
+    Method,
 };
-use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
 
-use route::create_router;
+use api::route::create_router;
 use tower_http::cors::CorsLayer;
 
 pub struct AppState {
-    db: Pool<Postgres>,
+    db: PostgresClient,
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), anyhow::Error> {
     // install global collector configured based on RUST_LOG env var.
     tracing_subscriber::fmt::init();
 
-    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-
-    // get max connections from env or set to 10
-    let max_connections = std::env::var("MAX_CONNECTIONS")
-        .unwrap_or_else(|_| "10".to_string())
-        .parse::<u32>()
-        .expect("MAX_CONNECTIONS must be a number");
-
-    // create a connection pool
-    let pool = match PgPoolOptions::new()
-        .max_connections(max_connections)
-        .connect(&database_url)
+    // for app state
+    let db_client = sql::postgres::PostgresClient::new()
         .await
-    {
-        Ok(pool) => {
-            info!("✅ Successfully connected to database");
-            pool
-        }
-        Err(err) => {
-            error!("🔥 Failed to connect to database {:?}", err);
-            std::process::exit(1);
-        }
-    };
+        .with_context(|| "Failed to create Postgres client")?;
+
+    // for background task (should have it's own pool)
+    let loop_client = db_client.clone();
+
+    let mut consumer = ScouterConsumer::new().with_context(|| "Failed to create Kafka consumer")?;
+
+    // spawn the consumer as a background task
+    tokio::spawn(async move {
+        consumer.poll_loop(&loop_client).await;
+    });
 
     let cors = CorsLayer::new()
         .allow_methods([Method::GET, Method::PUT, Method::DELETE])
         .allow_credentials(true)
         .allow_headers([AUTHORIZATION, ACCEPT, CONTENT_TYPE]);
 
-    let app = create_router(Arc::new(AppState { db: pool.clone() })).layer(cors);
+    let app = create_router(Arc::new(AppState {
+        db: db_client.clone(),
+    }))
+    .layer(cors);
 
     info!("🚀 Server started successfully");
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8000").await.unwrap();
+
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:8000")
+        .await
+        .with_context(|| "Failed to bind to port 8000")?;
+
     axum::serve(listener, app).await.unwrap();
+
+    Ok(())
 }

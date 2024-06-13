@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DriftRecord {
@@ -9,13 +9,13 @@ pub struct DriftRecord {
     pub version: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct FeatureResult {
     pub created_at: Vec<chrono::NaiveDateTime>,
     pub values: Vec<f64>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct QueryResult {
-    pub features: HashMap<String, FeatureResult>,
+    pub features: BTreeMap<String, FeatureResult>,
 }

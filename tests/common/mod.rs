@@ -1,5 +1,5 @@
 use anyhow::Error;
-use kafka::producer::{Producer, Record, RequiredAcks};
+use kafka::producer::{Producer, RequiredAcks};
 use scouter_server::kafka::consumer::ScouterConsumer;
 use scouter_server::sql::postgres::PostgresClient;
 use std::env;
@@ -59,6 +59,7 @@ pub async fn setup() -> Result<(PostgresClient, ScouterConsumer, Producer), Erro
     Ok((db_client, consumer, producer))
 }
 
+#[allow(dead_code)]
 pub async fn teardown(db_client: &PostgresClient) -> Result<(), Error> {
     // clear the database
 

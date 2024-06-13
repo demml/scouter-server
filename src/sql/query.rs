@@ -157,7 +157,10 @@ mod tests {
 
         let formatted_sql = query.format(&params);
 
-        assert_eq!(formatted_sql, "INSERT INTO features (service_name, feature, value, version) VALUES ('test', 'test', 'test', 'test');");
+        assert_eq!(
+            formatted_sql,
+            "INSERT INTO features (service_name, feature, value, version) \nVALUES ('test', 'test', 'test', 'test');"
+        );
     }
 
     #[test]
@@ -201,35 +204,34 @@ WHERE
         assert_eq!(
             formatted_sql,
             "with subquery as (
-                SELECT 
-                date_bin('1 minutes', created_at, TIMESTAMP '1970-01-01') as created_at,
-                service_name,
-                feature,
-                version,
-                value
-                from schema.table
-                WHERE 
-                    created_at > timezone('utc', now()) - interval '10' minute
-                    AND version = 'test'
-                    AND service_name = 'test'
-                    AND feature = 'test'
-            )
+    SELECT
+    date_bin('1 minutes', created_at, TIMESTAMP '1970-01-01') as created_at,
+    service_name,
+    feature,
+    version,
+    value
+    from schema.table
+    WHERE 
+        created_at > timezone('utc', now()) - interval '10' minute
+        AND version = 'test'
+        AND service_name = 'test'
+        AND feature = 'test'
+)
 
-            SELECT
-            created_at,
-            service_name,
-            feature,
-            version,
-            avg(value) as value
-            FROM subquery
-            GROUP BY 
-                created_at,
-                service_name,
-                feature,
-                version
-            ORDER BY
-                created_at DESC;
-            "
+SELECT
+created_at,
+service_name,
+feature,
+version,
+avg(value) as value
+FROM subquery
+GROUP BY 
+    created_at,
+    service_name,
+    feature,
+    version
+ORDER BY
+    created_at DESC;"
         );
     }
 
@@ -249,18 +251,17 @@ WHERE
 
         assert_eq!(
             formatted_sql,
-            "SELECT 
-            created_at,  
-            feature,
-            value,
-            version
-            FROM schema.table 
-            WHERE
-                created_at > timezone('utc', now()) - interval '10' minute
-                AND version = 'test'
-                AND service_name = 'test'
-                AND feature = 'test';
-            "
+            "SELECT
+created_at,
+feature,
+value,
+version
+FROM schema.table
+WHERE
+    created_at > timezone('utc', now()) - interval '10' minute
+    AND version = 'test'
+    AND service_name = 'test'
+    AND feature = 'test';"
         );
     }
 }

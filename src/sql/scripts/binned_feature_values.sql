@@ -1,5 +1,5 @@
 with subquery as (
-    SELECT 
+    SELECT
     date_bin('$bin minutes', created_at, TIMESTAMP '1970-01-01') as created_at,
     service_name,
     feature,

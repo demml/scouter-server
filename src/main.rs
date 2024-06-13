@@ -10,17 +10,8 @@ use std::sync::Arc;
 use tracing::info;
 use tracing_subscriber;
 
-use axum::http::{
-    header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE},
-    Method,
-};
-
+use crate::api::route::AppState;
 use api::route::create_router;
-use tower_http::cors::CorsLayer;
-
-pub struct AppState {
-    db: PostgresClient,
-}
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -28,7 +19,7 @@ async fn main() -> Result<(), anyhow::Error> {
     tracing_subscriber::fmt::init();
 
     // for app state
-    let db_client = sql::postgres::PostgresClient::new()
+    let db_client = PostgresClient::new(None)
         .await
         .with_context(|| "Failed to create Postgres client")?;
 
@@ -42,15 +33,9 @@ async fn main() -> Result<(), anyhow::Error> {
         consumer.poll_loop(&loop_client).await;
     });
 
-    let cors = CorsLayer::new()
-        .allow_methods([Method::GET, Method::PUT, Method::DELETE])
-        .allow_credentials(true)
-        .allow_headers([AUTHORIZATION, ACCEPT, CONTENT_TYPE]);
-
     let app = create_router(Arc::new(AppState {
         db: db_client.clone(),
-    }))
-    .layer(cors);
+    }));
 
     info!("🚀 Server started successfully");
 
@@ -61,4 +46,50 @@ async fn main() -> Result<(), anyhow::Error> {
     axum::serve(listener, app).await.unwrap();
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::{
+        body::{self, Body},
+        extract::connect_info::MockConnectInfo,
+        http::{self, Request, StatusCode},
+    };
+    use http_body_util::BodyExt;
+    use serde_json::Value;
+    use tokio;
+    use tower::{Service, ServiceExt}; // for `call`, `oneshot`, and `ready`
+
+    #[tokio::test]
+    async fn test_health_check() {
+        let db_client = sql::postgres::PostgresClient::new(Some(
+            "postgresql://postgres:admin@localhost:5432/monitor?".to_string(),
+        ))
+        .await
+        .unwrap();
+
+        let app = create_router(Arc::new(AppState {
+            db: db_client.clone(),
+        }));
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/healthcheck")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        //assert response
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+
+        let v: Value = serde_json::from_str(std::str::from_utf8(&body[..]).unwrap()).unwrap();
+        let message: &str = v.get("message").unwrap().as_str().unwrap();
+
+        assert_eq!(message, "Alive");
+    }
 }

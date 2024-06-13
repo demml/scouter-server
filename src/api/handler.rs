@@ -1,7 +1,7 @@
 use crate::api::schema::ServiceDriftRequest;
 use crate::sql::postgres::TimeInterval;
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     Json,
@@ -10,7 +10,7 @@ use serde_json::json;
 use std::sync::Arc;
 use tracing::{error, info};
 
-use crate::AppState;
+use crate::api::route::AppState;
 
 pub async fn health_check() -> impl IntoResponse {
     info!("Health check endpoint is called");

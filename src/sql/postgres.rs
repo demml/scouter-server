@@ -2,7 +2,7 @@ use crate::sql::query::{GetBinnedFeatureValuesParams, GetFeaturesParams, InsertP
 use crate::sql::schema::{DriftRecord, FeatureResult, QueryResult};
 use anyhow::*;
 use futures::future::join_all;
-use sqlx::Row;
+use sqlx::{database, Row};
 use sqlx::{
     postgres::{PgPoolOptions, PgQueryResult, PgRow},
     Pool, Postgres,
@@ -66,9 +66,12 @@ pub struct PostgresClient {
 
 impl PostgresClient {
     // Create a new instance of PostgresClient
-    pub async fn new() -> Result<Self, Error> {
-        let database_url =
-            std::env::var("DATABASE_URL").with_context(|| "DATABASE_URL must be set")?;
+    pub async fn new(database_url: Option<String>) -> Result<Self, anyhow::Error> {
+        // get database url from env or use the provided one
+        let database_url = match database_url {
+            Some(url) => url,
+            None => std::env::var("DATABASE_URL").with_context(|| "DATABASE_URL must be set")?,
+        };
 
         // get max connections from env or set to 10
         let max_connections = std::env::var("MAX_CONNECTIONS")
@@ -295,7 +298,7 @@ mod tests {
             "postgresql://postgres:admin@localhost:5432/monitor?",
         );
 
-        PostgresClient::new().await.expect("error");
+        PostgresClient::new(None).await.expect("error");
     }
 
     #[test]

@@ -15,7 +15,7 @@ pub async fn setup_db() -> Result<PostgresClient, Error> {
     // set the max connections for the postgres pool
     env::set_var("MAX_CONNECTIONS", "10");
 
-    let client = PostgresClient::new().await.expect("error");
+    let client = PostgresClient::new(None).await.expect("error");
 
     sqlx::raw_sql(
         r#"

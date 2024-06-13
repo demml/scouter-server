@@ -1,4 +1,5 @@
-use crate::schema::{DriftRecord, FeatureResult, QueryResult};
+use crate::sql::query::{GetFeatureValuesParams, GetFeaturesParams, InsertParams, Queries};
+use crate::sql::schema::{DriftRecord, FeatureResult, QueryResult};
 use anyhow::*;
 use futures::future::join_all;
 use sqlx::Row;
@@ -12,8 +13,8 @@ use std::result::Result::Ok;
 use tracing::{error, info};
 pub struct PostgresClient {
     pub pool: Pool<Postgres>,
-    table_name: String,
-    db_schema: String,
+
+    qualified_table_name: String,
 }
 
 pub enum TimeInterval {
@@ -75,8 +76,7 @@ impl PostgresClient {
 
         Ok(Self {
             pool,
-            table_name: "drift".to_string(),
-            db_schema: "scouter".to_string(),
+            qualified_table_name: "scouter.drift".to_string(),
         })
     }
 
@@ -91,20 +91,22 @@ impl PostgresClient {
         &self,
         record: DriftRecord,
     ) -> Result<PgQueryResult, sqlx::Error> {
-        let query = format!(
-            "INSERT INTO {}.{} 
-                (service_name,feature,value,version) 
-            VALUES ('{}', '{}', {}, '{}');",
-            self.db_schema,
-            self.table_name,
-            record.service_name,
-            record.feature,
-            record.value,
-            record.version
-        );
-        let query_result: std::prelude::v1::Result<sqlx::postgres::PgQueryResult, sqlx::Error> =
-            sqlx::raw_sql(query.as_str()).execute(&self.pool).await;
+        let query = Queries::InsertDriftRecord.get_query();
 
+        let params = InsertParams {
+            table: self.qualified_table_name.to_string(),
+            service_name: record.service_name,
+            feature: record.feature,
+            value: record.value.to_string(),
+            version: record.version,
+        };
+
+        let query_result: std::prelude::v1::Result<sqlx::postgres::PgQueryResult, sqlx::Error> =
+            sqlx::raw_sql(query.format(&params).as_str())
+                .execute(&self.pool)
+                .await;
+
+        //drop params
         query_result
     }
 
@@ -115,12 +117,17 @@ impl PostgresClient {
         service_name: &str,
         version: &str,
     ) -> Result<Vec<String>, sqlx::Error> {
-        let query = format!(
-            "SELECT DISTINCT feature FROM {}.{} WHERE service_name = '{}' AND version = '{}';",
-            self.db_schema, self.table_name, service_name, version
-        );
+        let query = Queries::GetFeatures.get_query();
 
-        let result = sqlx::raw_sql(query.as_str()).fetch_all(&self.pool).await?;
+        let params = GetFeaturesParams {
+            table: self.qualified_table_name.to_string(),
+            service_name: service_name.to_string(),
+            version: version.to_string(),
+        };
+
+        let result = sqlx::raw_sql(query.format(&params).as_str())
+            .fetch_all(&self.pool)
+            .await?;
 
         let mut features = Vec::new();
 
@@ -139,46 +146,19 @@ impl PostgresClient {
         time_window: &i32,
         service_name: &str,
     ) -> Result<Vec<PgRow>, Error> {
-        let subquery = format!(
-            "
-        SELECT 
-        date_bin('{} minutes', created_at, TIMESTAMP '1970-01-01') as created_at,
-        service_name,
-        feature,
-        version,
-        value
-        from {}.{}
-        WHERE 
-            created_at > timezone('utc', now()) - interval '{}' minute
-            AND version = '{}'
-            AND service_name = '{}'
-            AND feature = '{}'",
-            bin, self.db_schema, self.table_name, time_window, version, service_name, feature
-        );
-
-        let query = format!(
-            "
-        with subquery as ({})
-        
-        SELECT
-            created_at,
-            service_name,
+        let query = Queries::GetFeatureValues.get_query();
+        let params = GetFeatureValuesParams {
+            table: self.qualified_table_name.to_string(),
+            service_name: service_name.to_string(),
             feature,
-            version,
-            avg(value) as value
-        FROM subquery
-        GROUP BY 
-            created_at,
-            service_name,
-            feature,
-            version
-        ORDER BY
-            created_at DESC
-        ",
-            subquery
-        );
+            version: version.to_string(),
+            time_window: time_window.to_string(),
+            bin: bin.to_string(),
+        };
 
-        let result = sqlx::raw_sql(query.as_str()).fetch_all(&self.pool).await;
+        let result = sqlx::raw_sql(query.format(&params).as_str())
+            .fetch_all(&self.pool)
+            .await;
 
         match result {
             Ok(result) => Ok(result),

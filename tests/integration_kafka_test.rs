@@ -1,5 +1,5 @@
 use kafka::producer::Record;
-use scouter_server::schema::DriftRecord;
+use scouter_server::sql::schema::DriftRecord;
 use tokio;
 mod common;
 

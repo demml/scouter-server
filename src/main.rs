@@ -1,10 +1,9 @@
 mod handler;
-mod kafka_utils;
+mod kafka;
 mod model;
 
-mod postgres;
 mod route;
-mod schema;
+mod sql;
 
 use std::sync::Arc;
 use tracing::{error, info};

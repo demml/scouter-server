@@ -1,7 +1,7 @@
 use anyhow::Error;
 use kafka::producer::{Producer, Record, RequiredAcks};
-use scouter_server::kafka_utils::ScouterConsumer;
-use scouter_server::postgres::PostgresClient;
+use scouter_server::kafka::consumer::ScouterConsumer;
+use scouter_server::sql::postgres::PostgresClient;
 use std::env;
 use std::time::Duration;
 

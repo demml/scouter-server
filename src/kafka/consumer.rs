@@ -1,5 +1,5 @@
-use crate::postgres::PostgresClient;
-use crate::schema::DriftRecord;
+use crate::sql::postgres::PostgresClient;
+use crate::sql::schema::DriftRecord;
 use anyhow::*;
 use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage, MessageSets};
 use std::result::Result::Ok;

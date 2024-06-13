@@ -8,7 +8,7 @@ use serde_json::json;
 use std::sync::Arc;
 use tracing::info;
 
-use crate::schema::DriftRecord;
+use crate::sql::schema::DriftRecord;
 
 pub async fn health_check() -> impl IntoResponse {
     info!("Health check endpoint is called");

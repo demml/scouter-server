@@ -2,8 +2,8 @@ use tokio;
 mod common;
 use approx::relative_eq;
 use kafka::producer::Record;
-use scouter_server::postgres::TimeInterval;
-use scouter_server::schema::DriftRecord;
+use scouter_server::sql::postgres::TimeInterval;
+use scouter_server::sql::schema::DriftRecord;
 
 #[tokio::test]
 async fn test_full_test() {

@@ -1,4 +1,4 @@
-use scouter_server::schema::DriftRecord;
+use scouter_server::sql::schema::DriftRecord;
 use sqlx::Row;
 use tokio;
 mod common;

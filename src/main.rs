@@ -2,21 +2,33 @@ mod api;
 mod kafka;
 mod model;
 mod sql;
-
+use crate::api::route::AppState;
 use anyhow::Context;
+use api::route::create_router;
 use kafka::consumer::ScouterConsumer;
 use sql::postgres::PostgresClient;
+use std::io;
 use std::sync::Arc;
 use tracing::info;
 use tracing_subscriber;
+use tracing_subscriber::fmt::time::UtcTime;
 
-use crate::api::route::AppState;
-use api::route::create_router;
+const DEFAULT_TIME_PATTERN: &str =
+    "[year]-[month]-[day]T[hour repr:24]:[minute]:[second]::[subsecond digits:4]";
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     // install global collector configured based on RUST_LOG env var.
-    tracing_subscriber::fmt::init();
+    let time_format = time::format_description::parse(DEFAULT_TIME_PATTERN).unwrap();
+
+    tracing_subscriber::fmt()
+        .json()
+        .with_target(false)
+        .flatten_event(true)
+        .with_thread_ids(true)
+        .with_timer(UtcTime::new(time_format))
+        .with_writer(io::stdout)
+        .init();
 
     // for app state
     let db_client = PostgresClient::new(None)

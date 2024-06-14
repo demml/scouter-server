@@ -1,7 +1,8 @@
 use crate::api::schema::ServiceDriftRequest;
 use crate::sql::postgres::TimeInterval;
+use crate::sql::schema::DriftRecord;
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Query, State},
     http::StatusCode,
     response::IntoResponse,
     Json,
@@ -53,6 +54,31 @@ pub async fn get_drift(
         }
         Err(e) => {
             error!("Failed to query drift records: {:?}", e);
+            let json_response = json!({
+                "status": "error",
+                "message": format!("{:?}", e)
+            });
+            return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)));
+        }
+    }
+}
+
+pub async fn insert_drift(
+    State(data): State<Arc<AppState>>,
+    Json(body): Json<DriftRecord>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    let query_result = &data.db.insert_drift_record(body).await;
+
+    match query_result {
+        Ok(_) => {
+            let json_response = json!({
+                "status": "success",
+                "message": "Record inserted successfully"
+            });
+            return Ok(Json(json_response));
+        }
+        Err(e) => {
+            error!("Failed to insert drift record: {:?}", e);
             let json_response = json!({
                 "status": "error",
                 "message": format!("{:?}", e)

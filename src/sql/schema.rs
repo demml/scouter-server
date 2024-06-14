@@ -9,13 +9,13 @@ pub struct DriftRecord {
     pub version: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FeatureResult {
     pub created_at: Vec<chrono::NaiveDateTime>,
     pub values: Vec<f64>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QueryResult {
     pub features: BTreeMap<String, FeatureResult>,
 }

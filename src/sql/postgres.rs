@@ -2,7 +2,7 @@ use crate::sql::query::{GetBinnedFeatureValuesParams, GetFeaturesParams, InsertP
 use crate::sql::schema::{DriftRecord, FeatureResult, QueryResult};
 use anyhow::*;
 use futures::future::join_all;
-use sqlx::{database, Row};
+use sqlx::Row;
 use sqlx::{
     postgres::{PgPoolOptions, PgQueryResult, PgRow},
     Pool, Postgres,
@@ -243,6 +243,11 @@ impl PostgresClient {
         for data in query_results {
             match data {
                 Ok(data) => {
+                    //check if data is empty
+                    if data.is_empty() {
+                        continue;
+                    }
+
                     let feature_name = data[0].get("feature");
                     let mut created_at = Vec::new();
                     let mut values = Vec::new();

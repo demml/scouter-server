@@ -1,21 +1,23 @@
-use kafka::producer::Record;
+use scouter_server::api;
 use scouter_server::api::route::{create_router, AppState};
 use scouter_server::sql::schema::{DriftRecord, QueryResult};
 mod common;
 use axum::{
-    body::{self, Body},
-    extract::connect_info::MockConnectInfo,
+    body::Body,
     http::{self, Request, StatusCode},
 };
 use http_body_util::BodyExt;
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::sync::Arc;
 use tokio;
-use tower::{Service, ServiceExt}; // for `call`, `oneshot`, and `ready`
+use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
 
 #[tokio::test]
 async fn test_api_read() {
     let db_client = common::setup_for_api().await.unwrap();
+
+    // test setting up kafka consumer
+    api::setup::setup_kafka_consumer(db_client.clone());
 
     let app = create_router(Arc::new(AppState {
         db: db_client.clone(),

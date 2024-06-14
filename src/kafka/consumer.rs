@@ -78,7 +78,6 @@ impl ScouterConsumer {
         db_client: &PostgresClient,
     ) -> Result<(), anyhow::Error> {
         if messages.is_empty() {
-            info!("No messages to insert");
             return Ok(());
         }
 

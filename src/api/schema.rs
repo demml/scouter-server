@@ -11,6 +11,8 @@ pub struct ServiceDriftRequest {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DriftRecord {
+    pub created_at: chrono::NaiveDateTime,
+    pub created_at_date: chrono::NaiveDateTime,
     pub service_name: String,
     pub feature: String,
     pub value: f64,

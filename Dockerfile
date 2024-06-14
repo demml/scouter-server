@@ -24,5 +24,3 @@ RUN apt install -y libcurl4-openssl-dev liblz4-dev libzstd-dev autoconf
 FROM postgres:16.3-bookworm
 COPY --from=builder /usr/share/postgresql/16/extension /usr/share/postgresql/16/extension
 COPY --from=builder /usr/lib/postgresql/16/lib /usr/lib/postgresql/16/lib
-
-COPY db/init.sql /docker-entrypoint-initdb.d

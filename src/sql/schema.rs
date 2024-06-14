@@ -3,6 +3,8 @@ use std::collections::BTreeMap;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DriftRecord {
+    pub created_at: Option<chrono::NaiveDateTime>,
+    pub created_at_date: Option<chrono::NaiveDateTime>,
     pub service_name: String,
     pub feature: String,
     pub value: f64,

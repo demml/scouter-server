@@ -7,26 +7,42 @@ const GET_FEATURES: &'static str = include_str!("scripts/unique_features.sql");
 const GET_BINNED_FEATURE_VALUES: &'static str = include_str!("scripts/binned_feature_values.sql");
 const GET_FEATURE_VALUES: &'static str = include_str!("scripts/feature_values.sql");
 
+enum ParamType {
+    Str(String),
+    Float(f64),
+    Date(chrono::NaiveDateTime),
+}
+
 pub trait ToMap {
-    fn to_map(&self) -> BTreeMap<String, String>;
+    fn to_map(&self) -> BTreeMap<String, ParamType>;
 }
 
 pub struct InsertParams {
     pub table: String,
     pub service_name: String,
     pub feature: String,
-    pub value: String,
+    pub value: f64,
     pub version: String,
+    pub created_at: chrono::NaiveDateTime,
+    pub created_at_date: chrono::NaiveDateTime,
 }
 
 impl ToMap for InsertParams {
-    fn to_map(&self) -> BTreeMap<String, String> {
-        let mut params = BTreeMap::new();
-        params.insert("table".to_string(), self.table.clone());
-        params.insert("service_name".to_string(), self.service_name.clone());
-        params.insert("feature".to_string(), self.feature.clone());
-        params.insert("value".to_string(), self.value.clone());
-        params.insert("version".to_string(), self.version.clone());
+    fn to_map(&self) -> BTreeMap<String, ParamType> {
+        let mut params: BTreeMap<String, ParamType> = BTreeMap::new();
+        params.insert("table".to_string(), ParamType::Str(self.table.clone()));
+        params.insert(
+            "service_name".to_string(),
+            ParamType::Str(self.service_name.clone()),
+        );
+        params.insert("feature".to_string(), ParamType::Str(self.feature.clone()));
+        params.insert("value".to_string(), ParamType::Float(self.value.clone()));
+        params.insert("version".to_string(), ParamType::Str(self.version.clone()));
+        params.insert("created_at".to_string(), ParamType::Date(self.created_at));
+        params.insert(
+            "created_at_date".to_string(),
+            ParamType::Date(self.created_at_date),
+        );
 
         params
     }
@@ -39,11 +55,14 @@ pub struct GetFeaturesParams {
 }
 
 impl ToMap for GetFeaturesParams {
-    fn to_map(&self) -> BTreeMap<String, String> {
-        let mut params = BTreeMap::new();
-        params.insert("table".to_string(), self.table.clone());
-        params.insert("service_name".to_string(), self.service_name.clone());
-        params.insert("version".to_string(), self.version.clone());
+    fn to_map(&self) -> BTreeMap<String, ParamType> {
+        let mut params: BTreeMap<String, ParamType> = BTreeMap::new();
+        params.insert("table".to_string(), ParamType::Str(self.table.clone()));
+        params.insert(
+            "service_name".to_string(),
+            ParamType::Str(self.service_name.clone()),
+        );
+        params.insert("version".to_string(), ParamType::Str(self.version.clone()));
 
         params
     }
@@ -59,14 +78,20 @@ pub struct GetBinnedFeatureValuesParams {
 }
 
 impl ToMap for GetBinnedFeatureValuesParams {
-    fn to_map(&self) -> BTreeMap<String, String> {
-        let mut params = BTreeMap::new();
-        params.insert("table".to_string(), self.table.clone());
-        params.insert("service_name".to_string(), self.service_name.clone());
-        params.insert("feature".to_string(), self.feature.clone());
-        params.insert("version".to_string(), self.version.clone());
-        params.insert("time_window".to_string(), self.time_window.clone());
-        params.insert("bin".to_string(), self.bin.clone());
+    fn to_map(&self) -> BTreeMap<String, ParamType> {
+        let mut params: BTreeMap<String, ParamType> = BTreeMap::new();
+        params.insert("table".to_string(), ParamType::Str(self.table.clone()));
+        params.insert(
+            "service_name".to_string(),
+            ParamType::Str(self.service_name.clone()),
+        );
+        params.insert("feature".to_string(), ParamType::Str(self.feature.clone()));
+        params.insert("version".to_string(), ParamType::Str(self.version.clone()));
+        params.insert(
+            "time_window".to_string(),
+            ParamType::Str(self.time_window.clone()),
+        );
+        params.insert("bin".to_string(), ParamType::Str(self.bin.clone()));
 
         params
     }
@@ -81,13 +106,19 @@ pub struct GetFeatureValuesParams {
 }
 
 impl ToMap for GetFeatureValuesParams {
-    fn to_map(&self) -> BTreeMap<String, String> {
-        let mut params = BTreeMap::new();
-        params.insert("table".to_string(), self.table.clone());
-        params.insert("service_name".to_string(), self.service_name.clone());
-        params.insert("feature".to_string(), self.feature.clone());
-        params.insert("version".to_string(), self.version.clone());
-        params.insert("time_window".to_string(), self.time_window.clone());
+    fn to_map(&self) -> BTreeMap<String, ParamType> {
+        let mut params: BTreeMap<String, ParamType> = BTreeMap::new();
+        params.insert("table".to_string(), ParamType::Str(self.table.clone()));
+        params.insert(
+            "service_name".to_string(),
+            ParamType::Str(self.service_name.clone()),
+        );
+        params.insert("feature".to_string(), ParamType::Str(self.feature.clone()));
+        params.insert("version".to_string(), ParamType::Str(self.version.clone()));
+        params.insert(
+            "time_window".to_string(),
+            ParamType::Str(self.time_window.clone()),
+        );
 
         params
     }
@@ -131,7 +162,7 @@ impl SqlQuery {
         let params = params.to_map();
 
         for (key, value) in params {
-            formatted_sql = formatted_sql.replace(&format!("${}", key), &value);
+            formatted_sql = formatted_sql.replace(&format!("${}", key), &value.to_string());
         }
 
         formatted_sql

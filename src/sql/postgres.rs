@@ -2,6 +2,7 @@ use crate::sql::query::{GetBinnedFeatureValuesParams, GetFeaturesParams, InsertP
 use crate::sql::schema::{DriftRecord, FeatureResult, QueryResult};
 use anyhow::*;
 use futures::future::join_all;
+use include_dir::{include_dir, Dir};
 use sqlx::Row;
 use sqlx::{
     postgres::{PgPoolOptions, PgQueryResult, PgRow},
@@ -11,6 +12,8 @@ use std::collections::BTreeMap;
 use std::result::Result::Ok;
 
 use tracing::{error, info};
+
+static MIGRATIONS: Dir = include_dir!("migrations");
 
 pub enum TimeInterval {
     FiveMinutes,
@@ -93,6 +96,12 @@ impl PostgresClient {
                 std::process::exit(1);
             }
         };
+
+        // run migrations
+        sqlx::migrate!()
+            .run(&pool)
+            .await
+            .with_context(|| "Failed to run migrations")?;
 
         Ok(Self {
             pool,

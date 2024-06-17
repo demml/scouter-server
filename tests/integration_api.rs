@@ -1,7 +1,7 @@
 use scouter_server::api;
 use scouter_server::api::route::{create_router, AppState};
 use scouter_server::api::schema::DriftRecordRequest;
-use scouter_server::sql::schema::{DriftRecord, QueryResult};
+use scouter_server::sql::schema::QueryResult;
 mod common;
 use axum::{
     body::Body,

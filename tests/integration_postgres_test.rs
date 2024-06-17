@@ -9,6 +9,7 @@ async fn test_postgres_client() {
 
     // test inserting record
     let record = DriftRecord {
+        created_at: Some(chrono::Utc::now().naive_utc()),
         service_name: "test_service".to_string(),
         feature: "test".to_string(),
         value: 1.0,
@@ -32,6 +33,7 @@ async fn test_postgres_client() {
     // iterate over the result and create DriftRecord
     for row in result {
         let record = DriftRecord {
+            created_at: row.get("created_at"),
             service_name: row.get("service_name"),
             feature: row.get("feature"),
             value: row.get("value"),

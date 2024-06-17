@@ -12,7 +12,6 @@ GRANT TEMPORARY ON DATABASE monitor to partman_user;
 
 CREATE TABLE scouter.drift (
   created_at timestamp not null default (timezone('utc', now())),
-  created_at_day date not null default (timezone('utc', now())::date),
   service_name varchar(256),
   feature varchar(256),
   value double precision,
@@ -21,7 +20,7 @@ CREATE TABLE scouter.drift (
 PARTITION BY RANGE (created_at);
 
 
-CREATE INDEX ON scouter.drift (service_name, version, created_at_day);
+CREATE INDEX ON scouter.drift (service_name, version, created_at);
 
 SELECT scouter.create_parent(
     'scouter.drift', 

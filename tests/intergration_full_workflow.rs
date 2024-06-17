@@ -16,6 +16,7 @@ async fn test_full_test() {
     feature_names.iter().for_each(|feature_name| {
         for i in 0..1000 {
             let record = DriftRecord {
+                created_at: Some(chrono::Utc::now().naive_utc()),
                 service_name: "test_app".to_string(),
                 feature: feature_name.to_string(),
                 value: i as f64,

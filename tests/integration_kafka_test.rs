@@ -23,6 +23,7 @@ async fn test_scouter_consumer() {
 
     for i in 0..10 {
         let record = DriftRecord {
+            created_at: Some(chrono::Utc::now().naive_utc()),
             service_name: "test_app".to_string(),
             feature: "test".to_string(),
             value: i as f64,

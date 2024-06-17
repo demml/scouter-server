@@ -17,7 +17,9 @@ async fn test_api_read() {
     let db_client = common::setup_for_api().await.unwrap();
 
     // test setting up kafka consumer
-    api::setup::setup_kafka_consumer(db_client.clone());
+    api::setup::setup_kafka_consumer(db_client.clone())
+        .await
+        .unwrap();
 
     let app = create_router(Arc::new(AppState {
         db: db_client.clone(),
@@ -47,6 +49,7 @@ async fn test_api_read() {
     }));
 
     let record = DriftRecord {
+        created_at: Some(chrono::Utc::now().naive_utc()),
         service_name: "test_app".to_string(),
         feature: "feature1".to_string(),
         value: 2.5,

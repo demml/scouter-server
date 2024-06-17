@@ -82,6 +82,7 @@ impl ScouterConsumer {
         }
 
         for ms in messages.iter() {
+            let mut batch_records = Vec::new();
             for m in ms.messages() {
                 // deserialize the message data to DriftRecord
                 let drift_record: DriftRecord = match serde_json::from_slice(m.value) {
@@ -92,16 +93,20 @@ impl ScouterConsumer {
                     }
                 };
 
-                let query_result = db_client.insert_drift_record(drift_record).await;
+                //append to vec
+                batch_records.push(drift_record);
+            }
 
-                match query_result {
-                    Ok(_) => (),
-                    Err(e) => {
-                        error!("Failed to insert record into database: {:?}", e);
-                        return Err(e.into());
-                    }
+            let query_result = db_client.insert_drift_records(batch_records).await;
+
+            match query_result {
+                Ok(_) => (),
+                Err(e) => {
+                    error!("Failed to insert record into database: {:?}", e);
+                    return Err(e.into());
                 }
             }
+
             match self.consumer.consume_messageset(ms) {
                 Ok(_) => (),
                 Err(e) => {

@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DriftRecord {
-    pub created_at: Option<NaiveDateTime>,
+    pub created_at: NaiveDateTime,
     pub service_name: String,
     pub feature: String,
     pub value: f64,

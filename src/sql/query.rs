@@ -5,8 +5,6 @@ use chrono::NaiveDateTime;
 //constants
 
 const INSERT_DRIFT_RECORD: &'static str = include_str!("scripts/insert_drift_record.sql");
-const INSERT_BATCH_DRIFT_RECORD: &'static str =
-    include_str!("scripts/insert_batch_drift_records.sql");
 const GET_FEATURES: &'static str = include_str!("scripts/unique_features.sql");
 const GET_BINNED_FEATURE_VALUES: &'static str = include_str!("scripts/binned_feature_values.sql");
 const GET_FEATURE_VALUES: &'static str = include_str!("scripts/feature_values.sql");
@@ -33,32 +31,6 @@ impl ToMap for InsertParams {
         params.insert("value".to_string(), self.value.clone());
         params.insert("version".to_string(), self.version.clone());
         params.insert("created_at".to_string(), self.created_at.to_string());
-
-        params
-    }
-}
-
-pub struct InsertBatchParams {
-    pub table: String,
-    pub service_name: Vec<String>,
-    pub feature: Vec<String>,
-    pub value: Vec<f64>,
-    pub version: Vec<String>,
-    pub created_at: Vec<NaiveDateTime>,
-}
-
-impl ToMap for InsertBatchParams {
-    fn to_map(&self) -> BTreeMap<String, String> {
-        let mut params = BTreeMap::new();
-        params.insert("table".to_string(), self.table.clone());
-        params.insert(
-            "service_name".to_string(),
-            format!("{:?}", self.service_name),
-        );
-        params.insert("feature".to_string(), format!("{:?}", self.feature));
-        params.insert("value".to_string(), format!("{:?}", self.value));
-        params.insert("version".to_string(), format!("{:?}", self.version));
-        params.insert("created_at".to_string(), format!("{:?}", self.created_at));
 
         params
     }
@@ -128,7 +100,6 @@ impl ToMap for GetFeatureValuesParams {
 pub enum Queries {
     GetFeatures,
     InsertDriftRecord,
-    InsertDriftRecords,
     GetBinnedFeatureValues,
     GetFeatureValues,
 }
@@ -139,7 +110,6 @@ impl Queries {
             // load sql file from scripts/insert.sql
             Queries::GetFeatures => SqlQuery::new(GET_FEATURES),
             Queries::InsertDriftRecord => SqlQuery::new(INSERT_DRIFT_RECORD),
-            Queries::InsertDriftRecords => SqlQuery::new(INSERT_BATCH_DRIFT_RECORD),
             Queries::GetBinnedFeatureValues => SqlQuery::new(GET_BINNED_FEATURE_VALUES),
             Queries::GetFeatureValues => SqlQuery::new(GET_FEATURE_VALUES),
         }

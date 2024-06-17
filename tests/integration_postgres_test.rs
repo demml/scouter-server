@@ -9,7 +9,7 @@ async fn test_postgres_client() {
 
     // test inserting record
     let record = DriftRecord {
-        created_at: Some(chrono::Utc::now().naive_utc()),
+        created_at: chrono::Utc::now().naive_utc(),
         service_name: "test_service".to_string(),
         feature: "test".to_string(),
         value: 1.0,

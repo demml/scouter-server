@@ -1,4 +1,4 @@
-use crate::api::schema::ServiceDriftRequest;
+use crate::api::schema::{DriftRecordRequest, ServiceDriftRequest};
 use crate::sql::postgres::TimeInterval;
 use crate::sql::schema::DriftRecord;
 use axum::{
@@ -65,9 +65,20 @@ pub async fn get_drift(
 
 pub async fn insert_drift(
     State(data): State<Arc<AppState>>,
-    Json(body): Json<DriftRecord>,
+    Json(body): Json<DriftRecordRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
-    let query_result = &data.db.insert_drift_record(body).await;
+    // set default if missing
+    let record = DriftRecord {
+        created_at: body
+            .created_at
+            .unwrap_or_else(|| chrono::Utc::now().naive_utc()),
+        service_name: body.service_name.clone(),
+        feature: body.feature.clone(),
+        value: body.value,
+        version: body.version.clone(),
+    };
+
+    let query_result = &data.db.insert_drift_record(record).await;
 
     match query_result {
         Ok(_) => {

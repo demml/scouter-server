@@ -1,15 +1,13 @@
-use crate::sql::query::{
-    GetBinnedFeatureValuesParams, GetFeaturesParams, InsertBatchParams, InsertParams, Queries,
-};
+use crate::sql::query::{GetBinnedFeatureValuesParams, GetFeaturesParams, InsertParams, Queries};
 use crate::sql::schema::{DriftRecord, FeatureResult, QueryResult};
 use anyhow::*;
 use futures::future::join_all;
 use include_dir::{include_dir, Dir};
-use sqlx::Row;
 use sqlx::{
     postgres::{PgPoolOptions, PgQueryResult, PgRow},
-    Pool, Postgres,
+    Execute, Pool, Postgres, QueryBuilder, Row,
 };
+
 use std::collections::BTreeMap;
 use std::result::Result::Ok;
 
@@ -124,13 +122,9 @@ impl PostgresClient {
     ) -> Result<PgQueryResult, anyhow::Error> {
         let query = Queries::InsertDriftRecord.get_query();
 
-        let created_at = record
-            .created_at
-            .unwrap_or_else(|| chrono::Utc::now().naive_utc());
-
         let params = InsertParams {
             table: self.qualified_table_name.to_string(),
-            created_at,
+            created_at: record.created_at,
             service_name: record.service_name,
             feature: record.feature,
             value: record.value.to_string(),
@@ -157,48 +151,27 @@ impl PostgresClient {
         &self,
         records: Vec<DriftRecord>,
     ) -> Result<PgQueryResult, anyhow::Error> {
-        let query = Queries::InsertDriftRecords.get_query();
+        let insert_statement = format!(
+            "INSERT INTO {} (created_at, service_name, feature, value, version)",
+            self.qualified_table_name
+        );
 
-        let created_at = records
-            .iter()
-            .map(|record| {
-                record
-                    .created_at
-                    .unwrap_or_else(|| chrono::Utc::now().naive_utc())
-            })
-            .collect::<Vec<chrono::NaiveDateTime>>();
-        let service_names = records
-            .iter()
-            .map(|record| record.service_name.clone())
-            .collect::<Vec<String>>();
-        let features = records
-            .iter()
-            .map(|record| record.feature.clone())
-            .collect::<Vec<String>>();
-        let values = records
-            .iter()
-            .map(|record| record.value)
-            .collect::<Vec<f64>>();
-        let versions = records
-            .iter()
-            .map(|record| record.version.clone())
-            .collect::<Vec<String>>();
+        let mut query_builder = QueryBuilder::new(insert_statement);
 
-        let params = InsertBatchParams {
-            table: self.qualified_table_name.to_string(),
-            created_at,
-            service_name: service_names,
-            feature: features,
-            value: values,
-            version: versions,
-        };
+        query_builder.push_values(records.iter(), |mut b, record| {
+            b.push_bind(record.created_at)
+                .push_bind(&record.service_name)
+                .push_bind(&record.feature)
+                .push_bind(record.value)
+                .push_bind(&record.version);
+        });
 
-        println!("{:?}", query.format(&params).as_str());
+        let query = query_builder.build();
 
-        let query_result: std::prelude::v1::Result<sqlx::postgres::PgQueryResult, sqlx::Error> =
-            sqlx::raw_sql(query.format(&params).as_str())
-                .execute(&self.pool)
-                .await;
+        // print query
+        println!("{}", query.sql().to_string());
+
+        let query_result = query.execute(&self.pool).await;
 
         match query_result {
             Ok(result) => Ok(result),

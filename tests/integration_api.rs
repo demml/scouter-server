@@ -1,5 +1,6 @@
 use scouter_server::api;
 use scouter_server::api::route::{create_router, AppState};
+use scouter_server::api::schema::DriftRecordRequest;
 use scouter_server::sql::schema::{DriftRecord, QueryResult};
 mod common;
 use axum::{
@@ -48,8 +49,8 @@ async fn test_api_read() {
         db: db_client.clone(),
     }));
 
-    let record = DriftRecord {
-        created_at: Some(chrono::Utc::now().naive_utc()),
+    let record = DriftRecordRequest {
+        created_at: None,
         service_name: "test_app".to_string(),
         feature: "feature1".to_string(),
         value: 2.5,

@@ -1,14 +1,153 @@
 use crate::sql::postgres::PostgresClient;
 use crate::sql::schema::DriftRecord;
 use anyhow::*;
-use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage, MessageSets};
+use rdkafka::config::{ClientConfig, RDKafkaLogLevel};
+use rdkafka::consumer::Consumer;
+
+use rdkafka::consumer::stream_consumer::StreamConsumer;
+use rdkafka::consumer::CommitMode;
+use rdkafka::message::BorrowedMessage;
+use rdkafka::Message;
+use sqlx::any;
+use sqlx::postgres::{PgPoolOptions, PgQueryResult};
+
 use std::result::Result::Ok;
-use tracing::{error, info};
+use tracing::error;
 
 // Get table name constant
 
+struct MockInserter;
+
+impl MockInserter {
+    fn insert_drift_record(&self, record: &DriftRecord) -> Result<()> {
+        println!("Mock insert drift record: {:?}", record);
+        Ok(())
+    }
+}
+
+pub enum MessageHandler {
+    Postgres(PostgresClient),
+    Mock(MockInserter),
+}
+
+impl MessageHandler {
+    pub async fn insert_drift_record(&self, record: &DriftRecord) -> Result<()> {
+        match self {
+            Self::Postgres(client) => {
+                let result = client.insert_drift_record(record).await;
+                match result {
+                    Ok(_) => (),
+                    Err(e) => {
+                        error!("Failed to insert drift record: {:?}", e);
+                        ()
+                    }
+                }
+            }
+            Self::Mock(mock) => {
+                let result = mock.insert_drift_record(record);
+                match result {
+                    Ok(_) => (),
+                    Err(e) => {
+                        error!("Failed to insert drift record: {:?}", e);
+                        ()
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
+struct ConsumerConfig {
+    pub brokers: String,
+    pub topics: Vec<String>,
+    pub group: String,
+    pub username: Option<String>,
+    pub password: Option<String>,
+    pub security_protocol: Option<String>,
+    pub sasl_mechanism: Option<String>,
+}
+
+impl ConsumerConfig {
+    pub fn new() -> Self {
+        let brokers =
+            std::env::var("KAFKA_BROKERS").unwrap_or_else(|_| "localhost:9092".to_string());
+        let topics = std::env::var("KAFKA_TOPICS")
+            .unwrap_or_else(|_| "scouter_monitoring".to_string())
+            .split(",")
+            .map(|topic| topic.to_string())
+            .collect::<Vec<String>>();
+        let group = std::env::var("KAFKA_GROUP").unwrap_or_else(|_| "scouter".to_string());
+        let partitions: Option<Vec<i32>> =
+            std::env::var("KAFKA_PARTITIONS").ok().map(|partitions| {
+                partitions
+                    .split(",")
+                    .map(|partition| partition.parse::<i32>().unwrap())
+                    .collect::<Vec<i32>>()
+                    .try_into()
+                    .unwrap()
+            });
+        let mut username = std::env::var("KAFKA_USERNAME").ok();
+
+        let mut password = None;
+        let mut security_protocol = None;
+        let mut sasl_mechanism = None;
+
+        if username.is_some() {
+            password = Some(
+                std::env::var("KAFKA_PASSWORD")
+                    .with_context(|| "KAFKA_PASSWORD must be set")
+                    .unwrap(),
+            );
+            security_protocol = Some(
+                std::env::var("KAFKA_SECURITY_PROTOCOL").unwrap_or_else(|_| "SASL_SSL".to_string()),
+            );
+            sasl_mechanism =
+                Some(std::env::var("KAFKA_SASL_MECHANISM").unwrap_or_else(|_| "PLAIN".to_string()));
+        }
+
+        Self {
+            brokers,
+            topics,
+            group,
+            username,
+            password,
+            security_protocol,
+            sasl_mechanism,
+        }
+    }
+
+    fn to_kafka_config(&self) -> ClientConfig {
+        let mut config = ClientConfig::new();
+        config.set("bootstrap.servers", &self.brokers);
+        config.set("group.id", &self.group);
+        config.set("enable.auto.commit", "false");
+        config.set("enable.partition.eof", "false");
+
+        if let Some(username) = &self.username {
+            config.set("sasl.username", username);
+        }
+
+        if let Some(password) = &self.password {
+            config.set("sasl.password", password);
+        }
+
+        if let Some(security_protocol) = &self.security_protocol {
+            config.set("security.protocol", security_protocol);
+        }
+
+        if let Some(sasl_mechanism) = &self.sasl_mechanism {
+            config.set("sasl.mechanisms", sasl_mechanism);
+        }
+
+        config
+    }
+}
+
 pub struct ScouterConsumer {
-    pub consumer: Consumer,
+    pub consumer: StreamConsumer,
+    pub message_handler: MessageHandler,
 }
 
 impl ScouterConsumer {
@@ -23,140 +162,165 @@ impl ScouterConsumer {
     // # Returns
     //
     // A Result containing the ScouterConsumer instance or an Error
-    pub fn new() -> Result<Self, Error> {
-        let brokers = std::env::var("KAFKA_BROKER").with_context(|| "KAFKA_BROKER must be set")?;
-        let brokers = brokers
-            .split(",")
-            .map(|broker| broker.to_string())
-            .collect::<Vec<String>>();
+    pub async fn new(message_handler: MessageHandler) -> Result<Self, Error> {
+        let consumer_config = ConsumerConfig::new();
+        let mut config = consumer_config.to_kafka_config();
 
-        let kafka_topic =
-            std::env::var("KAFKA_TOPIC").unwrap_or_else(|_| "scouter_monitoring".to_string());
-        let kafka_group = std::env::var("KAFKA_GROUP").unwrap_or_else(|_| "scouter".to_string());
-        let kafka_partitions: Option<Vec<i32>> =
-            std::env::var("KAFKA_PARTITIONS").ok().map(|partitions| {
-                partitions
-                    .split(",")
-                    .map(|partition| partition.parse::<i32>().unwrap())
-                    .collect::<Vec<i32>>()
-                    .try_into()
-                    .unwrap()
-            });
-
-        let consumer = Consumer::from_hosts(brokers);
-
-        let consumer = match kafka_partitions {
-            Some(partitions) => consumer.with_topic_partitions(kafka_topic, &partitions),
-            None => consumer.with_topic(kafka_topic),
-        };
-
-        let consumer = consumer
-            .with_group(kafka_group)
-            .with_fallback_offset(FetchOffset::Earliest)
-            .with_offset_storage(Some(GroupOffsetStorage::Kafka))
+        config.set_log_level(RDKafkaLogLevel::Info);
+        let consumer: StreamConsumer = config
             .create()
-            .context("Failed to create Kafka consumer")?;
+            .with_context(|| "Failed to create Kafka consumer")?;
 
-        Ok(Self { consumer })
+        let topics = consumer_config
+            .topics
+            .iter()
+            .map(|s| s.as_str())
+            .collect::<Vec<&str>>();
+
+        consumer
+            .subscribe(&topics)
+            .with_context(|| "Failed to subscribe to Kafka topics")?;
+
+        Ok(Self {
+            consumer,
+            message_handler,
+        })
     }
 
-    pub async fn get_messages(&mut self) -> Result<MessageSets, anyhow::Error> {
-        let consumer_poll = match self.consumer.poll() {
-            Ok(consumer_poll) => consumer_poll,
+    pub async fn poll_message(&mut self) -> Result<()> {
+        let consumed = match self.consumer.recv().await {
             Err(e) => {
                 error!("Failed to poll consumer: {:?}", e);
-                return Err(e.into());
+                ()
             }
-        };
-
-        Ok(consumer_poll)
-    }
-
-    pub async fn insert_messages(
-        &mut self,
-        messages: MessageSets,
-        db_client: &PostgresClient,
-    ) -> Result<(), anyhow::Error> {
-        if messages.is_empty() {
-            return Ok(());
-        }
-
-        for ms in messages.iter() {
-            let mut batch_records = Vec::new();
-            for m in ms.messages() {
-                // deserialize the message data to DriftRecord
-                let drift_record: DriftRecord = match serde_json::from_slice(m.value) {
-                    Ok(record) => record,
-                    Err(e) => {
-                        error!("Failed to deserialize message: {:?}", e);
-                        return Err(e.into());
+            Ok(message) => {
+                // map to DriftRecord
+                let record: Option<DriftRecord> = if message.payload().is_none() {
+                    None
+                } else {
+                    match message.payload_view::<str>() {
+                        Some(Ok(payload)) => match serde_json::from_str(payload) {
+                            Ok(record) => Some(record),
+                            Err(e) => {
+                                error!("Failed to deserialize message: {:?}", e);
+                                None
+                            }
+                        },
+                        Some(Err(e)) => {
+                            error!("Failed to get payload view: {:?}", e);
+                            None
+                        }
+                        None => None,
                     }
                 };
 
-                //append to vec
-                batch_records.push(drift_record);
-            }
-
-            let query_result = db_client.insert_drift_records(batch_records).await;
-
-            match query_result {
-                Ok(_) => (),
-                Err(e) => {
-                    error!("Failed to insert record into database: {:?}", e);
-                    return Err(e.into());
+                if record.is_some() {
+                    self.message_handler
+                        .insert_drift_record(&record.unwrap())
+                        .await?;
                 }
-            }
 
-            match self.consumer.consume_messageset(ms) {
-                Ok(_) => (),
-                Err(e) => {
-                    error!("Failed to consume messageset: {:?}", e);
-                    return Err(e.into());
-                }
+                self.consumer.commit_message(&message, CommitMode::Async)?;
             }
-        }
-        match self.consumer.commit_consumed() {
-            Ok(_) => (),
-            Err(e) => {
-                error!("Failed to commit consumed messages: {:?}", e);
-                return Err(e.into());
-            }
-        }
+        };
 
-        Ok(())
+        Ok(consumed)
     }
 
-    pub async fn poll_current(&mut self, db_client: &PostgresClient) -> Result<(), anyhow::Error> {
-        // get messages
-        let messages = self
-            .get_messages()
-            .await
-            .with_context(|| "Failed to get messages")?;
-
-        // insert messages
-        self.insert_messages(messages, db_client)
-            .await
-            .with_context(|| "Failed to insert messages")?;
-        Ok(())
-    }
-
-    // Runs indefinite loop that consumes messages from Kafka and inserts them into the database
-    //
-    // # Arguments
-    //
-    // * `pool` - A connection pool to the Postgres database
-    //
-    pub async fn poll_loop(&mut self, db_client: &PostgresClient) -> () {
-        info!("Starting poll loop");
-
+    pub async fn poll_messages(&mut self) {
         loop {
-            match self.poll_current(db_client).await {
-                Ok(_) => (),
-                Err(e) => {
-                    error!("Failed to poll current: {:?}", e);
-                    continue;
-                }
-            }
+            self.poll_message().await.unwrap();
         }
+    }
+}
+
+// test kafka
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rdkafka::mocking::*;
+    use rdkafka::producer::{FutureProducer, FutureRecord};
+    use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+    #[tokio::test]
+    async fn test_consumer_config() {
+        let config = ConsumerConfig::new();
+        assert_eq!(config.brokers, "localhost:9092");
+        assert_eq!(config.topics, vec!["scouter_monitoring"]);
+        assert_eq!(config.group, "scouter");
+    }
+
+    #[tokio::test]
+    async fn test_consumer_config_with_auth() {
+        std::env::set_var("KAFKA_USERNAME", "user");
+        std::env::set_var("KAFKA_PASSWORD", "password");
+        std::env::set_var("KAFKA_SECURITY_PROTOCOL", "SASL_SSL");
+        std::env::set_var("KAFKA_SASL_MECHANISM", "PLAIN");
+
+        let config = ConsumerConfig::new();
+        assert_eq!(config.brokers, "localhost:9092");
+        assert_eq!(config.topics, vec!["scouter_monitoring"]);
+        assert_eq!(config.group, "scouter");
+        assert_eq!(config.username, Some("user".to_string()));
+        assert_eq!(config.password, Some("password".to_string()));
+        assert_eq!(config.security_protocol, Some("SASL_SSL".to_string()));
+        assert_eq!(config.sasl_mechanism, Some("PLAIN".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_consumer_config_with_partitions() {
+        std::env::set_var("KAFKA_PARTITIONS", "0,1,2");
+
+        let config = ConsumerConfig::new();
+        assert_eq!(config.brokers, "localhost:9092");
+        assert_eq!(config.topics, vec!["scouter_monitoring"]);
+        assert_eq!(config.group, "scouter");
+        assert_eq!(config.username, None);
+        assert_eq!(config.password, None);
+        assert_eq!(config.security_protocol, None);
+        assert_eq!(config.sasl_mechanism, None);
+    }
+
+    #[tokio::test]
+    async fn test_kafka_consumer() {
+        let cluster = MockCluster::new(1).unwrap();
+        let topic = "scouter_monitoring";
+        cluster.create_topic(topic, 1, 1).unwrap();
+
+        let message =
+            r#"{"name": "test", "version": "1.0.0", "max_data_points": 100, "time_window": "1h"}"#;
+
+        let producer: FutureProducer = ClientConfig::new()
+            .set("bootstrap.servers", cluster.bootstrap_servers())
+            .create()
+            .expect("Producer creation error");
+
+        let consumer: StreamConsumer = ClientConfig::new()
+            .set("bootstrap.servers", cluster.bootstrap_servers())
+            .set("group.id", "rust-rdkafka-mock-example")
+            .create()
+            .expect("Consumer creation failed");
+        consumer.subscribe(&[topic]).unwrap();
+
+        tokio::spawn(async move {
+            let mut i = 0_usize;
+            loop {
+                producer
+                    .send_result(FutureRecord::to(topic).key(&i.to_string()).payload("dummy"))
+                    .unwrap()
+                    .await
+                    .unwrap()
+                    .unwrap();
+                i += 1;
+            }
+        });
+
+        let start = Instant::now();
+        println!("Warming up for 10s...");
+
+        let message = consumer.recv().await.unwrap();
+
+        println!("Received message: {:?}", message);
     }
 }

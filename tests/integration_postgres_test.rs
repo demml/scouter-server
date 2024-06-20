@@ -10,7 +10,8 @@ async fn test_postgres_client() {
     // test inserting record
     let record = DriftRecord {
         created_at: chrono::Utc::now().naive_utc(),
-        service_name: "test_service".to_string(),
+        name: "test_service".to_string(),
+        repository: "test".to_string(),
         feature: "test".to_string(),
         value: 1.0,
         version: "1.0.0".to_string(),
@@ -23,7 +24,7 @@ async fn test_postgres_client() {
             r#"
                     SELECT * 
                     FROM scouter.drift  
-                    WHERE service_name = 'test_service'
+                    WHERE name = 'test_service'
                     LIMIT 1
                     "#,
         )
@@ -34,13 +35,15 @@ async fn test_postgres_client() {
     for row in result {
         let record = DriftRecord {
             created_at: row.get("created_at"),
-            service_name: row.get("service_name"),
+            name: row.get("name"),
+            repository: row.get("repository"),
             feature: row.get("feature"),
             value: row.get("value"),
             version: row.get("version"),
         };
 
-        assert_eq!(record.service_name, "test_service");
+        assert_eq!(record.name, "test_service");
+        assert_eq!(record.repository, "test");
         assert_eq!(record.feature, "test");
         assert_eq!(record.value, 1.0);
         assert_eq!(record.version, "1.0.0");

@@ -12,7 +12,8 @@ GRANT TEMPORARY ON DATABASE monitor to partman_user;
 
 CREATE TABLE scouter.drift (
   created_at timestamp not null default (timezone('utc', now())),
-  service_name varchar(256),
+  name varchar(256),
+  repository varchar(256),
   feature varchar(256),
   value double precision,
   version varchar(256)
@@ -20,7 +21,7 @@ CREATE TABLE scouter.drift (
 PARTITION BY RANGE (created_at);
 
 
-CREATE INDEX ON scouter.drift (service_name, version, created_at);
+CREATE INDEX ON scouter.drift (name, repository, version, created_at);
 
 SELECT scouter.create_parent(
     'scouter.drift', 
@@ -33,9 +34,10 @@ UPDATE scouter.part_config SET retention = '1 days' WHERE parent_table = 'scoute
 -- Create table for service drift configuration
 CREATE TABLE scouter.drift_config (
  created_at timestamp not null default (timezone('utc', now())),
-  service_name varchar(256),
+  name varchar(256),
+  repository varchar(256),
   version varchar(256),
   config jsonb,
   active boolean default true,
-  PRIMARY KEY (service_name, version)
+  PRIMARY KEY (name, repository, version)
 );

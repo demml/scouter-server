@@ -3,6 +3,7 @@ use crate::sql::schema::{DriftRecord, FeatureResult, QueryResult};
 use anyhow::*;
 use futures::future::join_all;
 use include_dir::{include_dir, Dir};
+use sqlx::sqlite::SqlitePool;
 use sqlx::{
     postgres::{PgPoolOptions, PgQueryResult, PgRow},
     Execute, Pool, Postgres, QueryBuilder, Row,
@@ -118,18 +119,18 @@ impl PostgresClient {
     //
     pub async fn insert_drift_record(
         &self,
-        record: DriftRecord,
+        record: &DriftRecord,
     ) -> Result<PgQueryResult, anyhow::Error> {
         let query = Queries::InsertDriftRecord.get_query();
 
         let params = InsertParams {
             table: self.qualified_table_name.to_string(),
             created_at: record.created_at,
-            name: record.name,
-            repository: record.repository,
-            feature: record.feature,
+            name: record.name.clone(),
+            repository: record.repository.clone(),
+            feature: record.feature.clone(),
             value: record.value.to_string(),
-            version: record.version,
+            version: record.version.clone(),
         };
 
         let query_result: std::prelude::v1::Result<sqlx::postgres::PgQueryResult, sqlx::Error> =
@@ -185,14 +186,16 @@ impl PostgresClient {
     // Private method that'll be used to run drift retrieval in parallel
     async fn get_service_features(
         &self,
-        service_name: &str,
+        name: &str,
+        repository: &str,
         version: &str,
     ) -> Result<Vec<String>, anyhow::Error> {
         let query = Queries::GetFeatures.get_query();
 
         let params = GetFeaturesParams {
             table: self.qualified_table_name.to_string(),
-            service_name: service_name.to_string(),
+            name: name.to_string(),
+            repository: repository.to_string(),
             version: version.to_string(),
         };
 
@@ -215,13 +218,15 @@ impl PostgresClient {
         feature: String,
         version: &str,
         time_window: &i32,
-        service_name: &str,
+        name: &str,
+        repository: &str,
     ) -> Result<Vec<PgRow>, anyhow::Error> {
         let query = Queries::GetBinnedFeatureValues.get_query();
 
         let params = GetBinnedFeatureValuesParams {
             table: self.qualified_table_name.to_string(),
-            service_name: service_name.to_string(),
+            name: name.to_string(),
+            repository: repository.to_string(),
             feature,
             version: version.to_string(),
             time_window: time_window.to_string(),
@@ -255,13 +260,14 @@ impl PostgresClient {
     // * A vector of drift records
     pub async fn read_drift_records(
         &self,
-        service_name: &str,
+        name: &str,
+        repository: &str,
         version: &str,
         max_data_points: &i32,
         time_window: &i32,
     ) -> Result<QueryResult, anyhow::Error> {
         // get features
-        let features = self.get_service_features(service_name, version).await?;
+        let features = self.get_service_features(name, repository, version).await?;
 
         let bin = *time_window as f64 / *max_data_points as f64;
 
@@ -273,7 +279,8 @@ impl PostgresClient {
                     feature.to_string(),
                     version,
                     time_window,
-                    service_name,
+                    name,
+                    repository,
                 )
             })
             .collect::<Vec<_>>();

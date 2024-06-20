@@ -1,2 +1,2 @@
-INSERT INTO $table (created_at, service_name, feature, value, version) 
-VALUES ('$created_at', '$service_name', '$feature', '$value', '$version');
+INSERT INTO $table (created_at, name, repository, version, feature, value) 
+VALUES ('$created_at', '$name', '$repository', '$version', '$feature', '$value');

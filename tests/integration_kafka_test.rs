@@ -13,7 +13,7 @@ async fn test_scouter_consumer() {
             r#"
         SELECT * 
         FROM scouter.drift  
-        WHERE service_name = 'test_app'
+        WHERE name = 'test_app'
         "#,
         )
         .await
@@ -24,7 +24,8 @@ async fn test_scouter_consumer() {
     for i in 0..10 {
         let record = DriftRecord {
             created_at: chrono::Utc::now().naive_utc(),
-            service_name: "test_app".to_string(),
+            name: "test_app".to_string(),
+            repository: "test".to_string(),
             feature: "test".to_string(),
             value: i as f64,
             version: "1.0.0".to_string(),
@@ -45,7 +46,7 @@ async fn test_scouter_consumer() {
             r#"
         SELECT * 
         FROM scouter.drift  
-        WHERE service_name = 'test_app'
+        WHERE name = 'test_app'
         "#,
         )
         .await

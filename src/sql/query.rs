@@ -40,7 +40,8 @@ impl ToMap for InsertParams {
 
 pub struct GetFeaturesParams {
     pub table: String,
-    pub service_name: String,
+    pub name: String,
+    pub repository: String,
     pub version: String,
 }
 
@@ -48,7 +49,8 @@ impl ToMap for GetFeaturesParams {
     fn to_map(&self) -> BTreeMap<String, String> {
         let mut params = BTreeMap::new();
         params.insert("table".to_string(), self.table.clone());
-        params.insert("service_name".to_string(), self.service_name.clone());
+        params.insert("name".to_string(), self.name.clone());
+        params.insert("repository".to_string(), self.repository.clone());
         params.insert("version".to_string(), self.version.clone());
 
         params
@@ -57,7 +59,8 @@ impl ToMap for GetFeaturesParams {
 
 pub struct GetBinnedFeatureValuesParams {
     pub table: String,
-    pub service_name: String,
+    pub name: String,
+    pub repository: String,
     pub feature: String,
     pub version: String,
     pub time_window: String,
@@ -68,7 +71,8 @@ impl ToMap for GetBinnedFeatureValuesParams {
     fn to_map(&self) -> BTreeMap<String, String> {
         let mut params = BTreeMap::new();
         params.insert("table".to_string(), self.table.clone());
-        params.insert("service_name".to_string(), self.service_name.clone());
+        params.insert("name".to_string(), self.name.clone());
+        params.insert("repository".to_string(), self.repository.clone());
         params.insert("feature".to_string(), self.feature.clone());
         params.insert("version".to_string(), self.version.clone());
         params.insert("time_window".to_string(), self.time_window.clone());
@@ -80,7 +84,8 @@ impl ToMap for GetBinnedFeatureValuesParams {
 
 pub struct GetFeatureValuesParams {
     pub table: String,
-    pub service_name: String,
+    pub name: String,
+    pub repository: String,
     pub feature: String,
     pub version: String,
     pub time_window: String,
@@ -90,7 +95,8 @@ impl ToMap for GetFeatureValuesParams {
     fn to_map(&self) -> BTreeMap<String, String> {
         let mut params = BTreeMap::new();
         params.insert("table".to_string(), self.table.clone());
-        params.insert("service_name".to_string(), self.service_name.clone());
+        params.insert("name".to_string(), self.name.clone());
+        params.insert("repository".to_string(), self.repository.clone());
         params.insert("feature".to_string(), self.feature.clone());
         params.insert("version".to_string(), self.version.clone());
         params.insert("time_window".to_string(), self.time_window.clone());
@@ -168,7 +174,7 @@ mod tests {
 
         assert_eq!(
             formatted_sql,
-            "INSERT INTO features (service_name, feature, value, version) \nVALUES ('test', 'test', 'test', 'test');"
+            "INSERT INTO features (name, repository, version, feature, value) \nVALUES ('test', 'test', 'test', 'test', 'test');"
         );
     }
 
@@ -178,7 +184,8 @@ mod tests {
 
         let params = GetFeaturesParams {
             table: "schema.table".to_string(),
-            service_name: "test".to_string(),
+            name: "test".to_string(),
+            repository: "test".to_string(),
             version: "test".to_string(),
         };
 
@@ -190,7 +197,8 @@ mod tests {
 DISTINCT feature
 FROM schema.table
 WHERE
-   service_name = 'test'
+   name = 'test'
+   AND repository = 'test'
    AND version = 'test';"
         );
     }
@@ -201,7 +209,8 @@ WHERE
 
         let params = GetBinnedFeatureValuesParams {
             table: "schema.table".to_string(),
-            service_name: "test".to_string(),
+            name: "test".to_string(),
+            repository: "test".to_string(),
             feature: "test".to_string(),
             version: "test".to_string(),
             time_window: "10".to_string(),
@@ -215,7 +224,8 @@ WHERE
             "with subquery as (
     SELECT
     date_bin('1 minutes', created_at, TIMESTAMP '1970-01-01') as created_at,
-    service_name,
+    name,
+    repository,
     feature,
     version,
     value
@@ -223,20 +233,23 @@ WHERE
     WHERE 
         created_at > timezone('utc', now()) - interval '10' minute
         AND version = 'test'
-        AND service_name = 'test'
+        AND name = 'test'
+        AND repository = 'test'
         AND feature = 'test'
 )
 
 SELECT
 created_at,
-service_name,
+name,
+repository,
 feature,
 version,
 avg(value) as value
 FROM subquery
 GROUP BY 
     created_at,
-    service_name,
+    name,
+    repository,
     feature,
     version
 ORDER BY
@@ -250,7 +263,8 @@ ORDER BY
 
         let params = GetFeatureValuesParams {
             table: "schema.table".to_string(),
-            service_name: "test".to_string(),
+            name: "test".to_string(),
+            repository: "test".to_string(),
             feature: "test".to_string(),
             version: "test".to_string(),
             time_window: "10".to_string(),
@@ -269,7 +283,8 @@ FROM schema.table
 WHERE
     created_at > timezone('utc', now()) - interval '10' minute
     AND version = 'test'
-    AND service_name = 'test'
+    AND name = 'test'
+    AND repository = 'test'
     AND feature = 'test';"
         );
     }

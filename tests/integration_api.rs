@@ -28,7 +28,7 @@ async fn test_api_read() {
 
     let response = app.oneshot(
         Request::builder()
-            .uri("/drift?service_name=test_app&version=1.0.0&time_window=5minute&max_data_points=1000")
+            .uri("/drift?name=test_app&repository=test&version=1.0.0&time_window=5minute&max_data_points=1000")
             .method("GET")
             .body(Body::empty())
             .unwrap(),
@@ -51,7 +51,8 @@ async fn test_api_read() {
 
     let record = DriftRecordRequest {
         created_at: None,
-        service_name: "test_app".to_string(),
+        name: "test_app".to_string(),
+        repository: "test".to_string(),
         feature: "feature1".to_string(),
         value: 2.5,
         version: "2.0.0".to_string(),
@@ -80,7 +81,7 @@ async fn test_api_read() {
 
     let response = app.oneshot(
         Request::builder()
-            .uri("/drift?service_name=test_app&version=2.0.0&time_window=5minute&max_data_points=1000")
+            .uri("/drift?name=test_app&repository=test&version=2.0.0&time_window=5minute&max_data_points=1000")
             .method("GET")
             .body(Body::empty())
             .unwrap(),

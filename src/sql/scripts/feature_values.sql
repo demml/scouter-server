@@ -7,5 +7,6 @@ FROM $table
 WHERE
     created_at > timezone('utc', now()) - interval '$time_window' minute
     AND version = '$version'
-    AND service_name = '$service_name'
+    AND name = '$name'
+    AND repository = '$repository'
     AND feature = '$feature';

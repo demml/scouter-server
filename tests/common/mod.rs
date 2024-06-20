@@ -1,6 +1,5 @@
 use anyhow::Error;
 
-use kafka::producer::{Producer, Record, RequiredAcks};
 use scouter_server::kafka::consumer::ScouterConsumer;
 use scouter_server::sql::postgres::PostgresClient;
 use scouter_server::sql::schema::DriftRecord;
@@ -23,7 +22,7 @@ pub async fn setup_db() -> Result<PostgresClient, Error> {
         r#"
             DELETE 
             FROM scouter.drift  
-            WHERE service_name = 'test_app'
+            WHERE name = 'test_app'
             "#,
     )
     .fetch_all(&client.pool)
@@ -33,14 +32,12 @@ pub async fn setup_db() -> Result<PostgresClient, Error> {
     Ok(client)
 }
 
-pub async fn setup_kafka() -> Result<(ScouterConsumer, Producer), Error> {
+pub async fn setup_kafka_producer() -> Result<(ScouterConsumer, Producer), Error> {
     // set the kafka broker address
     env::set_var("KAFKA_BROKER", "localhost:9092");
 
     // set the kafka topic
     env::set_var("KAFKA_TOPIC", "scouter_monitoring");
-
-    let consumer = ScouterConsumer::new().unwrap();
 
     // producer for testing
     let producer = Producer::from_hosts(vec!["localhost:9092".to_owned()])
@@ -49,14 +46,21 @@ pub async fn setup_kafka() -> Result<(ScouterConsumer, Producer), Error> {
         .create()
         .unwrap();
 
-    Ok((consumer, producer))
+    Ok(producer)
 }
 
 pub async fn setup() -> Result<(PostgresClient, ScouterConsumer, Producer), Error> {
     // setup db and kafka
 
     let db_client = setup_db().await?;
-    let (consumer, producer) = setup_kafka().await?;
+    let producer = setup_kafka().await?;
+
+    // set the kafka broker address
+    env::set_var("KAFKA_BROKER", "localhost:9092");
+
+    // set the kafka topic
+    env::set_var("KAFKA_TOPIC", "scouter_monitoring");
+    let consumer = ScouterConsumer::new().unwrap();
 
     Ok((db_client, consumer, producer))
 }
@@ -74,7 +78,8 @@ pub async fn setup_for_api() -> Result<PostgresClient, Error> {
         for i in 0..1000 {
             let record = DriftRecord {
                 created_at: chrono::Utc::now().naive_utc(),
-                service_name: "test_app".to_string(),
+                name: "test_app".to_string(),
+                repository: "test".to_string(),
                 feature: feature_name.to_string(),
                 value: i as f64,
                 version: "1.0.0".to_string(),
@@ -106,7 +111,7 @@ pub async fn setup_for_api() -> Result<PostgresClient, Error> {
             r#"
         SELECT * 
         FROM scouter.drift  
-        WHERE service_name = 'test_app'
+        WHERE name = 'test_app'
         "#,
         )
         .await
@@ -125,7 +130,7 @@ pub async fn teardown(db_client: &PostgresClient) -> Result<(), Error> {
         r#"
             DELETE 
             FROM scouter.drift  
-            WHERE service_name = 'test_app'
+            WHERE name = 'test_app'
             "#,
     )
     .fetch_all(&db_client.pool)

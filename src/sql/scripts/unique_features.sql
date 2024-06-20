@@ -2,5 +2,6 @@ SELECT
 DISTINCT feature
 FROM $table
 WHERE
-   service_name = '$service_name'
+   name = '$name'
+   AND repository = '$repository'
    AND version = '$version';

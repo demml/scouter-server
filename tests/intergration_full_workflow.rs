@@ -17,7 +17,8 @@ async fn test_full_test() {
         for i in 0..1000 {
             let record = DriftRecord {
                 created_at: chrono::Utc::now().naive_utc(),
-                service_name: "test_app".to_string(),
+                name: "test_app".to_string(),
+                repository: "test".to_string(),
                 feature: feature_name.to_string(),
                 value: i as f64,
                 version: "1.0.0".to_string(),
@@ -51,7 +52,7 @@ async fn test_full_test() {
             r#"
         SELECT * 
         FROM scouter.drift  
-        WHERE service_name = 'test_app'
+        WHERE name = 'test_app'
         "#,
         )
         .await

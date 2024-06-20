@@ -1,4 +1,4 @@
-use crate::kafka::consumer::ScouterConsumer;
+use crate::kafka::consumer::{MessageHandler, ScouterConsumer};
 use crate::sql::postgres::PostgresClient;
 use anyhow::Context;
 use std::io;
@@ -29,10 +29,11 @@ pub async fn setup() -> Result<PostgresClient, anyhow::Error> {
 }
 
 pub async fn setup_kafka_consumer(db_client: PostgresClient) -> Result<(), anyhow::Error> {
-    let mut consumer = ScouterConsumer::new().with_context(|| "Failed to create Kafka consumer")?;
+    let message_handler = MessageHandler::Postgres(db_client.clone());
+    let mut consumer = ScouterConsumer::new(message_handler).await?;
     // spawn the consumer as a background task
     tokio::spawn(async move {
-        consumer.poll_loop(&db_client).await;
+        consumer.poll_messages().await;
     });
 
     Ok(())

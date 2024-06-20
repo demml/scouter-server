@@ -37,7 +37,8 @@ pub async fn get_drift(
     let query_result = &data
         .db
         .read_drift_records(
-            &params.service_name,
+            &params.name,
+            &params.repository,
             &params.version,
             &params.max_data_points,
             &time_interval,
@@ -72,13 +73,14 @@ pub async fn insert_drift(
         created_at: body
             .created_at
             .unwrap_or_else(|| chrono::Utc::now().naive_utc()),
-        service_name: body.service_name.clone(),
+        name: body.name.clone(),
+        repository: body.repository.clone(),
         feature: body.feature.clone(),
         value: body.value,
         version: body.version.clone(),
     };
 
-    let query_result = &data.db.insert_drift_record(record).await;
+    let query_result = &data.db.insert_drift_record(&record).await;
 
     match query_result {
         Ok(_) => {
@@ -98,5 +100,3 @@ pub async fn insert_drift(
         }
     }
 }
-
-pub async fn insert_monitor_profile

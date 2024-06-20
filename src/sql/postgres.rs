@@ -3,10 +3,9 @@ use crate::sql::schema::{DriftRecord, FeatureResult, QueryResult};
 use anyhow::*;
 use futures::future::join_all;
 use include_dir::{include_dir, Dir};
-use sqlx::sqlite::SqlitePool;
 use sqlx::{
     postgres::{PgPoolOptions, PgQueryResult, PgRow},
-    Execute, Pool, Postgres, QueryBuilder, Row,
+    Pool, Postgres, QueryBuilder, Row,
 };
 
 use std::collections::BTreeMap;

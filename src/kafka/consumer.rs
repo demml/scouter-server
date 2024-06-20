@@ -79,15 +79,7 @@ impl ConsumerConfig {
             .map(|topic| topic.to_string())
             .collect::<Vec<String>>();
         let group = std::env::var("KAFKA_GROUP").unwrap_or_else(|_| "scouter".to_string());
-        let partitions: Option<Vec<i32>> =
-            std::env::var("KAFKA_PARTITIONS").ok().map(|partitions| {
-                partitions
-                    .split(",")
-                    .map(|partition| partition.parse::<i32>().unwrap())
-                    .collect::<Vec<i32>>()
-                    .try_into()
-                    .unwrap()
-            });
+
         let mut username = std::env::var("KAFKA_USERNAME").ok();
 
         let mut password = None;
@@ -269,20 +261,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_consumer_config_with_partitions() {
-        std::env::set_var("KAFKA_PARTITIONS", "0,1,2");
-
-        let config = ConsumerConfig::new();
-        assert_eq!(config.brokers, "localhost:9092");
-        assert_eq!(config.topics, vec!["scouter_monitoring"]);
-        assert_eq!(config.group, "scouter");
-        assert_eq!(config.username, None);
-        assert_eq!(config.password, None);
-        assert_eq!(config.security_protocol, None);
-        assert_eq!(config.sasl_mechanism, None);
-    }
-
-    #[tokio::test]
     async fn test_kafka_consumer() {
         let cluster = MockCluster::new(1).unwrap();
         let topic = "scouter_monitoring";
@@ -303,11 +281,26 @@ mod tests {
             .expect("Consumer creation failed");
         consumer.subscribe(&[topic]).unwrap();
 
+        let record = DriftRecord {
+            created_at: chrono::Utc::now().naive_utc(),
+            name: "test".to_string(),
+            repository: "test".to_string(),
+            feature: "test".to_string(),
+            value: 0.0,
+            version: "1.0.0".to_string(),
+        };
+
+        let record_string = serde_json::to_string(&record).unwrap();
+
         tokio::spawn(async move {
             let mut i = 0_usize;
             loop {
                 producer
-                    .send_result(FutureRecord::to(topic).key(&i.to_string()).payload("dummy"))
+                    .send_result(
+                        FutureRecord::to(topic)
+                            .key(&i.to_string())
+                            .payload(&record_string),
+                    )
                     .unwrap()
                     .await
                     .unwrap()
@@ -318,9 +311,16 @@ mod tests {
 
         let start = Instant::now();
         println!("Warming up for 10s...");
+        // warm up for 10s
+        while start.elapsed() < Duration::from_secs(5) {
+            continue;
+        }
 
         let message = consumer.recv().await.unwrap();
+        // convert message to string
+        let message_str = message.payload_view::<str>().unwrap().unwrap();
 
         println!("Received message: {:?}", message);
+        assert_eq!(message_str, "hello");
     }
 }

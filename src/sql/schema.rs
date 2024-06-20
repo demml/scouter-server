@@ -5,10 +5,11 @@ use std::collections::BTreeMap;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DriftRecord {
     pub created_at: NaiveDateTime,
-    pub service_name: String,
+    pub name: String,
+    pub repository: String,
+    pub version: String,
     pub feature: String,
     pub value: f64,
-    pub version: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

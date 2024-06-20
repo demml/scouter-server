@@ -98,3 +98,5 @@ pub async fn insert_drift(
         }
     }
 }
+
+pub async fn insert_monitor_profile

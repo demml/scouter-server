@@ -15,10 +15,11 @@ pub trait ToMap {
 
 pub struct InsertParams {
     pub table: String,
-    pub service_name: String,
+    pub name: String,
+    pub repository: String,
+    pub version: String,
     pub feature: String,
     pub value: String,
-    pub version: String,
     pub created_at: NaiveDateTime,
 }
 
@@ -26,7 +27,8 @@ impl ToMap for InsertParams {
     fn to_map(&self) -> BTreeMap<String, String> {
         let mut params = BTreeMap::new();
         params.insert("table".to_string(), self.table.clone());
-        params.insert("service_name".to_string(), self.service_name.clone());
+        params.insert("name".to_string(), self.name.clone());
+        params.insert("repository".to_string(), self.repository.clone());
         params.insert("feature".to_string(), self.feature.clone());
         params.insert("value".to_string(), self.value.clone());
         params.insert("version".to_string(), self.version.clone());
@@ -154,7 +156,8 @@ mod tests {
 
         let params = InsertParams {
             table: "features".to_string(),
-            service_name: "test".to_string(),
+            name: "test".to_string(),
+            repository: "test".to_string(),
             feature: "test".to_string(),
             value: "test".to_string(),
             version: "test".to_string(),

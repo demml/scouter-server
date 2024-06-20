@@ -125,7 +125,8 @@ impl PostgresClient {
         let params = InsertParams {
             table: self.qualified_table_name.to_string(),
             created_at: record.created_at,
-            service_name: record.service_name,
+            name: record.name,
+            repository: record.repository,
             feature: record.feature,
             value: record.value.to_string(),
             version: record.version,
@@ -152,7 +153,7 @@ impl PostgresClient {
         records: Vec<DriftRecord>,
     ) -> Result<PgQueryResult, anyhow::Error> {
         let insert_statement = format!(
-            "INSERT INTO {} (created_at, service_name, feature, value, version)",
+            "INSERT INTO {} (created_at, name, repository, version, feature, value)",
             self.qualified_table_name
         );
 
@@ -160,16 +161,14 @@ impl PostgresClient {
 
         query_builder.push_values(records.iter(), |mut b, record| {
             b.push_bind(record.created_at)
-                .push_bind(&record.service_name)
+                .push_bind(&record.name)
+                .push_bind(&record.repository)
+                .push_bind(&record.version)
                 .push_bind(&record.feature)
-                .push_bind(record.value)
-                .push_bind(&record.version);
+                .push_bind(record.value);
         });
 
         let query = query_builder.build();
-
-        // print query
-        println!("{}", query.sql().to_string());
 
         let query_result = query.execute(&self.pool).await;
 

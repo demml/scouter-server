@@ -6,8 +6,12 @@ use crate::api::route::AppState;
 use crate::api::setup::{setup, setup_kafka_consumer};
 use anyhow::Context;
 use api::route::create_router;
+use futures::stream::FuturesUnordered;
+use futures::StreamExt;
 use std::sync::Arc;
 use tracing::info;
+
+const NUM_WORKERS: usize = 5;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -21,8 +25,27 @@ async fn main() -> Result<(), anyhow::Error> {
         let brokers = std::env::var("KAFKA_BROKER").unwrap();
         let topics = vec![std::env::var("KAFKA_TOPIC").unwrap()];
         let group = std::env::var("KAFKA_GROUP").unwrap();
+        let username: Option<String> = std::env::var("KAFKA_USERNAME").ok();
+        let password: Option<String> = std::env::var("KAFKA_PASSWORD").ok();
+        let security_protocol: Option<String> = std::env::var("KAFKA_SECURITY_PROTOCOL").ok();
+        let sasl_mechanism: Option<String> = std::env::var("KAFKA_SASL_MECHANISM").ok();
 
-        setup_kafka_consumer(db_client.clone(), brokers, topics, group).await?;
+        (0..NUM_WORKERS)
+            .map(|_| {
+                tokio::spawn(setup_kafka_consumer(
+                    db_client.clone(),
+                    brokers.clone(),
+                    topics.clone(),
+                    group.clone(),
+                    username.clone(),
+                    password.clone(),
+                    security_protocol.clone(),
+                    sasl_mechanism.clone(),
+                ))
+            })
+            .collect::<FuturesUnordered<_>>()
+            .for_each(|_| async {})
+            .await;
     }
 
     // start server

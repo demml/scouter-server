@@ -16,7 +16,8 @@ CREATE TABLE scouter.drift (
   repository varchar(256),
   feature varchar(256),
   value double precision,
-  version varchar(256)
+  version varchar(256),
+  UNIQUE (created_at,name,repository,feature,value,version)
 )
 PARTITION BY RANGE (created_at);
 
@@ -30,6 +31,7 @@ SELECT scouter.create_parent(
 );
 
 UPDATE scouter.part_config SET retention = '1 days' WHERE parent_table = 'scouter.drift';
+
 
 -- Create table for service drift configuration
 CREATE TABLE scouter.drift_config (

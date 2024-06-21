@@ -1,4 +1,4 @@
-use crate::kafka::consumer::{ConsumerConfig, MessageHandler, ScouterConsumer};
+use crate::kafka::consumer::{MessageHandler, ScouterConsumer};
 use crate::sql::postgres::PostgresClient;
 use anyhow::Context;
 use std::io;
@@ -33,13 +33,24 @@ pub async fn setup_kafka_consumer(
     brokers: String,
     topics: Vec<String>,
     group: String,
+    username: Option<String>,
+    password: Option<String>,
+    security_protocol: Option<String>,
+    sasl_mechanism: Option<String>,
 ) -> Result<(), anyhow::Error> {
     let message_handler = MessageHandler::Postgres(db_client.clone());
-    let mut consumer = ScouterConsumer::new(message_handler, brokers, topics, group).await?;
-    // spawn the consumer as a background task
-    tokio::spawn(async move {
-        consumer.poll_messages().await;
-    });
+    let mut consumer = ScouterConsumer::new(
+        message_handler,
+        brokers,
+        topics,
+        group,
+        username,
+        password,
+        security_protocol,
+        sasl_mechanism,
+    )
+    .await?;
+    consumer.poll_messages().await;
 
     Ok(())
 }

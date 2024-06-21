@@ -3,7 +3,8 @@ mod kafka;
 mod model;
 mod sql;
 use crate::api::route::AppState;
-use crate::api::setup::{setup, setup_kafka_consumer};
+use crate::api::setup::setup;
+use crate::kafka::consumer::{setup_kafka_consumer, MessageHandler};
 use anyhow::Context;
 use api::route::create_router;
 use futures::stream::FuturesUnordered;
@@ -27,16 +28,25 @@ async fn main() -> Result<(), anyhow::Error> {
         let group = std::env::var("KAFKA_GROUP").unwrap();
         let username: Option<String> = std::env::var("KAFKA_USERNAME").ok();
         let password: Option<String> = std::env::var("KAFKA_PASSWORD").ok();
-        let security_protocol: Option<String> = std::env::var("KAFKA_SECURITY_PROTOCOL").ok();
-        let sasl_mechanism: Option<String> = std::env::var("KAFKA_SASL_MECHANISM").ok();
+        let security_protocol: Option<String> = Some(
+            std::env::var("KAFKA_SECURITY_PROTOCOL")
+                .ok()
+                .unwrap_or_else(|| "SASL_SSL".to_string()),
+        );
+        let sasl_mechanism: Option<String> = Some(
+            std::env::var("KAFKA_SASL_MECHANISM")
+                .ok()
+                .unwrap_or_else(|| "PLAIN".to_string()),
+        );
 
         (0..NUM_WORKERS)
             .map(|_| {
+                let message_handler = MessageHandler::Postgres(db_client.clone());
                 tokio::spawn(setup_kafka_consumer(
-                    db_client.clone(),
+                    group.clone(),
                     brokers.clone(),
                     topics.clone(),
-                    group.clone(),
+                    message_handler,
                     username.clone(),
                     password.clone(),
                     security_protocol.clone(),

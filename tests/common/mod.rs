@@ -3,11 +3,13 @@ use anyhow::Error;
 use rdkafka::config::ClientConfig;
 use rdkafka::producer::FutureProducer;
 use rdkafka::producer::FutureRecord;
-use scouter_server::kafka::consumer::{MessageHandler, MockInserter, ScouterConsumer};
+use scouter_server::kafka::consumer::{setup_kafka_consumer, MessageHandler};
 use scouter_server::sql::postgres::PostgresClient;
 use scouter_server::sql::schema::DriftRecord;
 use std::env;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+
+use rdkafka::error::KafkaError;
 
 pub async fn setup_db() -> Result<PostgresClient, Error> {
     // set the postgres database url
@@ -35,140 +37,82 @@ pub async fn setup_db() -> Result<PostgresClient, Error> {
     Ok(client)
 }
 
-pub async fn setup_kafka_producer() -> Result<(FutureProducer), Error> {
-    // set the kafka broker address
-    let producer: FutureProducer = ClientConfig::new()
-        .set("bootstrap.servers", "localhost:9092")
-        .create()
-        .expect("Producer creation error");
+#[allow(dead_code)]
+pub async fn produce_message(message: &str, producer: &FutureProducer) -> Result<(), KafkaError> {
+    producer
+        .send(
+            FutureRecord::to("scouter_monitoring")
+                .payload(message)
+                .key("Key"),
+            Duration::from_secs(0),
+        )
+        .await
+        .unwrap();
 
-    Ok(producer)
+    Ok(())
 }
 
-pub async fn setup_kafka_consumer() -> Result<ScouterConsumer, Error> {
-    env::set_var(
-        "DATABASE_URL",
-        "postgresql://postgres:admin@localhost:5432/monitor?",
-    );
+#[allow(dead_code)]
+pub async fn setup_for_api() -> Result<
+    (
+        PostgresClient,
+        tokio::task::JoinHandle<()>,
+        tokio::task::JoinHandle<()>,
+    ),
+    Error,
+> {
+    let db_client = setup_db().await.unwrap();
+    let message_handler = MessageHandler::Postgres(db_client.clone());
 
-    // set the max connections for the postgres pool
-    env::set_var("MAX_CONNECTIONS", "10");
+    let producer_task = tokio::spawn(async move {
+        let producer: &FutureProducer = &ClientConfig::new()
+            .set("bootstrap.servers", "localhost:9092")
+            .create()
+            .expect("Producer creation error");
+        let feature_names = vec!["feature1", "feature2", "feature3"];
 
-    let client = PostgresClient::new(None).await.expect("error");
-
-    // set the kafka broker address
-    let consumer = ScouterConsumer::new(
-        MessageHandler::Postgres(client),
-        "localhost:9092".to_string(),
-        ["scouter_monitoring".to_string()].to_vec(),
-        "scouter".to_string(),
-        None,
-        None,
-        None,
-        None,
-    )
-    .await
-    .unwrap();
-
-    Ok(consumer)
-}
-
-pub async fn setup() -> Result<(PostgresClient, ScouterConsumer, FutureProducer), Error> {
-    // setup db and kafka
-
-    let db_client = setup_db().await?;
-    let producer = setup_kafka_producer().await?;
-    let consumer = setup_kafka_consumer().await?;
-
-    Ok((db_client, consumer, producer))
-}
-
-pub async fn setup_for_api() -> Result<PostgresClient, Error> {
-    // setup db
-
-    let (db_client, mut scouter_consumer, mut producer) = setup().await.unwrap();
-
-    // feature name vec
-    let feature_names = vec!["feature1", "feature2", "feature3"];
-    let topic = "scouter_monitoring";
-
-    for feature in feature_names {
-        tokio::spawn(async move {
-            let producer = setup_kafka_producer().await.unwrap();
-            let mut i: usize = 0;
-
-            loop {
+        for feature_name in feature_names {
+            for i in 0..100 {
                 let record = DriftRecord {
                     created_at: chrono::Utc::now().naive_utc(),
                     name: "test_app".to_string(),
                     repository: "test".to_string(),
-                    feature: feature.to_string(),
+                    feature: feature_name.to_string(),
                     value: i as f64,
                     version: "1.0.0".to_string(),
                 };
 
                 let record_string = serde_json::to_string(&record).unwrap();
-                producer
-                    .send_result(
-                        FutureRecord::to(topic)
-                            .key("1")
-                            .payload(record_string.as_str()),
-                    )
-                    .unwrap()
-                    .await
-                    .unwrap()
-                    .unwrap();
-
-                i += 1;
-
-                if i == 1000 {
-                    break;
-                }
+                produce_message(&record_string, producer).await.unwrap();
             }
-        });
-    }
-
-    let start = Instant::now();
-    // warm up for 10s
-    while start.elapsed() < Duration::from_secs(5) {
-        continue;
-    }
-
-    let not_empty = true;
-
-    let mut count = 0;
-
-    while not_empty {
-        let messages = scouter_consumer.poll_message().await.unwrap();
-
-        if messages.is_none() {
-            break;
-        } else {
-            count += 1;
         }
-    }
+    });
 
-    println!("count: {}", count);
-
-    let results = db_client
-        .raw_query(
-            r#"
-        SELECT * 
-        FROM scouter.drift  
-        WHERE name = 'test_app'
-        "#,
+    let consumer_task = tokio::spawn(async move {
+        setup_kafka_consumer(
+            "scouter".to_string(),
+            "localhost:9092".to_string(),
+            vec!["scouter_monitoring".to_string()],
+            message_handler,
+            None,
+            None,
+            None,
+            None,
         )
-        .await
-        .unwrap();
+        .await;
+    });
 
-    assert_eq!(results.len(), 3000);
+    // wait for 5 seconds
+    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
 
-    Ok(db_client)
+    Ok((db_client, producer_task, consumer_task))
 }
 
 #[allow(dead_code)]
-pub async fn teardown(db_client: &PostgresClient) -> Result<(), Error> {
+pub async fn teardown() -> Result<(), Error> {
     // clear the database
+
+    let db_client = setup_db().await.unwrap();
 
     sqlx::raw_sql(
         r#"

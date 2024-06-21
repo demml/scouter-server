@@ -1,4 +1,3 @@
-use crate::kafka::consumer::{MessageHandler, ScouterConsumer};
 use crate::sql::postgres::PostgresClient;
 use anyhow::Context;
 use std::io;
@@ -26,31 +25,4 @@ pub async fn setup() -> Result<PostgresClient, anyhow::Error> {
         .with_context(|| "Failed to create Postgres client")?;
 
     Ok(db_client)
-}
-
-pub async fn setup_kafka_consumer(
-    db_client: PostgresClient,
-    brokers: String,
-    topics: Vec<String>,
-    group: String,
-    username: Option<String>,
-    password: Option<String>,
-    security_protocol: Option<String>,
-    sasl_mechanism: Option<String>,
-) -> Result<(), anyhow::Error> {
-    let message_handler = MessageHandler::Postgres(db_client.clone());
-    let mut consumer = ScouterConsumer::new(
-        message_handler,
-        brokers,
-        topics,
-        group,
-        username,
-        password,
-        security_protocol,
-        sasl_mechanism,
-    )
-    .await?;
-    consumer.poll_messages().await;
-
-    Ok(())
 }

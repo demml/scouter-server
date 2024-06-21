@@ -18,7 +18,11 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // setup background task if kafka is enabled
     if std::env::var("KAFKA_BROKER").is_ok() {
-        setup_kafka_consumer(db_client.clone()).await?;
+        let brokers = std::env::var("KAFKA_BROKER").unwrap();
+        let topics = vec![std::env::var("KAFKA_TOPIC").unwrap()];
+        let group = std::env::var("KAFKA_GROUP").unwrap();
+
+        setup_kafka_consumer(db_client.clone(), brokers, topics, group).await?;
     }
 
     // start server

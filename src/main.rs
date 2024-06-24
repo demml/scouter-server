@@ -39,7 +39,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 .unwrap_or_else(|| "PLAIN".to_string()),
         );
 
-        (0..NUM_WORKERS)
+        let _background = (0..NUM_WORKERS)
             .map(|_| {
                 let message_handler = MessageHandler::Postgres(db_client.clone());
                 tokio::spawn(setup_kafka_consumer(
@@ -54,8 +54,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 ))
             })
             .collect::<FuturesUnordered<_>>()
-            .for_each(|_| async {})
-            .await;
+            .for_each(|_| async {});
     }
 
     // start server
@@ -64,9 +63,8 @@ async fn main() -> Result<(), anyhow::Error> {
         .await
         .with_context(|| "Failed to bind to port 8000")?;
 
-    axum::serve(listener, app).await.unwrap();
-
     info!("🚀 Server started successfully");
+    axum::serve(listener, app).await.unwrap();
 
     Ok(())
 }

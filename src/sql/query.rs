@@ -1,6 +1,7 @@
-use std::collections::BTreeMap;
-
+use crate::sql::schema::MonitorProfile;
 use chrono::NaiveDateTime;
+use sqlx::types::Json;
+use std::collections::BTreeMap;
 
 //constants
 
@@ -8,6 +9,7 @@ const INSERT_DRIFT_RECORD: &'static str = include_str!("scripts/insert_drift_rec
 const GET_FEATURES: &'static str = include_str!("scripts/unique_features.sql");
 const GET_BINNED_FEATURE_VALUES: &'static str = include_str!("scripts/binned_feature_values.sql");
 const GET_FEATURE_VALUES: &'static str = include_str!("scripts/feature_values.sql");
+const INSERT_DRIFT_PROFILE: &'static str = include_str!("scripts/insert_drift_profile.sql");
 
 pub trait ToMap {
     fn to_map(&self) -> BTreeMap<String, String>;
@@ -52,6 +54,31 @@ impl ToMap for GetFeaturesParams {
         params.insert("name".to_string(), self.name.clone());
         params.insert("repository".to_string(), self.repository.clone());
         params.insert("version".to_string(), self.version.clone());
+
+        params
+    }
+}
+
+pub struct InsertMonitorProfileParams {
+    pub table: String,
+    pub name: String,
+    pub repository: String,
+    pub version: String,
+    pub profile: String,
+    pub cron: String,
+    pub next_run: NaiveDateTime,
+}
+
+impl ToMap for InsertMonitorProfileParams {
+    fn to_map(&self) -> BTreeMap<String, String> {
+        let mut params = BTreeMap::new();
+        params.insert("table".to_string(), self.table.clone());
+        params.insert("name".to_string(), self.name.clone());
+        params.insert("repository".to_string(), self.repository.clone());
+        params.insert("version".to_string(), self.version.clone());
+        params.insert("profile".to_string(), self.profile.clone());
+        params.insert("cron".to_string(), self.cron.clone());
+        params.insert("next_run".to_string(), self.next_run.to_string());
 
         params
     }
@@ -108,6 +135,7 @@ impl ToMap for GetFeatureValuesParams {
 pub enum Queries {
     GetFeatures,
     InsertDriftRecord,
+    InsertMonitorProfile,
     GetBinnedFeatureValues,
     GetFeatureValues,
 }
@@ -120,6 +148,7 @@ impl Queries {
             Queries::InsertDriftRecord => SqlQuery::new(INSERT_DRIFT_RECORD),
             Queries::GetBinnedFeatureValues => SqlQuery::new(GET_BINNED_FEATURE_VALUES),
             Queries::GetFeatureValues => SqlQuery::new(GET_FEATURE_VALUES),
+            Queries::InsertMonitorProfile => SqlQuery::new(&INSERT_DRIFT_PROFILE),
         }
     }
 }
@@ -174,7 +203,7 @@ mod tests {
 
         assert_eq!(
             formatted_sql,
-            "INSERT INTO features (name, repository, version, feature, value) \nVALUES ('test', 'test', 'test', 'test', 'test');"
+            format!("INSERT INTO features (created_at, name, repository, version, feature, value) \nVALUES ('{}', 'test', 'test', 'test', 'test', 'test')\nON CONFLICT DO NOTHING;", params.created_at.to_string())
         );
     }
 

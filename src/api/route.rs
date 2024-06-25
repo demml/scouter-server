@@ -1,8 +1,11 @@
 use std::sync::Arc;
 
-use axum::{routing::get, Router};
+use axum::{
+    routing::{get, post},
+    Router,
+};
 
-use crate::api::handler::{get_drift, health_check, insert_drift};
+use crate::api::handler::{get_drift, health_check, insert_drift, insert_drift_profile};
 use crate::sql::postgres::PostgresClient;
 use axum::http::{
     header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE},
@@ -23,6 +26,7 @@ pub fn create_router(app_state: Arc<AppState>) -> Router {
     Router::new()
         .route("/healthcheck", get(health_check))
         .route("/drift", get(get_drift).post(insert_drift))
+        .route("/profile", post(insert_drift_profile))
         .with_state(app_state)
         .layer(cors)
 }

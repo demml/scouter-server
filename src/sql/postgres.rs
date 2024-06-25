@@ -1,5 +1,8 @@
-use crate::sql::query::{GetBinnedFeatureValuesParams, GetFeaturesParams, InsertParams, Queries};
-use crate::sql::schema::{DriftRecord, FeatureResult, QueryResult};
+use crate::sql::query::{
+    GetBinnedFeatureValuesParams, GetFeaturesParams, InsertMonitorProfileParams, InsertParams,
+    Queries,
+};
+use crate::sql::schema::{DriftRecord, FeatureResult, MonitorProfile, QueryResult};
 use anyhow::*;
 use futures::future::join_all;
 use include_dir::{include_dir, Dir};
@@ -8,9 +11,11 @@ use sqlx::{
     Pool, Postgres, QueryBuilder, Row,
 };
 
+use chrono::Utc;
+use cron::Schedule;
 use std::collections::BTreeMap;
 use std::result::Result::Ok;
-
+use std::str::FromStr;
 use tracing::{error, info};
 
 static _MIGRATIONS: Dir = include_dir!("migrations");
@@ -138,6 +143,50 @@ impl PostgresClient {
                 .await;
 
         //drop params
+        match query_result {
+            Ok(result) => Ok(result),
+            Err(e) => {
+                error!("Failed to insert record into database: {:?}", e);
+                Err(anyhow!("Failed to insert record into database: {:?}", e))
+            }
+        }
+    }
+
+    pub async fn insert_drift_profile(
+        &self,
+        monitor_profile: &MonitorProfile,
+    ) -> Result<PgQueryResult, anyhow::Error> {
+        let query = Queries::InsertMonitorProfile.get_query();
+
+        let cron = Schedule::from_str(&monitor_profile.config.cron).with_context(|| {
+            format!(
+                "Failed to parse cron expression: {}",
+                &monitor_profile.config.cron
+            )
+        })?;
+
+        let next_run = cron.upcoming(Utc).take(1).next().with_context(|| {
+            format!(
+                "Failed to get next run time for cron expression: {}",
+                &monitor_profile.config.cron
+            )
+        })?;
+
+        let params = InsertMonitorProfileParams {
+            table: "scouter.drift_profile".to_string(),
+            name: monitor_profile.config.name.clone(),
+            repository: monitor_profile.config.repository.clone(),
+            version: monitor_profile.config.version.clone(),
+            profile: serde_json::to_string(&monitor_profile).unwrap(),
+            cron: monitor_profile.config.cron.clone(),
+            next_run: next_run.naive_utc(),
+        };
+
+        let query_result: std::prelude::v1::Result<sqlx::postgres::PgQueryResult, sqlx::Error> =
+            sqlx::raw_sql(query.format(&params).as_str())
+                .execute(&self.pool)
+                .await;
+
         match query_result {
             Ok(result) => Ok(result),
             Err(e) => {

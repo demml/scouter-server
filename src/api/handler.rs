@@ -1,6 +1,6 @@
 use crate::api::schema::{DriftRecordRequest, ServiceDriftRequest};
 use crate::sql::postgres::TimeInterval;
-use crate::sql::schema::DriftRecord;
+use crate::sql::schema::{DriftRecord, MonitorProfile};
 use axum::{
     extract::{Query, State},
     http::StatusCode,
@@ -92,6 +92,31 @@ pub async fn insert_drift(
         }
         Err(e) => {
             error!("Failed to insert drift record: {:?}", e);
+            let json_response = json!({
+                "status": "error",
+                "message": format!("{:?}", e)
+            });
+            return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)));
+        }
+    }
+}
+
+pub async fn insert_drift_profile(
+    State(data): State<Arc<AppState>>,
+    Json(body): Json<MonitorProfile>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    let query_result = &data.db.insert_drift_profile(&body).await;
+
+    match query_result {
+        Ok(_) => {
+            let json_response = json!({
+                "status": "success",
+                "message": "Monitor profile inserted successfully"
+            });
+            return Ok(Json(json_response));
+        }
+        Err(e) => {
+            error!("Failed to insert monitor profile: {:?}", e);
             let json_response = json!({
                 "status": "error",
                 "message": format!("{:?}", e)

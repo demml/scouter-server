@@ -34,12 +34,15 @@ UPDATE scouter.part_config SET retention = '1 days' WHERE parent_table = 'scoute
 
 
 -- Create table for service drift configuration
-CREATE TABLE scouter.drift_config (
- created_at timestamp not null default (timezone('utc', now())),
+CREATE TABLE scouter.drift_profile (
+  created_at timestamp not null default (timezone('utc', now())),
+  updated_at timestamp not null default (timezone('utc', now())),
   name varchar(256),
   repository varchar(256),
   version varchar(256),
-  config jsonb,
+  profile jsonb,
   active boolean default true,
+  cron  varchar(256),
+  next_run timestamp,
   PRIMARY KEY (name, repository, version)
 );

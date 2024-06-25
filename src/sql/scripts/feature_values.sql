@@ -5,7 +5,7 @@ value,
 version
 FROM $table
 WHERE
-    created_at > timezone('utc', now()) - interval '$time_window' minute
+    created_at > '$limit_timestamp'
     AND version = '$version'
     AND name = '$name'
     AND repository = '$repository'

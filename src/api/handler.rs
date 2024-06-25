@@ -36,7 +36,7 @@ pub async fn get_drift(
 
     let query_result = &data
         .db
-        .read_drift_records(
+        .get_binned_drift_records(
             &params.name,
             &params.repository,
             &params.version,

@@ -194,6 +194,6 @@ async fn test_api_profile() {
         .await
         .unwrap();
 
-    println!("{:?}", response.body());
+    println!("{:?}", response.body().);
     assert_eq!(response.status(), StatusCode::OK);
 }

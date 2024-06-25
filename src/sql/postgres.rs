@@ -1,6 +1,6 @@
 use crate::sql::query::{
-    GetBinnedFeatureValuesParams, GetFeaturesParams, InsertMonitorProfileParams, InsertParams,
-    Queries,
+    GetBinnedFeatureValuesParams, GetFeatureValuesParams, GetFeaturesParams,
+    InsertMonitorProfileParams, InsertParams, Queries,
 };
 use crate::sql::schema::{DriftRecord, FeatureResult, MonitorProfile, QueryResult};
 use anyhow::*;
@@ -263,6 +263,38 @@ impl PostgresClient {
 
     async fn run_feature_query(
         &self,
+        feature: &str,
+        name: &str,
+        repository: &str,
+        version: &str,
+        limit_timestamp: &str,
+    ) -> Result<Vec<PgRow>, anyhow::Error> {
+        let query = Queries::GetFeatureValues.get_query();
+
+        let params = GetFeatureValuesParams {
+            table: self.qualified_table_name.to_string(),
+            name: name.to_string(),
+            repository: repository.to_string(),
+            version: version.to_string(),
+            feature: feature.to_string(),
+            limit_timestamp: limit_timestamp.to_string(),
+        };
+
+        let result = sqlx::raw_sql(query.format(&params).as_str())
+            .fetch_all(&self.pool)
+            .await;
+
+        match result {
+            Ok(result) => Ok(result),
+            Err(e) => {
+                error!("Failed to run query: {:?}", e);
+                Err(anyhow!("Failed to run query: {:?}", e))
+            }
+        }
+    }
+
+    async fn run_binned_feature_query(
+        &self,
         bin: &f64,
         feature: String,
         version: &str,
@@ -307,7 +339,7 @@ impl PostgresClient {
     // # Returns
     //
     // * A vector of drift records
-    pub async fn read_drift_records(
+    pub async fn get_binned_drift_records(
         &self,
         name: &str,
         repository: &str,
@@ -323,7 +355,7 @@ impl PostgresClient {
         let async_queries = features
             .iter()
             .map(|feature| {
-                self.run_feature_query(
+                self.run_binned_feature_query(
                     &bin,
                     feature.to_string(),
                     version,
@@ -369,6 +401,58 @@ impl PostgresClient {
             }
         }
 
+        Ok(query_result)
+    }
+
+    pub async fn get_drift_records(
+        &self,
+        name: &str,
+        repository: &str,
+        version: &str,
+        limit_timestamp: &str,
+    ) -> Result<QueryResult, anyhow::Error> {
+        let features = self.get_service_features(name, repository, version).await?;
+
+        let async_queries = features
+            .iter()
+            .map(|feature| {
+                self.run_feature_query(feature, name, repository, version, limit_timestamp)
+            })
+            .collect::<Vec<_>>();
+
+        let query_results = join_all(async_queries).await;
+
+        let mut query_result = QueryResult {
+            features: BTreeMap::new(),
+        };
+
+        for data in query_results {
+            match data {
+                Ok(data) => {
+                    //check if data is empty
+                    if data.is_empty() {
+                        continue;
+                    }
+
+                    let feature_name = data[0].get("feature");
+                    let mut created_at = Vec::new();
+                    let mut values = Vec::new();
+
+                    for row in data {
+                        created_at.push(row.get("created_at"));
+                        values.push(row.get("value"));
+                    }
+
+                    query_result
+                        .features
+                        .insert(feature_name, FeatureResult { created_at, values });
+                }
+                Err(e) => {
+                    error!("Failed to run query: {:?}", e);
+                    return Err(anyhow!("Failed to run query: {:?}", e));
+                }
+            }
+        }
         Ok(query_result)
     }
 

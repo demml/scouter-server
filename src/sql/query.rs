@@ -59,6 +59,29 @@ impl ToMap for GetFeaturesParams {
     }
 }
 
+pub struct GetFeatureValuesParams {
+    pub table: String,
+    pub name: String,
+    pub repository: String,
+    pub version: String,
+    pub feature: String,
+    pub limit_timestamp: String,
+}
+
+impl ToMap for GetFeatureValuesParams {
+    fn to_map(&self) -> BTreeMap<String, String> {
+        let mut params = BTreeMap::new();
+        params.insert("table".to_string(), self.table.clone());
+        params.insert("name".to_string(), self.name.clone());
+        params.insert("repository".to_string(), self.repository.clone());
+        params.insert("version".to_string(), self.version.clone());
+        params.insert("feature".to_string(), self.feature.clone());
+        params.insert("limit_timestamp".to_string(), self.limit_timestamp.clone());
+
+        params
+    }
+}
+
 pub struct InsertMonitorProfileParams {
     pub table: String,
     pub name: String,
@@ -104,29 +127,6 @@ impl ToMap for GetBinnedFeatureValuesParams {
         params.insert("version".to_string(), self.version.clone());
         params.insert("time_window".to_string(), self.time_window.clone());
         params.insert("bin".to_string(), self.bin.clone());
-
-        params
-    }
-}
-
-pub struct GetFeatureValuesParams {
-    pub table: String,
-    pub name: String,
-    pub repository: String,
-    pub feature: String,
-    pub version: String,
-    pub time_window: String,
-}
-
-impl ToMap for GetFeatureValuesParams {
-    fn to_map(&self) -> BTreeMap<String, String> {
-        let mut params = BTreeMap::new();
-        params.insert("table".to_string(), self.table.clone());
-        params.insert("name".to_string(), self.name.clone());
-        params.insert("repository".to_string(), self.repository.clone());
-        params.insert("feature".to_string(), self.feature.clone());
-        params.insert("version".to_string(), self.version.clone());
-        params.insert("time_window".to_string(), self.time_window.clone());
 
         params
     }
@@ -296,7 +296,7 @@ ORDER BY
             repository: "test".to_string(),
             feature: "test".to_string(),
             version: "test".to_string(),
-            time_window: "10".to_string(),
+            limit_timestamp: "2024-01-01 00:00:00".to_string(),
         };
 
         let formatted_sql = query.format(&params);

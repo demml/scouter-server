@@ -49,5 +49,21 @@ async fn test_postgres_client() {
         assert_eq!(record.version, "1.0.0");
     }
 
+    // test querying drift records
+    // subtract 1 minute from created at
+    let limit_timestamp = record.created_at - chrono::Duration::minutes(1);
+
+    let result = db_client
+        .get_drift_records(
+            "test_app",
+            "test",
+            "1.0.0",
+            limit_timestamp.to_string().as_str(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(result.features.len(), 1);
+
     common::teardown().await.unwrap();
 }

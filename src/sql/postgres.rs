@@ -492,21 +492,9 @@ impl PostgresClient {
 
     async fn get_from_queue(
         &self,
-        name: &str,
-        repository: &str,
-        version: &str,
-        next_run: &NaiveDateTime,
         transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    ) -> Result<()> {
+    ) -> Result<(QueueParams)> {
         let query = Queries::DeleteFromQueue.get_query();
-
-        let params = QueueParams {
-            table: self.queue_table_name.to_string(),
-            name: name.to_string(),
-            repository: repository.to_string(),
-            version: version.to_string(),
-            next_run: next_run.clone(),
-        };
 
         let result = sqlx::raw_sql(query.format(&params).as_str())
             .execute(&mut **transaction)

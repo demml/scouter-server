@@ -10,9 +10,32 @@ const GET_FEATURES: &'static str = include_str!("scripts/unique_features.sql");
 const GET_BINNED_FEATURE_VALUES: &'static str = include_str!("scripts/binned_feature_values.sql");
 const GET_FEATURE_VALUES: &'static str = include_str!("scripts/feature_values.sql");
 const INSERT_DRIFT_PROFILE: &'static str = include_str!("scripts/insert_drift_profile.sql");
+const INSERT_INTO_QUEUE: &'static str = include_str!("scripts/insert_into_queue.sql");
+const DELETE_FROM_QUEUE: &'static str = include_str!("scripts/delete_from_queue.sql");
 
 pub trait ToMap {
     fn to_map(&self) -> BTreeMap<String, String>;
+}
+
+pub struct QueueParams {
+    pub table: String,
+    pub name: String,
+    pub repository: String,
+    pub version: String,
+    pub next_run: NaiveDateTime,
+}
+
+impl ToMap for QueueParams {
+    fn to_map(&self) -> BTreeMap<String, String> {
+        let mut params = BTreeMap::new();
+        params.insert("table".to_string(), self.table.clone());
+        params.insert("name".to_string(), self.name.clone());
+        params.insert("repository".to_string(), self.repository.clone());
+        params.insert("version".to_string(), self.version.clone());
+        params.insert("next_run".to_string(), self.next_run.to_string());
+
+        params
+    }
 }
 
 pub struct InsertParams {
@@ -138,6 +161,8 @@ pub enum Queries {
     InsertMonitorProfile,
     GetBinnedFeatureValues,
     GetFeatureValues,
+    InsertIntoQueue,
+    DeleteFromQueue,
 }
 
 impl Queries {
@@ -149,6 +174,8 @@ impl Queries {
             Queries::GetBinnedFeatureValues => SqlQuery::new(GET_BINNED_FEATURE_VALUES),
             Queries::GetFeatureValues => SqlQuery::new(GET_FEATURE_VALUES),
             Queries::InsertMonitorProfile => SqlQuery::new(&INSERT_DRIFT_PROFILE),
+            Queries::InsertIntoQueue => SqlQuery::new(&INSERT_INTO_QUEUE),
+            Queries::DeleteFromQueue => SqlQuery::new(&DELETE_FROM_QUEUE),
         }
     }
 }

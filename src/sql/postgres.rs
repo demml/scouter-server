@@ -1,6 +1,6 @@
 use crate::sql::query::{
     GetBinnedFeatureValuesParams, GetFeatureValuesParams, GetFeaturesParams,
-    InsertMonitorProfileParams, InsertParams, Queries,
+    InsertMonitorProfileParams, InsertParams, Queries, QueueParams,
 };
 use crate::sql::schema::{DriftRecord, FeatureResult, MonitorProfile, QueryResult};
 use anyhow::*;
@@ -11,7 +11,7 @@ use sqlx::{
     Pool, Postgres, QueryBuilder, Row,
 };
 
-use chrono::Utc;
+use chrono::{NaiveDate, NaiveDateTime, Utc};
 use cron::Schedule;
 use std::collections::BTreeMap;
 use std::result::Result::Ok;
@@ -70,6 +70,8 @@ impl TimeInterval {
 pub struct PostgresClient {
     pub pool: Pool<Postgres>,
     qualified_table_name: String,
+    queue_table_name: String,
+    profile_table_name: String,
 }
 
 impl PostgresClient {
@@ -111,6 +113,8 @@ impl PostgresClient {
         Ok(Self {
             pool,
             qualified_table_name: "scouter.drift".to_string(),
+            queue_table_name: "scouter.drift_queue".to_string(),
+            profile_table_name: "scouter.drift_profile".to_string(),
         })
     }
 
@@ -233,7 +237,7 @@ impl PostgresClient {
 
     // Queries the database for all features under a service
     // Private method that'll be used to run drift retrieval in parallel
-    async fn get_service_features(
+    async fn get_features(
         &self,
         name: &str,
         repository: &str,
@@ -348,7 +352,7 @@ impl PostgresClient {
         time_window: &i32,
     ) -> Result<QueryResult, anyhow::Error> {
         // get features
-        let features = self.get_service_features(name, repository, version).await?;
+        let features = self.get_features(name, repository, version).await?;
 
         let bin = *time_window as f64 / *max_data_points as f64;
 
@@ -411,7 +415,7 @@ impl PostgresClient {
         version: &str,
         limit_timestamp: &str,
     ) -> Result<QueryResult, anyhow::Error> {
-        let features = self.get_service_features(name, repository, version).await?;
+        let features = self.get_features(name, repository, version).await?;
 
         let async_queries = features
             .iter()
@@ -454,6 +458,67 @@ impl PostgresClient {
             }
         }
         Ok(query_result)
+    }
+
+    pub async fn insert_into_queue(
+        &self,
+        name: &str,
+        repository: &str,
+        version: &str,
+        next_run: &NaiveDateTime,
+    ) -> Result<()> {
+        let query = Queries::InsertIntoQueue.get_query();
+
+        let params = QueueParams {
+            table: self.queue_table_name.to_string(),
+            name: name.to_string(),
+            repository: repository.to_string(),
+            version: version.to_string(),
+            next_run: *next_run,
+        };
+
+        let result = sqlx::raw_sql(query.format(&params).as_str())
+            .execute(&self.pool)
+            .await;
+
+        match result {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                error!("Failed to insert record into database: {:?}", e);
+                Err(anyhow!("Failed to insert record into database: {:?}", e))
+            }
+        }
+    }
+
+    async fn get_from_queue(
+        &self,
+        name: &str,
+        repository: &str,
+        version: &str,
+        next_run: &NaiveDateTime,
+        transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    ) -> Result<()> {
+        let query = Queries::DeleteFromQueue.get_query();
+
+        let params = QueueParams {
+            table: self.queue_table_name.to_string(),
+            name: name.to_string(),
+            repository: repository.to_string(),
+            version: version.to_string(),
+            next_run: next_run.clone(),
+        };
+
+        let result = sqlx::raw_sql(query.format(&params).as_str())
+            .execute(&mut **transaction)
+            .await;
+
+        match result {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                error!("Failed to delete record from database: {:?}", e);
+                Err(anyhow!("Failed to delete record from database: {:?}", e))
+            }
+        }
     }
 
     #[allow(dead_code)]

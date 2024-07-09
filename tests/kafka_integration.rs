@@ -1,5 +1,7 @@
-use scouter_server::kafka::consumer::setup_kafka_consumer;
+use scouter_server::kafka::consumer::{setup_kafka_consumer, MessageHandler};
+use scouter_server::sql::postgres::PostgresClient;
 use scouter_server::sql::schema::DriftRecord;
+
 use tokio;
 mod common;
 
@@ -13,6 +15,22 @@ async fn test_scouter_consumer() {
     // set consumer
 
     let (db_client, pool) = common::setup_test_db().await.unwrap();
+
+    let message_handler = MessageHandler::Postgres(db_client.clone());
+
+    let consumer_task = tokio::spawn(async move {
+        setup_kafka_consumer(
+            message_handler,
+            "scouter".to_string(),
+            "localhost:9092".to_string(),
+            vec!["scouter_monitoring".to_string()],
+            None,
+            None,
+            None,
+            None,
+        )
+        .await;
+    });
 
     let producer_task = tokio::spawn(async move {
         let producer: &FutureProducer = &ClientConfig::new()
@@ -35,22 +53,8 @@ async fn test_scouter_consumer() {
         }
     });
 
-    let consumer_task = tokio::spawn(async move {
-        setup_kafka_consumer(
-            pool.clone(),
-            "scouter".to_string(),
-            "localhost:9092".to_string(),
-            vec!["scouter_monitoring".to_string()],
-            None,
-            None,
-            None,
-            None,
-        )
-        .await;
-    });
-
     // wait for 5 seconds
-    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+    tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
 
     producer_task.abort();
     consumer_task.abort();

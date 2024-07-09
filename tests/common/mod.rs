@@ -4,7 +4,7 @@ use rdkafka::config::ClientConfig;
 use rdkafka::producer::FutureProducer;
 use rdkafka::producer::FutureRecord;
 use scouter_server::api::setup::setup_db;
-use scouter_server::kafka::consumer::setup_kafka_consumer;
+use scouter_server::kafka::consumer::{setup_kafka_consumer, MessageHandler};
 use scouter_server::sql::postgres::PostgresClient;
 use scouter_server::sql::schema::DriftRecord;
 use sqlx::postgres::Postgres;
@@ -72,6 +72,8 @@ pub async fn setup_for_api() -> Result<
 > {
     let (db_client, pool) = setup_test_db().await.unwrap();
 
+    let message_handler = MessageHandler::Postgres(db_client.clone());
+
     let producer_task = tokio::spawn(async move {
         let producer: &FutureProducer = &ClientConfig::new()
             .set("bootstrap.servers", "localhost:9092")
@@ -98,7 +100,7 @@ pub async fn setup_for_api() -> Result<
 
     let consumer_task = tokio::spawn(async move {
         setup_kafka_consumer(
-            pool.clone(),
+            message_handler,
             "scouter".to_string(),
             "localhost:9092".to_string(),
             vec!["scouter_monitoring".to_string()],

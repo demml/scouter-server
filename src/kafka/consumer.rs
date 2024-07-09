@@ -7,7 +7,6 @@ use rdkafka::consumer::Consumer;
 use rdkafka::consumer::stream_consumer::StreamConsumer;
 use rdkafka::consumer::CommitMode;
 use rdkafka::Message;
-use sqlx::{Pool, Postgres};
 
 use std::result::Result::Ok;
 use tracing::error;
@@ -39,7 +38,7 @@ impl MessageHandler {
 }
 
 pub async fn setup_kafka_consumer(
-    pool: Pool<Postgres>,
+    message_handler: MessageHandler,
     group_id: String,
     brokers: String,
     topics: Vec<String>,
@@ -70,12 +69,6 @@ pub async fn setup_kafka_consumer(
     let consumer: StreamConsumer = config.create().expect("Consumer creation error");
 
     let topics = topics.iter().map(|s| s.as_str()).collect::<Vec<&str>>();
-
-    let db_client = PostgresClient::new(pool)
-        .with_context(|| "Failed to create Postgres client")
-        .unwrap();
-
-    let message_handler = MessageHandler::Postgres(db_client);
 
     consumer
         .subscribe(&topics)

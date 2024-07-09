@@ -52,8 +52,12 @@ async fn main() -> Result<(), anyhow::Error> {
 
         let _background = (0..NUM_WORKERS)
             .map(|_| {
+                let db_client = PostgresClient::new(pool.clone())
+                    .with_context(|| "Failed to create Postgres client")
+                    .unwrap();
+                let message_handler = kafka::consumer::MessageHandler::Postgres(db_client);
                 tokio::spawn(setup_kafka_consumer(
-                    pool.clone(),
+                    message_handler,
                     group_id.clone(),
                     brokers.clone(),
                     topics.clone(),

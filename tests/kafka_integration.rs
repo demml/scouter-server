@@ -60,31 +60,26 @@ async fn test_scouter_consumer() {
             .for_each(|_| async {});
     }
 
-    let producer_task = tokio::spawn(async move {
-        let producer: &FutureProducer = &ClientConfig::new()
-            .set("bootstrap.servers", "localhost:9092")
-            .create()
-            .expect("Producer creation error");
+    let producer: &FutureProducer = &ClientConfig::new()
+        .set("bootstrap.servers", "localhost:9092")
+        .create()
+        .expect("Producer creation error");
+    for i in 0..10 {
+        let record = DriftRecord {
+            created_at: chrono::Utc::now().naive_utc(),
+            name: "test_app".to_string(),
+            repository: "test".to_string(),
+            feature: "test".to_string(),
+            value: i as f64,
+            version: "1.0.0".to_string(),
+        };
 
-        for i in 0..10 {
-            let record = DriftRecord {
-                created_at: chrono::Utc::now().naive_utc(),
-                name: "test_app".to_string(),
-                repository: "test".to_string(),
-                feature: "test".to_string(),
-                value: i as f64,
-                version: "1.0.0".to_string(),
-            };
-
-            let record_string = serde_json::to_string(&record).unwrap();
-            produce_message(&record_string, producer).await.unwrap();
-        }
-    });
+        let record_string = serde_json::to_string(&record).unwrap();
+        produce_message(&record_string, producer).await.unwrap();
+    }
 
     // wait for 5 seconds
     tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-
-    producer_task.abort();
 
     let results = db_client
         .raw_query(

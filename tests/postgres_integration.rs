@@ -5,7 +5,7 @@ mod common;
 
 #[tokio::test]
 async fn test_postgres_client() {
-    let (db_client, _) = common::setup_db().await.unwrap();
+    let (db_client, _) = common::setup_test_db().await.unwrap();
 
     // test inserting record
     let record = DriftRecord {

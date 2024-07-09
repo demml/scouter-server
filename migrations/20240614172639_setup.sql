@@ -46,11 +46,3 @@ CREATE TABLE scouter.drift_profile (
   next_run timestamp,
   PRIMARY KEY (name, repository, version)
 );
-
--- create queue table
-CREATE TABLE scouter.drift_queue (
-  name varchar(256),
-  repository varchar(256),
-  version varchar(256),
-  next_run timestamp,
-);

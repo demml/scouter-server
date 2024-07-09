@@ -10,9 +10,7 @@ use tracing_subscriber::fmt::time::UtcTime;
 const DEFAULT_TIME_PATTERN: &str =
     "[year]-[month]-[day]T[hour repr:24]:[minute]:[second]::[subsecond digits:4]";
 
-/// Setup the application with the given database pool.
-
-pub async fn setup(database_url: Option<String>) -> Result<Pool<Postgres>, anyhow::Error> {
+pub async fn setup_logging() -> Result<(), anyhow::Error> {
     let time_format = time::format_description::parse(DEFAULT_TIME_PATTERN).unwrap();
 
     tracing_subscriber::fmt()
@@ -24,6 +22,12 @@ pub async fn setup(database_url: Option<String>) -> Result<Pool<Postgres>, anyho
         .with_writer(io::stdout)
         .init();
 
+    Ok(())
+}
+
+/// Setup the application with the given database pool.
+
+pub async fn setup_db(database_url: Option<String>) -> Result<Pool<Postgres>, anyhow::Error> {
     let database_url = match database_url {
         Some(url) => url,
         None => std::env::var("DATABASE_URL").with_context(|| "DATABASE_URL must be set")?,

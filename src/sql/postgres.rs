@@ -480,7 +480,7 @@ impl PostgresClient {
 #[cfg(test)]
 mod tests {
 
-    use crate::api::setup::setup;
+    use crate::api::setup::setup_db;
 
     use super::*;
     use std::env;
@@ -493,7 +493,7 @@ mod tests {
             "postgresql://postgres:admin@localhost:5432/monitor?",
         );
 
-        let pool = setup(None)
+        let pool = setup_db(None)
             .await
             .with_context(|| "Failed to create Postgres client")
             .unwrap();

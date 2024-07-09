@@ -3,7 +3,7 @@ use anyhow::Error;
 use rdkafka::config::ClientConfig;
 use rdkafka::producer::FutureProducer;
 use rdkafka::producer::FutureRecord;
-use scouter_server::api::setup::setup;
+use scouter_server::api::setup::setup_db;
 use scouter_server::kafka::consumer::setup_kafka_consumer;
 use scouter_server::sql::postgres::PostgresClient;
 use scouter_server::sql::schema::DriftRecord;
@@ -14,7 +14,7 @@ use std::time::Duration;
 
 use rdkafka::error::KafkaError;
 
-pub async fn setup_db() -> Result<(PostgresClient, Pool<Postgres>), Error> {
+pub async fn setup_test_db() -> Result<(PostgresClient, Pool<Postgres>), Error> {
     // set the postgres database url
     env::set_var(
         "DATABASE_URL",
@@ -23,7 +23,13 @@ pub async fn setup_db() -> Result<(PostgresClient, Pool<Postgres>), Error> {
 
     // set the max connections for the postgres pool
     env::set_var("MAX_CONNECTIONS", "10");
-    let pool = setup(None).await.expect("error");
+    let pool = setup_db(None).await.expect("error");
+
+    // run migrations
+    sqlx::migrate!()
+        .run(&pool)
+        .await
+        .expect("Failed to run migrations");
 
     let client = PostgresClient::new(pool.clone()).unwrap();
 
@@ -52,7 +58,6 @@ pub async fn produce_message(message: &str, producer: &FutureProducer) -> Result
         )
         .await
         .unwrap();
-
     Ok(())
 }
 
@@ -65,7 +70,7 @@ pub async fn setup_for_api() -> Result<
     ),
     Error,
 > {
-    let (db_client, pool) = setup_db().await.unwrap();
+    let (db_client, pool) = setup_test_db().await.unwrap();
 
     let producer_task = tokio::spawn(async move {
         let producer: &FutureProducer = &ClientConfig::new()
@@ -115,7 +120,7 @@ pub async fn setup_for_api() -> Result<
 pub async fn teardown() -> Result<(), Error> {
     // clear the database
 
-    let (_, pool) = setup_db().await.unwrap();
+    let (_, pool) = setup_test_db().await.unwrap();
 
     sqlx::raw_sql(
         r#"

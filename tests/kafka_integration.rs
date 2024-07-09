@@ -12,7 +12,7 @@ use common::produce_message;
 async fn test_scouter_consumer() {
     // set consumer
 
-    let (db_client, pool) = common::setup_db().await.unwrap();
+    let (db_client, pool) = common::setup_test_db().await.unwrap();
 
     let producer_task = tokio::spawn(async move {
         let producer: &FutureProducer = &ClientConfig::new()

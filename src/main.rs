@@ -96,7 +96,6 @@ mod tests {
     };
     use http_body_util::BodyExt;
     use serde_json::Value;
-    use tokio;
     use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
 
     #[tokio::test]

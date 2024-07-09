@@ -51,7 +51,7 @@ pub async fn get_drift(
                 "status": "success",
                 "data": result
             });
-            return Ok(Json(json_response));
+            Ok(Json(json_response))
         }
         Err(e) => {
             error!("Failed to query drift records: {:?}", e);
@@ -59,7 +59,7 @@ pub async fn get_drift(
                 "status": "error",
                 "message": format!("{:?}", e)
             });
-            return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)));
+            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
         }
     }
 }
@@ -88,7 +88,7 @@ pub async fn insert_drift(
                 "status": "success",
                 "message": "Record inserted successfully"
             });
-            return Ok(Json(json_response));
+            Ok(Json(json_response))
         }
         Err(e) => {
             error!("Failed to insert drift record: {:?}", e);
@@ -96,7 +96,7 @@ pub async fn insert_drift(
                 "status": "error",
                 "message": format!("{:?}", e)
             });
-            return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)));
+            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
         }
     }
 }
@@ -113,7 +113,7 @@ pub async fn insert_drift_profile(
                 "status": "success",
                 "message": "Monitor profile inserted successfully"
             });
-            return Ok(Json(json_response));
+            Ok(Json(json_response))
         }
         Err(e) => {
             error!("Failed to insert monitor profile: {:?}", e);
@@ -121,7 +121,7 @@ pub async fn insert_drift_profile(
                 "status": "error",
                 "message": format!("{:?}", e)
             });
-            return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)));
+            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
         }
     }
 }

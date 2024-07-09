@@ -1,6 +1,5 @@
 use scouter_server::sql::schema::DriftRecord;
 use sqlx::Row;
-use tokio;
 mod common;
 
 #[tokio::test]

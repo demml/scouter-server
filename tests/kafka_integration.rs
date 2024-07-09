@@ -2,16 +2,13 @@ use anyhow::Context;
 use scouter_server::kafka::consumer::{setup_kafka_consumer, MessageHandler};
 use scouter_server::sql::postgres::PostgresClient;
 use scouter_server::sql::schema::DriftRecord;
-use tokio;
 mod common;
+use common::produce_message;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
-
 use rdkafka::config::ClientConfig;
-
 use rdkafka::producer::FutureProducer;
 
-use common::produce_message;
 #[tokio::test]
 async fn test_scouter_consumer() {
     // set consumer

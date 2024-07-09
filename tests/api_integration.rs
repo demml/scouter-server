@@ -12,7 +12,6 @@ use http_body_util::BodyExt;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio;
 use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
 
 #[tokio::test]

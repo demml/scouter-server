@@ -27,7 +27,6 @@ impl MessageHandler {
                     Ok(_) => (),
                     Err(e) => {
                         error!("Failed to insert drift record: {:?}", e);
-                        ()
                     }
                 }
             }
@@ -37,6 +36,8 @@ impl MessageHandler {
     }
 }
 
+#[allow(clippy::unnecessary_unwrap)]
+#[allow(clippy::too_many_arguments)]
 pub async fn setup_kafka_consumer(
     message_handler: MessageHandler,
     group_id: String,

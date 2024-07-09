@@ -3,13 +3,13 @@ use std::collections::BTreeMap;
 
 //constants
 
-const INSERT_DRIFT_RECORD: &'static str = include_str!("scripts/insert_drift_record.sql");
-const GET_FEATURES: &'static str = include_str!("scripts/unique_features.sql");
-const GET_BINNED_FEATURE_VALUES: &'static str = include_str!("scripts/binned_feature_values.sql");
-const GET_FEATURE_VALUES: &'static str = include_str!("scripts/feature_values.sql");
-const INSERT_DRIFT_PROFILE: &'static str = include_str!("scripts/insert_drift_profile.sql");
-const INSERT_INTO_QUEUE: &'static str = include_str!("scripts/insert_into_queue.sql");
-const DELETE_FROM_QUEUE: &'static str = include_str!("scripts/delete_from_queue.sql");
+const INSERT_DRIFT_RECORD: &str = include_str!("scripts/insert_drift_record.sql");
+const GET_FEATURES: &str = include_str!("scripts/unique_features.sql");
+const GET_BINNED_FEATURE_VALUES: &str = include_str!("scripts/binned_feature_values.sql");
+const GET_FEATURE_VALUES: &str = include_str!("scripts/feature_values.sql");
+const INSERT_DRIFT_PROFILE: &str = include_str!("scripts/insert_drift_profile.sql");
+const INSERT_INTO_QUEUE: &str = include_str!("scripts/insert_into_queue.sql");
+const DELETE_FROM_QUEUE: &str = include_str!("scripts/delete_from_queue.sql");
 
 pub trait ToMap {
     fn to_map(&self) -> BTreeMap<String, String>;
@@ -152,6 +152,7 @@ impl ToMap for GetBinnedFeatureValuesParams {
     }
 }
 
+#[allow(dead_code)]
 pub enum Queries {
     GetFeatures,
     InsertDriftRecord,
@@ -170,9 +171,9 @@ impl Queries {
             Queries::InsertDriftRecord => SqlQuery::new(INSERT_DRIFT_RECORD),
             Queries::GetBinnedFeatureValues => SqlQuery::new(GET_BINNED_FEATURE_VALUES),
             Queries::GetFeatureValues => SqlQuery::new(GET_FEATURE_VALUES),
-            Queries::InsertMonitorProfile => SqlQuery::new(&INSERT_DRIFT_PROFILE),
-            Queries::InsertIntoQueue => SqlQuery::new(&INSERT_INTO_QUEUE),
-            Queries::DeleteFromQueue => SqlQuery::new(&DELETE_FROM_QUEUE),
+            Queries::InsertMonitorProfile => SqlQuery::new(INSERT_DRIFT_PROFILE),
+            Queries::InsertIntoQueue => SqlQuery::new(INSERT_INTO_QUEUE),
+            Queries::DeleteFromQueue => SqlQuery::new(DELETE_FROM_QUEUE),
         }
     }
 }
@@ -227,7 +228,7 @@ mod tests {
 
         assert_eq!(
             formatted_sql,
-            format!("INSERT INTO features (created_at, name, repository, version, feature, value) \nVALUES ('{}', 'test', 'test', 'test', 'test', 'test')\nON CONFLICT DO NOTHING;", params.created_at.to_string())
+            format!("INSERT INTO features (created_at, name, repository, version, feature, value) \nVALUES ('{}', 'test', 'test', 'test', 'test', 'test')\nON CONFLICT DO NOTHING;", params.created_at)
         );
     }
 

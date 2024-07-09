@@ -1,6 +1,6 @@
 use crate::sql::query::{
     GetBinnedFeatureValuesParams, GetFeatureValuesParams, GetFeaturesParams,
-    InsertMonitorProfileParams, InsertParams, Queries, QueueParams,
+    InsertMonitorProfileParams, InsertParams, Queries,
 };
 use crate::sql::schema::{DriftRecord, FeatureResult, MonitorProfile, QueryResult};
 use anyhow::*;
@@ -11,7 +11,7 @@ use sqlx::{
     Pool, Postgres, QueryBuilder, Row,
 };
 
-use chrono::{NaiveDateTime, Utc};
+use chrono::Utc;
 use cron::Schedule;
 use std::collections::BTreeMap;
 use std::result::Result::Ok;
@@ -67,6 +67,7 @@ impl TimeInterval {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct PostgresClient {
     pub pool: Pool<Postgres>,
     qualified_table_name: String,
@@ -234,6 +235,7 @@ impl PostgresClient {
         Ok(features)
     }
 
+    #[allow(dead_code)]
     async fn run_feature_query(
         &self,
         feature: &str,
@@ -377,6 +379,7 @@ impl PostgresClient {
         Ok(query_result)
     }
 
+    #[allow(dead_code)]
     pub async fn get_drift_records(
         &self,
         name: &str,
@@ -429,36 +432,6 @@ impl PostgresClient {
         Ok(query_result)
     }
 
-    pub async fn insert_into_queue(
-        &self,
-        name: &str,
-        repository: &str,
-        version: &str,
-        next_run: &NaiveDateTime,
-    ) -> Result<()> {
-        let query = Queries::InsertIntoQueue.get_query();
-
-        let params = QueueParams {
-            table: self.queue_table_name.to_string(),
-            name: name.to_string(),
-            repository: repository.to_string(),
-            version: version.to_string(),
-            next_run: *next_run,
-        };
-
-        let result = sqlx::raw_sql(query.format(&params).as_str())
-            .execute(&self.pool)
-            .await;
-
-        match result {
-            Ok(_) => Ok(()),
-            Err(e) => {
-                error!("Failed to insert record into database: {:?}", e);
-                Err(anyhow!("Failed to insert record into database: {:?}", e))
-            }
-        }
-    }
-
     #[allow(dead_code)]
     pub async fn raw_query(&self, query: &str) -> Result<Vec<PgRow>, anyhow::Error> {
         let result = sqlx::raw_sql(query).fetch_all(&self.pool).await;
@@ -470,7 +443,7 @@ impl PostgresClient {
             }
             Err(e) => {
                 error!("Failed to run query: {:?}", e);
-                return Err(anyhow!("Failed to run query: {:?}", e));
+                Err(anyhow!("Failed to run query: {:?}", e))
             }
         }
     }

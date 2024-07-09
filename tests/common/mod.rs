@@ -70,7 +70,7 @@ pub async fn setup_for_api() -> Result<
     ),
     Error,
 > {
-    let (db_client, pool) = setup_test_db().await.unwrap();
+    let (db_client, _pool) = setup_test_db().await.unwrap();
 
     let message_handler = MessageHandler::Postgres(db_client.clone());
 

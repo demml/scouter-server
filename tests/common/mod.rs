@@ -3,15 +3,18 @@ use anyhow::Error;
 use rdkafka::config::ClientConfig;
 use rdkafka::producer::FutureProducer;
 use rdkafka::producer::FutureRecord;
+use scouter_server::api::setup::setup;
 use scouter_server::kafka::consumer::{setup_kafka_consumer, MessageHandler};
 use scouter_server::sql::postgres::PostgresClient;
 use scouter_server::sql::schema::DriftRecord;
+use sqlx::postgres::Postgres;
+use sqlx::Pool;
 use std::env;
 use std::time::Duration;
 
 use rdkafka::error::KafkaError;
 
-pub async fn setup_db() -> Result<PostgresClient, Error> {
+pub async fn setup_db() -> Result<(PostgresClient, Pool<Postgres>), Error> {
     // set the postgres database url
     env::set_var(
         "DATABASE_URL",
@@ -20,8 +23,9 @@ pub async fn setup_db() -> Result<PostgresClient, Error> {
 
     // set the max connections for the postgres pool
     env::set_var("MAX_CONNECTIONS", "10");
+    let pool = setup(None).await.expect("error");
 
-    let client = PostgresClient::new(None).await.expect("error");
+    let client = PostgresClient::new(pool.clone()).unwrap();
 
     sqlx::raw_sql(
         r#"
@@ -34,7 +38,7 @@ pub async fn setup_db() -> Result<PostgresClient, Error> {
     .await
     .unwrap();
 
-    Ok(client)
+    Ok((client, pool))
 }
 
 #[allow(dead_code)]
@@ -61,8 +65,7 @@ pub async fn setup_for_api() -> Result<
     ),
     Error,
 > {
-    let db_client = setup_db().await.unwrap();
-    let message_handler = MessageHandler::Postgres(db_client.clone());
+    let (db_client, pool) = setup_db().await.unwrap();
 
     let producer_task = tokio::spawn(async move {
         let producer: &FutureProducer = &ClientConfig::new()
@@ -90,10 +93,10 @@ pub async fn setup_for_api() -> Result<
 
     let consumer_task = tokio::spawn(async move {
         setup_kafka_consumer(
+            pool.clone(),
             "scouter".to_string(),
             "localhost:9092".to_string(),
             vec!["scouter_monitoring".to_string()],
-            message_handler,
             None,
             None,
             None,
@@ -112,7 +115,7 @@ pub async fn setup_for_api() -> Result<
 pub async fn teardown() -> Result<(), Error> {
     // clear the database
 
-    let db_client = setup_db().await.unwrap();
+    let (_, pool) = setup_db().await.unwrap();
 
     sqlx::raw_sql(
         r#"
@@ -121,7 +124,7 @@ pub async fn teardown() -> Result<(), Error> {
             WHERE name = 'test_app'
             "#,
     )
-    .fetch_all(&db_client.pool)
+    .fetch_all(&pool)
     .await
     .unwrap();
 

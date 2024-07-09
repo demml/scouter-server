@@ -1,4 +1,4 @@
-use scouter_server::kafka::consumer::{setup_kafka_consumer, MessageHandler};
+use scouter_server::kafka::consumer::setup_kafka_consumer;
 use scouter_server::sql::schema::DriftRecord;
 use tokio;
 mod common;
@@ -12,8 +12,7 @@ use common::produce_message;
 async fn test_scouter_consumer() {
     // set consumer
 
-    let db_client = common::setup_db().await.unwrap();
-    let message_handler = MessageHandler::Postgres(db_client.clone());
+    let (db_client, pool) = common::setup_db().await.unwrap();
 
     let producer_task = tokio::spawn(async move {
         let producer: &FutureProducer = &ClientConfig::new()
@@ -38,10 +37,10 @@ async fn test_scouter_consumer() {
 
     let consumer_task = tokio::spawn(async move {
         setup_kafka_consumer(
+            pool.clone(),
             "scouter".to_string(),
             "localhost:9092".to_string(),
             vec!["scouter_monitoring".to_string()],
-            message_handler,
             None,
             None,
             None,

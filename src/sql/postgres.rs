@@ -493,7 +493,10 @@ mod tests {
             "postgresql://postgres:admin@localhost:5432/monitor?",
         );
 
-        let pool = setup().await.unwrap();
+        let pool = setup(None)
+            .await
+            .with_context(|| "Failed to create Postgres client")
+            .unwrap();
         PostgresClient::new(pool).unwrap();
     }
 

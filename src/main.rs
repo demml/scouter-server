@@ -97,9 +97,10 @@ mod tests {
             "postgresql://postgres:admin@localhost:5432/monitor?".to_string(),
         ))
         .await
-        .with_context(|| "Failed to create Postgres client")?;
+        .with_context(|| "Failed to create Postgres client")
+        .unwrap();
 
-        let db_client = sql::postgres::PostgresClient::new(pool).await.unwrap();
+        let db_client = sql::postgres::PostgresClient::new(pool).unwrap();
 
         let app = create_router(Arc::new(AppState {
             db: db_client.clone(),

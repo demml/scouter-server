@@ -57,6 +57,8 @@ async fn main() -> Result<(), anyhow::Error> {
             .for_each(|_| async {});
     }
 
+    let a = db_client.pool.clone();
+
     // start server
     let app = create_router(Arc::new(AppState { db: db_client }));
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8000")

@@ -490,25 +490,6 @@ impl PostgresClient {
         }
     }
 
-    async fn get_from_queue(
-        &self,
-        transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    ) -> Result<(QueueParams)> {
-        let query = Queries::DeleteFromQueue.get_query();
-
-        let result = sqlx::raw_sql(query.format(&params).as_str())
-            .execute(&mut **transaction)
-            .await;
-
-        match result {
-            Ok(_) => Ok(()),
-            Err(e) => {
-                error!("Failed to delete record from database: {:?}", e);
-                Err(anyhow!("Failed to delete record from database: {:?}", e))
-            }
-        }
-    }
-
     #[allow(dead_code)]
     pub async fn raw_query(&self, query: &str) -> Result<Vec<PgRow>, anyhow::Error> {
         let result = sqlx::raw_sql(query).fetch_all(&self.pool).await;

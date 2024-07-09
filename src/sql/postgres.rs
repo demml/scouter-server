@@ -7,16 +7,16 @@ use anyhow::*;
 use futures::future::join_all;
 use include_dir::{include_dir, Dir};
 use sqlx::{
-    postgres::{PgPoolOptions, PgQueryResult, PgRow},
+    postgres::{PgQueryResult, PgRow},
     Pool, Postgres, QueryBuilder, Row,
 };
 
-use chrono::{NaiveDate, NaiveDateTime, Utc};
+use chrono::{NaiveDateTime, Utc};
 use cron::Schedule;
 use std::collections::BTreeMap;
 use std::result::Result::Ok;
 use std::str::FromStr;
-use tracing::{error, info};
+use tracing::error;
 
 static _MIGRATIONS: Dir = include_dir!("migrations");
 

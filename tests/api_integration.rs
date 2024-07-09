@@ -138,7 +138,7 @@ async fn test_api_drift() {
 
 #[tokio::test]
 async fn test_api_profile() {
-    let (db_client, producer_task, consumer_task) = common::setup_for_api().await.unwrap();
+    let (db_client, producer_task, _consumer_task) = common::setup_for_api().await.unwrap();
     producer_task.await.unwrap();
 
     let app = create_router(Arc::new(AppState {

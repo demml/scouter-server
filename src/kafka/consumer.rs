@@ -6,7 +6,6 @@ use rdkafka::consumer::Consumer;
 
 use rdkafka::consumer::stream_consumer::StreamConsumer;
 use rdkafka::consumer::CommitMode;
-use rdkafka::message;
 use rdkafka::Message;
 use sqlx::{Pool, Postgres};
 

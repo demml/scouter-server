@@ -4,7 +4,7 @@ mod model;
 mod sql;
 use crate::api::route::AppState;
 use crate::api::setup::setup;
-use crate::kafka::consumer::{setup_kafka_consumer, MessageHandler};
+use crate::kafka::consumer::setup_kafka_consumer;
 use crate::sql::postgres::PostgresClient;
 use anyhow::Context;
 use api::route::create_router;

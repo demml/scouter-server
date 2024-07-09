@@ -1,5 +1,4 @@
 use anyhow::Context;
-use sqlx::database;
 use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
 use tracing::{error, info};
 

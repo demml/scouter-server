@@ -4,7 +4,7 @@ use rdkafka::config::ClientConfig;
 use rdkafka::producer::FutureProducer;
 use rdkafka::producer::FutureRecord;
 use scouter_server::api::setup::setup;
-use scouter_server::kafka::consumer::{setup_kafka_consumer, MessageHandler};
+use scouter_server::kafka::consumer::setup_kafka_consumer;
 use scouter_server::sql::postgres::PostgresClient;
 use scouter_server::sql::schema::DriftRecord;
 use sqlx::postgres::Postgres;

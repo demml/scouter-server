@@ -1,6 +1,4 @@
-use crate::sql::schema::MonitorProfile;
 use chrono::NaiveDateTime;
-use sqlx::types::Json;
 use std::collections::BTreeMap;
 
 //constants

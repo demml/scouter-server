@@ -1,9 +1,11 @@
+use anyhow::Context;
 use scouter_server::kafka::consumer::{setup_kafka_consumer, MessageHandler};
 use scouter_server::sql::postgres::PostgresClient;
 use scouter_server::sql::schema::DriftRecord;
-
 use tokio;
 mod common;
+use futures::stream::FuturesUnordered;
+use futures::StreamExt;
 
 use rdkafka::config::ClientConfig;
 
@@ -16,21 +18,50 @@ async fn test_scouter_consumer() {
 
     let (db_client, pool) = common::setup_test_db().await.unwrap();
 
-    let message_handler = MessageHandler::Postgres(db_client.clone());
+    // set env vars
+    std::env::set_var("KAFKA_BROKER", "localhost:9092");
+    std::env::set_var("KAFKA_TOPIC", "scouter_monitoring");
+    std::env::set_var("KAFKA_GROUP", "scouter");
 
-    let consumer_task = tokio::spawn(async move {
-        setup_kafka_consumer(
-            message_handler,
-            "scouter".to_string(),
-            "localhost:9092".to_string(),
-            vec!["scouter_monitoring".to_string()],
-            None,
-            None,
-            None,
-            None,
-        )
-        .await;
-    });
+    // setup background task if kafka is enabled
+    // this reproduces main.rs logic for bakcground kafka consumer
+    if std::env::var("KAFKA_BROKER").is_ok() {
+        let brokers = std::env::var("KAFKA_BROKER").unwrap();
+        let topics = vec![std::env::var("KAFKA_TOPIC").unwrap()];
+        let group_id = std::env::var("KAFKA_GROUP").unwrap();
+        let username: Option<String> = std::env::var("KAFKA_USERNAME").ok();
+        let password: Option<String> = std::env::var("KAFKA_PASSWORD").ok();
+        let security_protocol: Option<String> = Some(
+            std::env::var("KAFKA_SECURITY_PROTOCOL")
+                .ok()
+                .unwrap_or_else(|| "SASL_SSL".to_string()),
+        );
+        let sasl_mechanism: Option<String> = Some(
+            std::env::var("KAFKA_SASL_MECHANISM")
+                .ok()
+                .unwrap_or_else(|| "PLAIN".to_string()),
+        );
+
+        let _background = (0..1)
+            .map(|_| {
+                let db_client = PostgresClient::new(pool.clone())
+                    .with_context(|| "Failed to create Postgres client")
+                    .unwrap();
+                let message_handler = MessageHandler::Postgres(db_client);
+                tokio::spawn(setup_kafka_consumer(
+                    message_handler,
+                    group_id.clone(),
+                    brokers.clone(),
+                    topics.clone(),
+                    username.clone(),
+                    password.clone(),
+                    security_protocol.clone(),
+                    sasl_mechanism.clone(),
+                ))
+            })
+            .collect::<FuturesUnordered<_>>()
+            .for_each(|_| async {});
+    }
 
     let producer_task = tokio::spawn(async move {
         let producer: &FutureProducer = &ClientConfig::new()
@@ -54,10 +85,9 @@ async fn test_scouter_consumer() {
     });
 
     // wait for 5 seconds
-    tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
 
     producer_task.abort();
-    consumer_task.abort();
 
     let results = db_client
         .raw_query(

@@ -195,4 +195,5 @@ async fn test_api_profile() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
+    common::teardown().await.unwrap();
 }

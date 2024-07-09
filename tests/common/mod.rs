@@ -79,7 +79,7 @@ pub async fn setup_for_api() -> Result<
             .set("bootstrap.servers", "localhost:9092")
             .create()
             .expect("Producer creation error");
-        let feature_names = vec!["feature1", "feature2", "feature3"];
+        let feature_names = vec!["feature0", "feature1", "feature2"];
 
         for feature_name in feature_names {
             for i in 0..100 {

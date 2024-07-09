@@ -12,7 +12,6 @@ services:
 
   kafka:
     image: confluentinc/cp-kafka:latest
-    hostname: scouter_server_kafka
     container_name: scouter_server_kafka
     depends_on:
       - zookeeper

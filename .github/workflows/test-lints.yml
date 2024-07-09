@@ -49,6 +49,10 @@ jobs:
         run: cargo test -- --nocapture  --test-threads=1
         env:
           RUST_BACKTRACE: 1
+          KAFKA_BROKER: localhost:9092
+          KAFKA_TOPIC: scouter_monitoring
+          KAFKA_GROUP: scouter
+          DATABASE_URL: postgresql://postgres:admin@localhost:5432/monitor?
 
       - name: Bench
         run: cargo bench

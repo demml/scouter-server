@@ -31,7 +31,6 @@ impl ToMap for QueueParams {
         params.insert("repository".to_string(), self.repository.clone());
         params.insert("version".to_string(), self.version.clone());
         params.insert("next_run".to_string(), self.next_run.to_string());
-
         params
     }
 }
@@ -335,7 +334,7 @@ value,
 version
 FROM schema.table
 WHERE
-    created_at > timezone('utc', now()) - interval '10' minute
+    created_at > '2024-01-01 00:00:00'
     AND version = 'test'
     AND name = 'test'
     AND repository = 'test'

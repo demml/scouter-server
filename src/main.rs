@@ -1,6 +1,5 @@
 mod api;
 mod kafka;
-mod model;
 mod sql;
 use crate::api::route::AppState;
 use crate::api::setup::setup;

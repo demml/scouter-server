@@ -47,7 +47,7 @@ services:
   db:
     container_name: scouter_server_db
     depends_on:
-      - kafka
+      - init-kafka
     build:
       context: .
       dockerfile: Dockerfile

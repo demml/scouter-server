@@ -10,7 +10,6 @@ use rdkafka::config::ClientConfig;
 use rdkafka::producer::FutureProducer;
 
 #[tokio::test]
-#[ignore = "doesn't work with github actions yet"]
 async fn test_scouter_consumer() {
     // set consumer
 

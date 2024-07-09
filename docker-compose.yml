@@ -12,8 +12,8 @@ services:
 
   kafka:
     image: confluentinc/cp-kafka:latest
-    hostname: kafka0
-    container_name: kafka0
+    hostname: scouter_server_kafka
+    container_name: scouter_server_kafka
     depends_on:
       - zookeeper
     ports:
@@ -46,6 +46,7 @@ services:
       "
 
   db:
+    container_name: scouter_server_db
     depends_on:
       - kafka
     build:

@@ -76,39 +76,8 @@ pub struct PostgresClient {
 
 impl PostgresClient {
     // Create a new instance of PostgresClient
-    pub async fn new(database_url: Option<String>) -> Result<Self, anyhow::Error> {
+    pub fn new(pool: Pool<Postgres>) -> Result<Self, anyhow::Error> {
         // get database url from env or use the provided one
-        let database_url = match database_url {
-            Some(url) => url,
-            None => std::env::var("DATABASE_URL").with_context(|| "DATABASE_URL must be set")?,
-        };
-
-        // get max connections from env or set to 10
-        let max_connections = std::env::var("MAX_CONNECTIONS")
-            .unwrap_or_else(|_| "10".to_string())
-            .parse::<u32>()
-            .expect("MAX_CONNECTIONS must be a number");
-
-        let pool = match PgPoolOptions::new()
-            .max_connections(max_connections)
-            .connect(&database_url)
-            .await
-        {
-            Ok(pool) => {
-                info!("✅ Successfully connected to database");
-                pool
-            }
-            Err(err) => {
-                error!("🔥 Failed to connect to database {:?}", err);
-                std::process::exit(1);
-            }
-        };
-
-        // run migrations
-        sqlx::migrate!()
-            .run(&pool)
-            .await
-            .with_context(|| "Failed to run migrations")?;
 
         Ok(Self {
             pool,
@@ -511,6 +480,8 @@ impl PostgresClient {
 #[cfg(test)]
 mod tests {
 
+    use crate::api::setup::setup;
+
     use super::*;
     use std::env;
     use tokio;
@@ -522,7 +493,8 @@ mod tests {
             "postgresql://postgres:admin@localhost:5432/monitor?",
         );
 
-        PostgresClient::new(None).await.expect("error");
+        let pool = setup().await.unwrap();
+        PostgresClient::new(pool).unwrap();
     }
 
     #[test]

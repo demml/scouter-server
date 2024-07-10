@@ -4,17 +4,12 @@ use anyhow::*;
 use rdkafka::config::ClientConfig;
 use rdkafka::consumer::Consumer;
 
-use futures::stream::FuturesUnordered;
 use futures::StreamExt;
-use futures::TryStreamExt;
 use rdkafka::consumer::CommitMode;
-use rdkafka::consumer::{BaseConsumer, StreamConsumer};
-use rdkafka::message::BorrowedMessage;
+use rdkafka::consumer::StreamConsumer;
 use rdkafka::Message;
 use std::collections::HashMap;
 use std::result::Result::Ok;
-use std::sync::Arc;
-use tokio::sync::Mutex;
 use tracing::error;
 use tracing::info;
 
@@ -100,7 +95,6 @@ pub async fn stream_from_kafka_topic(
         Some(Ok(msg)) => {
             let payload = msg.payload().unwrap();
             let record: DriftRecord = serde_json::from_slice(payload).unwrap();
-            println!("Received message: {:?}", record);
             let inserted = message_handler.insert_drift_record(&record).await;
             match inserted {
                 Ok(_) => {

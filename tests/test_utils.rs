@@ -1,28 +1,22 @@
 use anyhow::Error;
 use axum::Router;
-use chrono::format::DelayedFormat;
 use rdkafka::config::ClientConfig;
-use rdkafka::error::KafkaError;
-use rdkafka::producer::DefaultProducerContext;
 use rdkafka::producer::FutureProducer;
 use rdkafka::producer::FutureRecord;
 use rdkafka::producer::Producer;
 use scouter_server::api::route::create_router;
 use scouter_server::api::route::AppState;
 use scouter_server::api::setup::create_db_pool;
-use scouter_server::kafka::consumer::start_kafka_background_poll;
-use scouter_server::kafka::consumer::MessageHandler;
 use scouter_server::sql::postgres::PostgresClient;
 use scouter_server::sql::schema::DriftRecord;
 use sqlx::Pool;
 use sqlx::Postgres;
-use std::borrow::Borrow;
-use std::collections::HashMap;
 use std::env;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::info;
 
+#[allow(dead_code)]
 pub async fn populate_topic(topic_name: &str) {
     // Produce some messages
 
@@ -36,7 +30,7 @@ pub async fn populate_topic(topic_name: &str) {
         .create()
         .expect("Producer creation error");
 
-    let futures = (0..5)
+    let _ = (0..5)
         .map(|i| async move {
             // The send operation on the topic returns a future, which will be
             // completed once the result or failure from Kafka is received.
@@ -54,7 +48,7 @@ pub async fn populate_topic(topic_name: &str) {
 
                 let record_string = serde_json::to_string(&record).unwrap();
 
-                let delivery_status = producer
+                let _ = producer
                     .send(
                         FutureRecord::to(topic_name)
                             .payload(&record_string)
@@ -106,6 +100,7 @@ pub async fn setup_db(clean_db: bool) -> Result<Pool<Postgres>, Error> {
     Ok(pool)
 }
 
+#[allow(dead_code)]
 pub async fn setup_api(clean_db: bool) -> Result<Router, Error> {
     // set the postgres database url
     let pool = setup_db(clean_db).await.unwrap();

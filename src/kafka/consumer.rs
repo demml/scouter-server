@@ -4,11 +4,16 @@ use anyhow::*;
 use rdkafka::config::ClientConfig;
 use rdkafka::consumer::Consumer;
 
+use futures::StreamExt;
 use rdkafka::consumer::stream_consumer::StreamConsumer;
 use rdkafka::consumer::CommitMode;
-use rdkafka::Message;
+use rdkafka::message::BorrowedMessage;
 
+use futures::stream::FuturesUnordered;
+use rdkafka::Message;
 use std::result::Result::Ok;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use tracing::error;
 use tracing::info;
 
@@ -19,10 +24,10 @@ pub enum MessageHandler {
 }
 
 impl MessageHandler {
-    pub async fn insert_drift_record(&self, record: &DriftRecord) -> Result<()> {
+    pub async fn insert_drift_record(&self, records: &DriftRecord) -> Result<()> {
         match self {
             Self::Postgres(client) => {
-                let result = client.insert_drift_record(record).await;
+                let result = client.insert_drift_record(records).await;
                 match result {
                     Ok(_) => (),
                     Err(e) => {
@@ -77,6 +82,30 @@ pub async fn create_kafka_consumer(
 
 #[allow(clippy::unnecessary_unwrap)]
 #[allow(clippy::too_many_arguments)]
+pub async fn stream_from_kafka_topic(
+    message_handler: &MessageHandler,
+    consumer: &StreamConsumer,
+) -> Result<(), anyhow::Error> {
+    let msg = consumer.recv().await;
+
+    match msg {
+        Ok(m) => {
+            let payload = m.payload().unwrap();
+            let record: DriftRecord = serde_json::from_slice(payload).unwrap();
+            println!("Received record: {:?}", record);
+            message_handler.insert_drift_record(&record).await?;
+            consumer.commit_message(&m, CommitMode::Async).unwrap();
+        }
+        Err(e) => {
+            error!("Error while reading message: {:?}", e);
+        }
+    }
+
+    Ok(())
+}
+
+#[allow(clippy::unnecessary_unwrap)]
+#[allow(clippy::too_many_arguments)]
 pub async fn start_kafka_background_poll(
     message_handler: MessageHandler,
     group_id: String,
@@ -87,7 +116,7 @@ pub async fn start_kafka_background_poll(
     security_protocol: Option<String>,
     sasl_mechanism: Option<String>,
 ) -> Result<(), anyhow::Error> {
-    let consumer: StreamConsumer = create_kafka_consumer(
+    let consumer = create_kafka_consumer(
         group_id,
         brokers,
         topics,
@@ -97,24 +126,8 @@ pub async fn start_kafka_background_poll(
         sasl_mechanism,
     )
     .await
-    .with_context(|| "Failed to create Kafka consumer")?;
-
+    .unwrap();
     loop {
-        let message = consumer.recv().await;
-
-        match message {
-            Ok(message) => {
-                let payload = message.payload_view::<str>().unwrap().unwrap();
-                let record: DriftRecord = serde_json::from_str(payload).unwrap();
-                message_handler.insert_drift_record(&record).await.unwrap();
-                consumer
-                    .commit_message(&message, CommitMode::Async)
-                    .unwrap();
-            }
-            Err(e) => {
-                info!("Failed to receive message: {:?}", e);
-                error!("Failed to receive message: {:?}", e);
-            }
-        }
+        stream_from_kafka_topic(&message_handler, &consumer).await?;
     }
 }

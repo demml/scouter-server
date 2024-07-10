@@ -27,7 +27,7 @@ pub async fn setup_logging() -> Result<(), anyhow::Error> {
 
 /// Setup the application with the given database pool.
 
-pub async fn setup_db(database_url: Option<String>) -> Result<Pool<Postgres>, anyhow::Error> {
+pub async fn create_db_pool(database_url: Option<String>) -> Result<Pool<Postgres>, anyhow::Error> {
     let database_url = match database_url {
         Some(url) => url,
         None => std::env::var("DATABASE_URL").with_context(|| "DATABASE_URL must be set")?,

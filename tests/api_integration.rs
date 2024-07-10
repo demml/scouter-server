@@ -3,7 +3,7 @@ use scouter_server::api::schema::DriftRecordRequest;
 use scouter_server::sql::schema::{
     AlertRule, FeatureMonitorProfile, MonitorConfig, MonitorProfile, ProcessAlertRule, QueryResult,
 };
-mod common;
+
 use axum::{
     body::Body,
     http::{self, Request, StatusCode},
@@ -13,10 +13,11 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
+mod test_utils;
 
 #[tokio::test]
 async fn test_api_drift() {
-    let (db_client, producer_task, consumer_task) = common::setup_for_api().await.unwrap();
+    let (db_client, producer_task, consumer_task) = test_utils::setup_for_api().await.unwrap();
     producer_task.await.unwrap();
 
     let app = create_router(Arc::new(AppState {
@@ -130,14 +131,14 @@ async fn test_api_drift() {
 
     // teardown
     consumer_task.abort();
-    common::teardown().await.unwrap();
+    test_utils::teardown().await.unwrap();
 
     // test api
 }
 
 #[tokio::test]
 async fn test_api_profile() {
-    let (db_client, producer_task, _consumer_task) = common::setup_for_api().await.unwrap();
+    let (db_client, producer_task, _consumer_task) = test_utils::setup_for_api().await.unwrap();
     producer_task.await.unwrap();
 
     let app = create_router(Arc::new(AppState {
@@ -194,5 +195,5 @@ async fn test_api_profile() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
-    common::teardown().await.unwrap();
+    test_utils::teardown().await.unwrap();
 }

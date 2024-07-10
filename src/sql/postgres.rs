@@ -174,7 +174,7 @@ impl PostgresClient {
     #[allow(dead_code)]
     pub async fn insert_drift_records(
         &self,
-        records: Vec<DriftRecord>,
+        records: &[DriftRecord],
     ) -> Result<PgQueryResult, anyhow::Error> {
         let insert_statement = format!(
             "INSERT INTO {} (created_at, name, repository, version, feature, value)",
@@ -453,7 +453,7 @@ impl PostgresClient {
 #[cfg(test)]
 mod tests {
 
-    use crate::api::setup::setup_db;
+    use crate::api::setup::create_db_pool;
 
     use super::*;
     use std::env;
@@ -466,7 +466,7 @@ mod tests {
             "postgresql://postgres:admin@localhost:5432/monitor?",
         );
 
-        let pool = setup_db(None)
+        let pool = create_db_pool(None)
             .await
             .with_context(|| "Failed to create Postgres client")
             .unwrap();

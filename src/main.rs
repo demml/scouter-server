@@ -2,7 +2,7 @@ mod api;
 mod kafka;
 mod sql;
 use crate::api::route::AppState;
-use crate::api::setup::{setup_db, setup_logging};
+use crate::api::setup::{create_db_pool, setup_logging};
 use crate::kafka::consumer::start_kafka_background_poll;
 use crate::sql::postgres::PostgresClient;
 use anyhow::Context;
@@ -22,7 +22,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .with_context(|| "Failed to setup logging")?;
 
     // db for app state and kafka
-    let pool = setup_db(None)
+    let pool = create_db_pool(None)
         .await
         .with_context(|| "Failed to create Postgres client")?;
 
@@ -100,7 +100,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_health_check() {
-        let pool = setup_db(Some(
+        let pool = create_db_pool(Some(
             "postgresql://postgres:admin@localhost:5432/monitor?".to_string(),
         ))
         .await

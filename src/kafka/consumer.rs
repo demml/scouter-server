@@ -101,7 +101,7 @@ pub async fn stream_from_kafka_topic(
         Some(Ok(msg)) => {
             let payload = msg.payload().unwrap();
             let record: DriftRecord = serde_json::from_slice(payload).unwrap();
-            println!("Received record: {:?}", record);
+            println!("Received message: {:?}", record);
             let inserted = message_handler.insert_drift_record(&record).await;
             match inserted {
                 Ok(_) => {

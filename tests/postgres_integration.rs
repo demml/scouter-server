@@ -6,7 +6,7 @@ mod test_utils;
 
 #[tokio::test]
 async fn test_postgres_client() {
-    let pool = test_utils::setup_pool_and_clean_db().await.unwrap();
+    let pool = test_utils::setup_db(true).await.unwrap();
     let db_client = PostgresClient::new(pool.clone()).unwrap();
 
     // test inserting record

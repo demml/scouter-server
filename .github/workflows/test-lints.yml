@@ -53,6 +53,7 @@ jobs:
       - name: Start the application
         run: | 
             cargo run & 
+            sleep 120
             curl http://localhost:8000/healthcheck
         env:
           RUST_BACKTRACE: 1

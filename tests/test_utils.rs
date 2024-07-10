@@ -65,10 +65,6 @@ pub async fn populate_topic(topic_name: &str) {
         })
         .collect::<Vec<_>>();
 
-    for future in futures {
-        println!("Future completed. Result: {:?}", future.await);
-    }
-
     producer.flush(Duration::from_secs(1)).unwrap()
 }
 

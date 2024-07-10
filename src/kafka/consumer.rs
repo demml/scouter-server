@@ -4,14 +4,14 @@ use anyhow::*;
 use rdkafka::config::ClientConfig;
 use rdkafka::consumer::Consumer;
 
-use futures::StreamExt;
-use rdkafka::consumer::stream_consumer::StreamConsumer;
-use rdkafka::consumer::CommitMode;
-use rdkafka::message::BorrowedMessage;
-
 use futures::stream::FuturesUnordered;
+use futures::StreamExt;
 use futures::TryStreamExt;
+use rdkafka::consumer::CommitMode;
+use rdkafka::consumer::{BaseConsumer, StreamConsumer};
+use rdkafka::message::BorrowedMessage;
 use rdkafka::Message;
+use std::collections::HashMap;
 use std::result::Result::Ok;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -50,6 +50,7 @@ pub async fn create_kafka_consumer(
     password: Option<String>,
     security_protocol: Option<String>,
     sasl_mechanism: Option<String>,
+    config_overrides: Option<HashMap<&str, &str>>,
 ) -> Result<StreamConsumer, anyhow::Error> {
     info!("Setting up Kafka consumer");
 
@@ -68,6 +69,12 @@ pub async fn create_kafka_consumer(
             .set("sasl.mechanisms", sasl_mechanism.unwrap())
             .set("sasl.username", username.unwrap())
             .set("sasl.password", password.unwrap());
+    }
+
+    if let Some(overrides) = config_overrides {
+        for (key, value) in overrides {
+            config.set(key, value);
+        }
     }
 
     let consumer: StreamConsumer = config.create().expect("Consumer creation error");
@@ -136,6 +143,7 @@ pub async fn start_kafka_background_poll(
         password,
         security_protocol,
         sasl_mechanism,
+        None,
     )
     .await
     .unwrap();

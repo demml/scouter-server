@@ -7,7 +7,7 @@ use anyhow::*;
 use futures::future::join_all;
 use include_dir::{include_dir, Dir};
 use sqlx::{
-    postgres::{PgPoolOptions, PgQueryResult, PgRow},
+    postgres::{PgQueryResult, PgRow},
     Pool, Postgres, QueryBuilder, Row,
 };
 
@@ -16,7 +16,7 @@ use cron::Schedule;
 use std::collections::BTreeMap;
 use std::result::Result::Ok;
 use std::str::FromStr;
-use tracing::{error, info};
+use tracing::error;
 
 static _MIGRATIONS: Dir = include_dir!("migrations");
 
@@ -67,50 +67,24 @@ impl TimeInterval {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct PostgresClient {
     pub pool: Pool<Postgres>,
     qualified_table_name: String,
+    queue_table_name: String,
+    profile_table_name: String,
 }
 
 impl PostgresClient {
     // Create a new instance of PostgresClient
-    pub async fn new(database_url: Option<String>) -> Result<Self, anyhow::Error> {
+    pub fn new(pool: Pool<Postgres>) -> Result<Self, anyhow::Error> {
         // get database url from env or use the provided one
-        let database_url = match database_url {
-            Some(url) => url,
-            None => std::env::var("DATABASE_URL").with_context(|| "DATABASE_URL must be set")?,
-        };
-
-        // get max connections from env or set to 10
-        let max_connections = std::env::var("MAX_CONNECTIONS")
-            .unwrap_or_else(|_| "10".to_string())
-            .parse::<u32>()
-            .expect("MAX_CONNECTIONS must be a number");
-
-        let pool = match PgPoolOptions::new()
-            .max_connections(max_connections)
-            .connect(&database_url)
-            .await
-        {
-            Ok(pool) => {
-                info!("✅ Successfully connected to database");
-                pool
-            }
-            Err(err) => {
-                error!("🔥 Failed to connect to database {:?}", err);
-                std::process::exit(1);
-            }
-        };
-
-        // run migrations
-        sqlx::migrate!()
-            .run(&pool)
-            .await
-            .with_context(|| "Failed to run migrations")?;
 
         Ok(Self {
             pool,
             qualified_table_name: "scouter.drift".to_string(),
+            queue_table_name: "scouter.drift_queue".to_string(),
+            profile_table_name: "scouter.drift_profile".to_string(),
         })
     }
 
@@ -200,7 +174,7 @@ impl PostgresClient {
     #[allow(dead_code)]
     pub async fn insert_drift_records(
         &self,
-        records: Vec<DriftRecord>,
+        records: &[DriftRecord],
     ) -> Result<PgQueryResult, anyhow::Error> {
         let insert_statement = format!(
             "INSERT INTO {} (created_at, name, repository, version, feature, value)",
@@ -233,7 +207,7 @@ impl PostgresClient {
 
     // Queries the database for all features under a service
     // Private method that'll be used to run drift retrieval in parallel
-    async fn get_service_features(
+    async fn get_features(
         &self,
         name: &str,
         repository: &str,
@@ -261,6 +235,7 @@ impl PostgresClient {
         Ok(features)
     }
 
+    #[allow(dead_code)]
     async fn run_feature_query(
         &self,
         feature: &str,
@@ -348,7 +323,7 @@ impl PostgresClient {
         time_window: &i32,
     ) -> Result<QueryResult, anyhow::Error> {
         // get features
-        let features = self.get_service_features(name, repository, version).await?;
+        let features = self.get_features(name, repository, version).await?;
 
         let bin = *time_window as f64 / *max_data_points as f64;
 
@@ -404,6 +379,7 @@ impl PostgresClient {
         Ok(query_result)
     }
 
+    #[allow(dead_code)]
     pub async fn get_drift_records(
         &self,
         name: &str,
@@ -411,7 +387,7 @@ impl PostgresClient {
         version: &str,
         limit_timestamp: &str,
     ) -> Result<QueryResult, anyhow::Error> {
-        let features = self.get_service_features(name, repository, version).await?;
+        let features = self.get_features(name, repository, version).await?;
 
         let async_queries = features
             .iter()
@@ -467,7 +443,7 @@ impl PostgresClient {
             }
             Err(e) => {
                 error!("Failed to run query: {:?}", e);
-                return Err(anyhow!("Failed to run query: {:?}", e));
+                Err(anyhow!("Failed to run query: {:?}", e))
             }
         }
     }
@@ -476,6 +452,8 @@ impl PostgresClient {
 // integration tests
 #[cfg(test)]
 mod tests {
+
+    use crate::api::setup::create_db_pool;
 
     use super::*;
     use std::env;
@@ -488,7 +466,11 @@ mod tests {
             "postgresql://postgres:admin@localhost:5432/monitor?",
         );
 
-        PostgresClient::new(None).await.expect("error");
+        let pool = create_db_pool(None)
+            .await
+            .with_context(|| "Failed to create Postgres client")
+            .unwrap();
+        PostgresClient::new(pool).unwrap();
     }
 
     #[test]

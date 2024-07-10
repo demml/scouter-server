@@ -1,10 +1,10 @@
 mod api;
 mod kafka;
-mod model;
 mod sql;
 use crate::api::route::AppState;
-use crate::api::setup::setup;
-use crate::kafka::consumer::{setup_kafka_consumer, MessageHandler};
+use crate::api::setup::{create_db_pool, setup_logging};
+use crate::kafka::consumer::start_kafka_background_poll;
+use crate::sql::postgres::PostgresClient;
 use anyhow::Context;
 use api::route::create_router;
 use futures::stream::FuturesUnordered;
@@ -16,16 +16,27 @@ const NUM_WORKERS: usize = 5;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
+    // setup logging
+    setup_logging()
+        .await
+        .with_context(|| "Failed to setup logging")?;
+
     // db for app state and kafka
-    let db_client = setup()
+    let pool = create_db_pool(None)
         .await
         .with_context(|| "Failed to create Postgres client")?;
+
+    // run migrations
+    sqlx::migrate!()
+        .run(&pool)
+        .await
+        .with_context(|| "Failed to run migrations")?;
 
     // setup background task if kafka is enabled
     if std::env::var("KAFKA_BROKER").is_ok() {
         let brokers = std::env::var("KAFKA_BROKER").unwrap();
-        let topics = vec![std::env::var("KAFKA_TOPIC").unwrap()];
-        let group = std::env::var("KAFKA_GROUP").unwrap();
+        let topics = vec![std::env::var("KAFKA_TOPIC").unwrap_or("scouter_monitoring".to_string())];
+        let group_id = std::env::var("KAFKA_GROUP").unwrap_or("scouter".to_string());
         let username: Option<String> = std::env::var("KAFKA_USERNAME").ok();
         let password: Option<String> = std::env::var("KAFKA_PASSWORD").ok();
         let security_protocol: Option<String> = Some(
@@ -41,12 +52,15 @@ async fn main() -> Result<(), anyhow::Error> {
 
         let _background = (0..NUM_WORKERS)
             .map(|_| {
-                let message_handler = MessageHandler::Postgres(db_client.clone());
-                tokio::spawn(setup_kafka_consumer(
-                    group.clone(),
+                let db_client = PostgresClient::new(pool.clone())
+                    .with_context(|| "Failed to create Postgres client")
+                    .unwrap();
+                let message_handler = kafka::consumer::MessageHandler::Postgres(db_client);
+                tokio::spawn(start_kafka_background_poll(
+                    message_handler,
+                    group_id.clone(),
                     brokers.clone(),
                     topics.clone(),
-                    message_handler,
                     username.clone(),
                     password.clone(),
                     security_protocol.clone(),
@@ -58,7 +72,11 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 
     // start server
+    let db_client =
+        PostgresClient::new(pool).with_context(|| "Failed to create Postgres client")?;
+
     let app = create_router(Arc::new(AppState { db: db_client }));
+
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8000")
         .await
         .with_context(|| "Failed to bind to port 8000")?;
@@ -78,16 +96,18 @@ mod tests {
     };
     use http_body_util::BodyExt;
     use serde_json::Value;
-    use tokio;
     use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
 
     #[tokio::test]
     async fn test_health_check() {
-        let db_client = sql::postgres::PostgresClient::new(Some(
+        let pool = create_db_pool(Some(
             "postgresql://postgres:admin@localhost:5432/monitor?".to_string(),
         ))
         .await
+        .with_context(|| "Failed to create Postgres client")
         .unwrap();
+
+        let db_client = sql::postgres::PostgresClient::new(pool).unwrap();
 
         let app = create_router(Arc::new(AppState {
             db: db_client.clone(),

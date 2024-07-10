@@ -1,11 +1,13 @@
 use scouter_server::sql::schema::DriftRecord;
 use sqlx::Row;
-use tokio;
-mod common;
+
+use scouter_server::sql::postgres::PostgresClient;
+mod test_utils;
 
 #[tokio::test]
 async fn test_postgres_client() {
-    let db_client = common::setup_db().await.unwrap();
+    let pool = test_utils::setup_db(true).await.unwrap();
+    let db_client = PostgresClient::new(pool.clone()).unwrap();
 
     // test inserting record
     let record = DriftRecord {
@@ -65,5 +67,5 @@ async fn test_postgres_client() {
 
     assert_eq!(result.features.len(), 1);
 
-    common::teardown().await.unwrap();
+    test_utils::teardown().await.unwrap();
 }

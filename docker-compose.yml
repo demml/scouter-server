@@ -12,6 +12,7 @@ services:
 
   kafka:
     image: confluentinc/cp-kafka:latest
+    container_name: scouter_server_kafka
     depends_on:
       - zookeeper
     ports:
@@ -44,8 +45,9 @@ services:
       "
 
   db:
+    container_name: scouter_server_db
     depends_on:
-      - kafka
+      - init-kafka
     build:
       context: .
       dockerfile: Dockerfile

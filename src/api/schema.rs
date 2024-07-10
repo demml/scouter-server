@@ -1,7 +1,6 @@
 use chrono::NaiveDateTime;
 use serde::Deserialize;
 use serde::Serialize;
-use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ServiceDriftRequest {

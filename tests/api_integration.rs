@@ -1,9 +1,8 @@
-use scouter_server::api::route::{create_router, AppState};
 use scouter_server::api::schema::DriftRecordRequest;
 use scouter_server::sql::schema::{
     AlertRule, FeatureMonitorProfile, MonitorConfig, MonitorProfile, ProcessAlertRule, QueryResult,
 };
-mod common;
+
 use axum::{
     body::Body,
     http::{self, Request, StatusCode},
@@ -11,24 +10,16 @@ use axum::{
 use http_body_util::BodyExt;
 use serde_json::Value;
 use std::collections::HashMap;
-use std::sync::Arc;
-use tokio;
+use tower::Service;
 use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
+mod test_utils;
 
 #[tokio::test]
 async fn test_api_drift() {
-    let (db_client, producer_task, consumer_task) = common::setup_for_api().await.unwrap();
-    producer_task.await.unwrap();
+    let mut app = test_utils::setup_api(true).await.unwrap();
 
-    let app = create_router(Arc::new(AppState {
-        db: db_client.clone(),
-    }));
-
+    // create 3 records and insert
     for i in 0..3 {
-        let app_loop = create_router(Arc::new(AppState {
-            db: db_client.clone(),
-        }));
-
         let record = DriftRecordRequest {
             created_at: None,
             name: "test_app".to_string(),
@@ -40,8 +31,8 @@ async fn test_api_drift() {
 
         let body = serde_json::to_string(&record).unwrap();
 
-        let response = app_loop
-            .oneshot(
+        let response = app
+            .call(
                 Request::builder()
                     .uri("/drift")
                     .header(http::header::CONTENT_TYPE, "application/json")
@@ -55,8 +46,8 @@ async fn test_api_drift() {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
-    let app_clone = app.clone();
-    let response = app_clone.oneshot(
+    // query data
+    let response = app.call(
         Request::builder()
             .uri("/drift?name=test_app&repository=test&version=1.0.0&time_window=5minute&max_data_points=1000")
             .method("GET")
@@ -75,10 +66,6 @@ async fn test_api_drift() {
 
     assert_eq!(data.features.len(), 3);
 
-    let app = create_router(Arc::new(AppState {
-        db: db_client.clone(),
-    }));
-
     let record = DriftRecordRequest {
         created_at: None,
         name: "test_app".to_string(),
@@ -92,7 +79,7 @@ async fn test_api_drift() {
 
     // insert data for new version
     let response = app
-        .oneshot(
+        .call(
             Request::builder()
                 .uri("/drift")
                 .header(http::header::CONTENT_TYPE, "application/json")
@@ -105,11 +92,8 @@ async fn test_api_drift() {
 
     assert_eq!(response.status(), StatusCode::OK);
 
-    let app = create_router(Arc::new(AppState {
-        db: db_client.clone(),
-    }));
-
-    let response = app.oneshot(
+    // query new version
+    let response = app.call(
         Request::builder()
             .uri("/drift?name=test_app&repository=test&version=2.0.0&time_window=5minute&max_data_points=1000")
             .method("GET")
@@ -129,21 +113,14 @@ async fn test_api_drift() {
 
     assert_eq!(data.features.len(), 1);
 
-    // teardown
-    consumer_task.abort();
-    common::teardown().await.unwrap();
+    test_utils::teardown().await.unwrap();
 
     // test api
 }
 
 #[tokio::test]
 async fn test_api_profile() {
-    let (db_client, producer_task, consumer_task) = common::setup_for_api().await.unwrap();
-    producer_task.await.unwrap();
-
-    let app = create_router(Arc::new(AppState {
-        db: db_client.clone(),
-    }));
+    let app = test_utils::setup_api(true).await.unwrap();
 
     let mut features = HashMap::new();
     features.insert(
@@ -195,4 +172,5 @@ async fn test_api_profile() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
+    test_utils::teardown().await.unwrap();
 }

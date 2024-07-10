@@ -40,7 +40,14 @@ async fn test_produce_consume_base() {
     .await
     .unwrap();
 
-    let _ = stream_from_kafka_topic(&message_handler, &consumer).await;
+    for _ in 0..20 {
+        stream_from_kafka_topic(&message_handler, &consumer)
+            .await
+            .unwrap();
+    }
+
+    // pause for a bit to allow the consumer to consume
+    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
 
     //let consumer = create_kafka_consumer(
     //    "scouter".to_string(),

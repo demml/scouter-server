@@ -10,6 +10,7 @@ use rdkafka::consumer::CommitMode;
 use rdkafka::message::BorrowedMessage;
 
 use futures::stream::FuturesUnordered;
+use futures::TryStreamExt;
 use rdkafka::Message;
 use std::result::Result::Ok;
 use std::sync::Arc;
@@ -86,18 +87,29 @@ pub async fn stream_from_kafka_topic(
     message_handler: &MessageHandler,
     consumer: &StreamConsumer,
 ) -> Result<(), anyhow::Error> {
-    let msg = consumer.recv().await;
+    let mut stream = consumer.stream();
+    let message = stream.next().await;
 
-    match msg {
-        Ok(m) => {
-            let payload = m.payload().unwrap();
+    match message {
+        Some(Ok(msg)) => {
+            let payload = msg.payload().unwrap();
             let record: DriftRecord = serde_json::from_slice(payload).unwrap();
             println!("Received record: {:?}", record);
-            message_handler.insert_drift_record(&record).await?;
-            consumer.commit_message(&m, CommitMode::Async).unwrap();
+            let inserted = message_handler.insert_drift_record(&record).await;
+            match inserted {
+                Ok(_) => {
+                    consumer.commit_message(&msg, CommitMode::Async).unwrap();
+                }
+                Err(e) => {
+                    error!("Failed to insert drift record: {:?}", e);
+                }
+            }
         }
-        Err(e) => {
-            error!("Error while reading message: {:?}", e);
+        Some(Err(e)) => {
+            error!("Failed to receive message: {:?}", e);
+        }
+        None => {
+            error!("No message received");
         }
     }
 
@@ -127,6 +139,7 @@ pub async fn start_kafka_background_poll(
     )
     .await
     .unwrap();
+
     loop {
         stream_from_kafka_topic(&message_handler, &consumer).await?;
     }

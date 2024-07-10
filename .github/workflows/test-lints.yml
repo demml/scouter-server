@@ -54,7 +54,7 @@ jobs:
         run: | 
             cargo run & 
             sleep 120
-            curl http://localhost:8000/healthcheck
+            cargo test -- --ignored --nocapture
         env:
           RUST_BACKTRACE: 1
           DATABASE_URL: postgresql://postgres:admin@localhost:5432/monitor?

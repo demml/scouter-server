@@ -10,5 +10,7 @@ publish = true
 
 [[package]]
 name = "scouter-server"
+changelog_path = "./CHANGELOG.md"
+git_release_enable = true # create GitHub relea
 
 

@@ -13,6 +13,7 @@ permissions:
 env:
   INTERPRETER: '3.11'
   RUSTFLAGS: -C debuginfo=0
+  PYO3_CROSS_PYTHON_VERSION: 3.11
 
 jobs:
     
@@ -37,3 +38,8 @@ jobs:
       - name: Build binary
         run: |
             cargo build --release --target ${{ matrix.target }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: ./scouter-server/release/

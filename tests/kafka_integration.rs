@@ -33,6 +33,8 @@ async fn test_api_with_kafka() {
         .await
         .unwrap();
 
+    let count = result.len();
+
     // iterate over the result and create DriftRecord
     for row in result {
         let record = DriftRecord {
@@ -47,5 +49,5 @@ async fn test_api_with_kafka() {
         println!("{:?}", record);
     }
 
-    assert_eq!(result.len(), 1);
+    assert_eq!(count, 1);
 }

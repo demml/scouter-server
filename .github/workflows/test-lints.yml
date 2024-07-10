@@ -53,7 +53,10 @@ jobs:
       - name: Start the application
         run: | 
             cargo run & 
-            sleep 120
+            until curl --output /dev/null --silent --head --fail http://localhost:8000/healthcheck; do
+              printf '.'
+              sleep 5
+            done
             cargo test -- --ignored --nocapture
         env:
           RUST_BACKTRACE: 1
@@ -66,3 +69,5 @@ jobs:
       - name: Stop Containers
         if: always()
         run: docker-compose -f "docker-compose.yml" down
+
+

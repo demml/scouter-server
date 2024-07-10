@@ -4,7 +4,7 @@ use rdkafka::config::ClientConfig;
 use rdkafka::producer::FutureProducer;
 use rdkafka::producer::FutureRecord;
 use scouter_server::api::setup::setup_db;
-use scouter_server::kafka::consumer::{setup_kafka_consumer, MessageHandler};
+use scouter_server::kafka::consumer::{start_kafka_background_poll, MessageHandler};
 use scouter_server::sql::postgres::PostgresClient;
 use scouter_server::sql::schema::DriftRecord;
 use sqlx::postgres::Postgres;
@@ -99,7 +99,7 @@ pub async fn setup_for_api() -> Result<
     });
 
     let consumer_task = tokio::spawn(async move {
-        setup_kafka_consumer(
+        start_kafka_background_poll(
             message_handler,
             "scouter".to_string(),
             "localhost:9092".to_string(),

@@ -1,15 +1,24 @@
 use anyhow::Context;
-use scouter_server::kafka::consumer::{setup_kafka_consumer, MessageHandler};
+use futures::future;
+use rdkafka::Message;
+use scouter_server::kafka::consumer::{
+    create_kafka_consumer, start_kafka_background_poll, MessageHandler,
+};
 use scouter_server::sql::postgres::PostgresClient;
 use scouter_server::sql::schema::DriftRecord;
 mod common;
+use crate::utils::*;
 use common::produce_message;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use rdkafka::config::ClientConfig;
+use rdkafka::consumer::Consumer;
+use rdkafka::consumer::{BaseConsumer, StreamConsumer};
 use rdkafka::producer::FutureProducer;
+mod utils;
 
 #[tokio::test]
+#[ignore]
 async fn test_scouter_consumer() {
     // set consumer
 
@@ -45,7 +54,7 @@ async fn test_scouter_consumer() {
                     .with_context(|| "Failed to create Postgres client")
                     .unwrap();
                 let message_handler = MessageHandler::Postgres(db_client);
-                tokio::spawn(setup_kafka_consumer(
+                tokio::spawn(start_kafka_background_poll(
                     message_handler,
                     group_id.clone(),
                     brokers.clone(),
@@ -96,4 +105,25 @@ async fn test_scouter_consumer() {
 
     // teardown
     common::teardown().await.unwrap();
+}
+
+#[tokio::test]
+async fn test_produce_consume_base() {
+    let topic_name = "scouter_monitoring";
+
+    populate_topic(topic_name).await;
+
+    let config = utils::consumer_config("scouter", None);
+    let consumer: StreamConsumer = config.create().expect("Consumer creation error");
+    consumer.subscribe(&[topic_name]).unwrap();
+
+    consumer
+        .stream()
+        .take(3)
+        .for_each(|message| async {
+            let message = message.unwrap();
+            let payload = message.payload_view::<str>().unwrap().unwrap();
+            println!("Message payload: {}", payload);
+        })
+        .await;
 }

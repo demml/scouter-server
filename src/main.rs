@@ -3,7 +3,7 @@ mod kafka;
 mod sql;
 use crate::api::route::AppState;
 use crate::api::setup::{setup_db, setup_logging};
-use crate::kafka::consumer::setup_kafka_consumer;
+use crate::kafka::consumer::start_kafka_background_poll;
 use crate::sql::postgres::PostgresClient;
 use anyhow::Context;
 use api::route::create_router;
@@ -56,7 +56,7 @@ async fn main() -> Result<(), anyhow::Error> {
                     .with_context(|| "Failed to create Postgres client")
                     .unwrap();
                 let message_handler = kafka::consumer::MessageHandler::Postgres(db_client);
-                tokio::spawn(setup_kafka_consumer(
+                tokio::spawn(start_kafka_background_poll(
                     message_handler,
                     group_id.clone(),
                     brokers.clone(),

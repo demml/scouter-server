@@ -36,10 +36,7 @@ impl MessageHandler {
     }
 }
 
-#[allow(clippy::unnecessary_unwrap)]
-#[allow(clippy::too_many_arguments)]
-pub async fn setup_kafka_consumer(
-    message_handler: MessageHandler,
+pub async fn create_kafka_consumer(
     group_id: String,
     brokers: String,
     topics: Vec<String>,
@@ -47,7 +44,7 @@ pub async fn setup_kafka_consumer(
     password: Option<String>,
     security_protocol: Option<String>,
     sasl_mechanism: Option<String>,
-) {
+) -> Result<StreamConsumer, anyhow::Error> {
     info!("Setting up Kafka consumer");
 
     let mut config = ClientConfig::new();
@@ -74,6 +71,33 @@ pub async fn setup_kafka_consumer(
     consumer
         .subscribe(&topics)
         .expect("Can't subscribe to specified topics");
+
+    Ok(consumer)
+}
+
+#[allow(clippy::unnecessary_unwrap)]
+#[allow(clippy::too_many_arguments)]
+pub async fn start_kafka_background_poll(
+    message_handler: MessageHandler,
+    group_id: String,
+    brokers: String,
+    topics: Vec<String>,
+    username: Option<String>,
+    password: Option<String>,
+    security_protocol: Option<String>,
+    sasl_mechanism: Option<String>,
+) -> Result<(), anyhow::Error> {
+    let consumer: StreamConsumer = create_kafka_consumer(
+        group_id,
+        brokers,
+        topics,
+        username,
+        password,
+        security_protocol,
+        sasl_mechanism,
+    )
+    .await
+    .with_context(|| "Failed to create Kafka consumer")?;
 
     loop {
         let message = consumer.recv().await;

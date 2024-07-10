@@ -48,7 +48,7 @@ jobs:
       - name: Test
         run: |
             make cargo.format
-            make cargo.lint
+            make cargo.lints
             make cargo.test
         env:
           RUST_BACKTRACE: 1

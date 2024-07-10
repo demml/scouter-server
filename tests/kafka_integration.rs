@@ -46,4 +46,6 @@ async fn test_api_with_kafka() {
 
         println!("{:?}", record);
     }
+
+    assert_eq!(result.len(), 1);
 }

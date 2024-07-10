@@ -46,7 +46,7 @@ jobs:
           done
           
       - name: Test
-        run: cargo test -- --nocapture 
+        run: cargo test -- --nocapture  --test-threads=1
         env:
           RUST_BACKTRACE: 1
 

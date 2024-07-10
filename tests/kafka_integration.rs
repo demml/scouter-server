@@ -1,7 +1,6 @@
 use crate::test_utils::*;
-use anyhow::Context;
 
-use scouter_server::kafka::consumer::{start_kafka_background_poll, MessageHandler};
+use scouter_server::kafka::consumer::MessageHandler;
 use scouter_server::sql::postgres::PostgresClient;
 use sqlx::Row;
 mod test_utils;
@@ -27,7 +26,7 @@ async fn test_api_with_kafka() {
                     SELECT * 
                     FROM scouter.drift  
                     WHERE name = 'test_app'
-                    LIMIT 1
+                    LIMIT 10
                     "#,
         )
         .await

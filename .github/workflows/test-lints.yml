@@ -46,25 +46,12 @@ jobs:
           done
           
       - name: Test
-        run: cargo test -- --nocapture  --test-threads=1
+        run: |
+            make cargo.format
+            make cargo.lint
+            make cargo.test
         env:
           RUST_BACKTRACE: 1
-
-      - name: Start the application
-        run: | 
-            cargo run & 
-            until curl --output /dev/null --silent --head --fail http://localhost:8000/healthcheck; do
-              printf '.'
-              sleep 5
-            done
-            cargo test -- --ignored --nocapture
-        env:
-          RUST_BACKTRACE: 1
-          DATABASE_URL: postgresql://postgres:admin@localhost:5432/monitor?
-          KAFKA_BROKER: localhost:9092
-
-      - name: Ping healthcheck
-        run: curl http://localhost:8000/healthcheck
 
       - name: Stop Containers
         if: always()

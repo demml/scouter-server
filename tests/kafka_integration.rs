@@ -1,6 +1,4 @@
 use crate::test_utils::*;
-
-use scouter_server::kafka::consumer::MessageHandler;
 use scouter_server::sql::postgres::PostgresClient;
 use sqlx::Row;
 mod test_utils;

@@ -37,6 +37,8 @@ impl MessageHandler {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+#[allow(clippy::unnecessary_unwrap)]
 pub async fn create_kafka_consumer(
     group_id: String,
     brokers: String,
@@ -83,7 +85,6 @@ pub async fn create_kafka_consumer(
     Ok(consumer)
 }
 
-#[allow(clippy::unnecessary_unwrap)]
 pub async fn stream_from_kafka_topic(
     message_handler: &MessageHandler,
     consumer: &StreamConsumer,

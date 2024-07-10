@@ -47,10 +47,10 @@ jobs:
           
       - name: Test
         run: |
-            make cargo.format
-            make cargo.lints
-            make cargo.test
-        env:
+            make format
+            make lints
+            make test
+        env: 
           RUST_BACKTRACE: 1
 
       - name: Stop Containers

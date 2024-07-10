@@ -1,13 +1,10 @@
 PROJECT=scouter-server
 SOURCE_OBJECTS=src
 
-cargo.format:
+format:
 	cargo fmt
-cargo.lints:
+lints:
 	cargo clippy --workspace --all-targets -- -D warnings
-cargo.test:
+test:
 	cargo test -- --nocapture  --test-threads=1
-
-cargo.bench:
-	cargo bench
 

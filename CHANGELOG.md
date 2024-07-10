@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1](https://github.com/demml/scouter-server/compare/v0.1.0...v0.1.1) - 2024-07-10
+
+### Fixed
+- try release and pr
+
+### Other
+- Update release-plz.toml
+- testing binary releases
+
 ## [0.1.0](https://github.com/demml/scouter-server/releases/tag/v0.1.0) - 2024-07-10
 
 ### Added

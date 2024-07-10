@@ -1,23 +1,36 @@
 name: Release-binary
 
 on:
-  release:
-    types: [created]
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  INTERPRETER: '3.11'
+  RUSTFLAGS: -C debuginfo=0
 
 jobs:
-  release:
-    name: release ${{ matrix.target }}
-    runs-on: ubuntu-latest
+    
+
+  build-ubuntu:
+    name: build - ubuntu - ${{ matrix.manylinux }} - ${{ matrix.target }}
     strategy:
       fail-fast: false
       matrix:
-        target: [x86_64-pc-windows-gnu, x86_64-unknown-linux-musl]
+        target: [x86_64, x86, aarch64, armv7, s390x, ppc64le]
+        manylinux: [auto]
+
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@master
-      - name: Compile and release
-        uses: rust-build/rust-build.action@v1.4.5
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          RUSTTARGET: ${{ matrix.target }}
-          EXTRA_FILES: "README.md LICENSE"
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust
+        run: rustup override set stable && rustup update
+
+      - name: Build binary
+        run: cargo build --release

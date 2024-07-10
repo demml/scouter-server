@@ -51,7 +51,9 @@ jobs:
           RUST_BACKTRACE: 1
 
       - name: Start the application
-        run: cargo run && curl http://localhost:8000/healthcheck
+        run: | 
+            cargo run & 
+            curl http://localhost:8000/healthcheck
         env:
           RUST_BACKTRACE: 1
           DATABASE_URL: postgresql://postgres:admin@localhost:5432/monitor?

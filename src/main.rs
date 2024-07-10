@@ -35,8 +35,8 @@ async fn main() -> Result<(), anyhow::Error> {
     // setup background task if kafka is enabled
     if std::env::var("KAFKA_BROKER").is_ok() {
         let brokers = std::env::var("KAFKA_BROKER").unwrap();
-        let topics = vec![std::env::var("KAFKA_TOPIC").unwrap()];
-        let group_id = std::env::var("KAFKA_GROUP").unwrap();
+        let topics = vec![std::env::var("KAFKA_TOPIC").unwrap_or("scouter_monitoring".to_string())];
+        let group_id = std::env::var("KAFKA_GROUP").unwrap_or("scouter".to_string());
         let username: Option<String> = std::env::var("KAFKA_USERNAME").ok();
         let password: Option<String> = std::env::var("KAFKA_PASSWORD").ok();
         let security_protocol: Option<String> = Some(

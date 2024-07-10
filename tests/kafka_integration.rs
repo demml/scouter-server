@@ -6,7 +6,7 @@ use axum::{
 };
 use http_body_util::BodyExt;
 use scouter_server::kafka::consumer::{
-    create_kafka_consumer, stream_from_kafka_topic, MessageHandler,
+    create_kafka_consumer, start_kafka_background_poll, stream_from_kafka_topic, MessageHandler,
 };
 use scouter_server::sql::postgres::PostgresClient;
 use scouter_server::sql::schema::QueryResult;
@@ -28,27 +28,27 @@ async fn test_api_with_kafka() {
             .unwrap(),
     );
 
+    // consume 15 messages
+    tokio::spawn(
+        async move {
+            start_kafka_background_poll(
+                message_handler,
+                "scouter".to_string(),
+                "localhost:9092".to_string(),
+                [topic_name.to_string()].to_vec(),
+                None,
+                None,
+                None,
+                None,
+            )
+        }
+        .await,
+    );
+
     // populate kafka topic (15 messages)
     populate_topic(topic_name).await;
 
     // consumer from the topic and write to database
     let mut config_overrides = HashMap::new();
     config_overrides.insert("auto.offset.reset", "earliest");
-    let consumer = create_kafka_consumer(
-        "scouter".to_string(),
-        "localhost:9092".to_string(),
-        [topic_name.to_string()].to_vec(),
-        None,
-        None,
-        None,
-        None,
-        Some(config_overrides),
-    )
-    .await
-    .unwrap();
-
-    // consume 15 messages
-    for _ in 0..15 {
-        let _ = stream_from_kafka_topic(&message_handler, &consumer).await;
-    }
 }

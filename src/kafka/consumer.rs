@@ -89,7 +89,6 @@ pub async fn create_kafka_consumer(
 }
 
 #[allow(clippy::unnecessary_unwrap)]
-#[allow(clippy::too_many_arguments)]
 pub async fn stream_from_kafka_topic(
     message_handler: &MessageHandler,
     consumer: &StreamConsumer,
@@ -123,6 +122,25 @@ pub async fn stream_from_kafka_topic(
     Ok(())
 }
 
+// Start background task to poll kafka topic
+//
+// This function will poll the kafka topic and insert the records into the database
+// using the provided message handler.
+//
+// # Arguments
+//
+// * `message_handler` - The message handler to process the records
+// * `group_id` - The kafka consumer group id
+// * `brokers` - The kafka brokers
+// * `topics` - The kafka topics to subscribe to
+// * `username` - The kafka username
+// * `password` - The kafka password
+// * `security_protocol` - The kafka security protocol
+// * `sasl_mechanism` - The kafka SASL mechanism
+//
+// # Returns
+//
+// * `Result<(), anyhow::Error>` - The result of the operation
 #[allow(clippy::unnecessary_unwrap)]
 #[allow(clippy::too_many_arguments)]
 pub async fn start_kafka_background_poll(

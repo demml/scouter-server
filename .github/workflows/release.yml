@@ -71,7 +71,6 @@ jobs:
       - name: Build binaries
         run: |
             cargo build --release --target ${{ matrix.target }}
-            ls -lhR ./target/${{ matrix.target }}
 
       - name: Zip Windows binaries
         if: contains(matrix.archive, 'zip') && contains(matrix.os, 'windows')

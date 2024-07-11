@@ -108,8 +108,7 @@ jobs:
 
       - name: list dist files
         run: |
-         ls -lh dist
-         ls -l dist
+         ls -lhR dist
          echo "`ls dist | wc -l` files"
 
       - name: Upload files to release tag

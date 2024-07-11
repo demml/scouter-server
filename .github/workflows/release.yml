@@ -92,20 +92,6 @@ jobs:
           name: scouter_server_${{ matrix.target }}_${{matrix.archive}}
           path: scouter-server-${{ matrix.target }}.${{matrix.archive}}
 
-
-      - uses: actions/checkout@v4
-
-      - name: get dist artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: scouter_server_*
-          path: dist
-
-      - name: list dist files
-        run: |
-         ls -lhR dist
-         echo "`ls dist | wc -l` files"
-
   release-binary-assets:
     if: github.event_name == 'release'
     needs: [build]
@@ -129,10 +115,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN }}
         run: |
-          for file in dist/*; do
-            echo "Uploading $file"
-            gh release upload ${{ github.event.release.name }} $file
+          for i in $(find dist -type f -print)
+          do
+              filename=$(basename -- "$i")
+              echo "uploading: $filename"
+              gh release upload ${{ github.event.release.name }} $filename
           done
+
 
      
 

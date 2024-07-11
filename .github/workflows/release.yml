@@ -25,13 +25,8 @@ jobs:
         include:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            code-target: win32-x64
-          - os: windows-latest
-            target: i686-pc-windows-msvc
-            code-target: win32-ia32
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
-            code-target: linux-x64
           - os: macos-latest
             target: x86_64-apple-darwin
           - os: macos-latest
@@ -60,7 +55,7 @@ jobs:
         if: contains(matrix.os, 'ubuntu')
         run: |
             sudo apt-get update -y
-            sudo apt-get install pkg-config libssl-dev
+            sudo apt-get install
 
       - name: Build binaries
         run: cargo build --release --target ${{ matrix.target }}

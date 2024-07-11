@@ -1,23 +1,100 @@
 name: Release-binary
 
+
+permissions:
+  pull-requests: write
+  contents: write
+
 on:
-  release:
-    types: [created]
+  push:
+    tags:
+      - 'v*.*.*'
+
+
+env:
+  INTERPRETER: '3.11'
+  RUSTFLAGS: -C debuginfo=0
 
 jobs:
-  release:
-    name: release ${{ matrix.target }}
-    runs-on: ubuntu-latest
+    
+
+  build:
+    name: build - ${{ matrix.target }}
     strategy:
       fail-fast: false
       matrix:
-        target: [x86_64-pc-windows-gnu, x86_64-unknown-linux-musl]
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            code-target: win32-x64
+          - os: windows-latest
+            target: i686-pc-windows-msvc
+            code-target: win32-ia32
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            code-target: linux-x64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: macos-latest
+            target: aarch64-apple-darwin
+
+    env:
+      TARGET: ${{ matrix.target }}
+
+    runs-on: ${{ matrix.os }}
+    container: aarch64/python
+
     steps:
-      - uses: actions/checkout@master
-      - name: Compile and release
-        uses: rust-build/rust-build.action@v1.4.5
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
-          RUSTTARGET: ${{ matrix.target }}
-          EXTRA_FILES: "README.md LICENSE"
+          fetch-depth: 0
+
+      - name: Set up Rust
+        run: |
+              rustup override set stable
+              rustup update
+              rustup target add ${{ matrix.target }}
+              rustup component add rust-src
+              
+
+      - name: Update apt repositories
+        if: contains(matrix.os, 'ubuntu')
+        run: |
+            sudo apt-get update -y
+            sudo apt-get install pkg-config libssl-dev
+
+      - name: Build binaries
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scouter-server-${{ matrix.target }}
+          path: ./target/release/
+
+  inspect-binary-assets:
+    needs: [build]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: get dist artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: scouter-server-*
+          merge-multiple: true
+          path: dist
+
+      - name: list dist files
+        run: |
+         ls -lh dist/
+         ls -l dist/
+         echo "`ls dist | wc -l` files"
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          token: ${{ secrets.GITHUB_TOKEN }}
+

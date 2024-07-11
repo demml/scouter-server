@@ -42,7 +42,6 @@ jobs:
       TARGET: ${{ matrix.target }}
 
     runs-on: ${{ matrix.os }}
-    container: aarch64/python
 
     steps:
       - name: Checkout repository

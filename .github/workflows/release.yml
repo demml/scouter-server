@@ -69,9 +69,13 @@ jobs:
       - name: Build binaries
         run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Zip binaries
+      - name: Zip Windows binaries
         if: contains(matrix.archive, 'zip') && contains(matrix.os, 'windows')
         run: Compress-Archive ./target/release/ scouter-server-${{ matrix.target }}.zip
+
+      - name: Zip MacOS binaries
+        if: contains(matrix.archive, 'zip') && contains(matrix.os, 'macos')
+        run: zip -r scouter-server-${{ matrix.target }}.zip ./target/release/
 
       - name: gzip binaries
         if: contains(matrix.archive, 'tar.gz')

@@ -1,5 +1,4 @@
-name: Release-binary
-
+name: Release-plz
 
 permissions:
   pull-requests: write
@@ -7,9 +6,8 @@ permissions:
 
 on:
   push:
-    tags:
-      - '**'
-
+    branches:
+      - main
 
 env:
   INTERPRETER: '3.11'
@@ -25,12 +23,19 @@ jobs:
         include:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
+            archive: zip
+
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
+            archive: tar.gz tar.xz
+
           - os: macos-latest
             target: x86_64-apple-darwin
+            archive: zip
+
           - os: macos-latest
             target: aarch64-apple-darwin
+            archive: zip
 
     env:
       TARGET: ${{ matrix.target }}
@@ -60,14 +65,45 @@ jobs:
       - name: Build binaries
         run: cargo build --release --target ${{ matrix.target }}
 
+      - name: Zip binaries
+        if: contains(matrix.archive, 'zip')
+        run: zip -r scouter-server-${{ matrix.target }}.zip ./target/release/
+
+      - name: gzip binaries
+        if: contains(matrix.archive, 'tar.gz')
+        run: tar -czf scouter-server-${{ matrix.target }}.tar.gz ./target/release/
+
+      - name: xz binaries
+        if: contains(matrix.archive, 'tar.xz')
+        run: tar -cJf scouter-server-${{ matrix.target }}.tar.xz ./target/release/
+
       - uses: actions/upload-artifact@v4
         with:
-          name: scouter-server-${{ matrix.target }}
-          path: ./target/release/
+          name: scouter-server-${{ matrix.target }}.{matrix.archive}
+          path: scouter-server-${{ matrix.target }}.{matrix.archive}
+
+  release-plz:
+    needs: [build]
+    name: Release-plz
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Run release-plz
+        id: release-plz
+        uses: MarcoIeni/release-plz-action@v0.5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
 
   release-binary-assets:
-    if: startsWith(github.ref, 'refs/tags/')
-    needs: [build]
+    if: needs.release-plz.outputs.releases_created == true && startsWith(github.event.release.name, 'v')
+    needs: [release-plz]
     runs-on: ubuntu-latest
 
     steps:
@@ -77,16 +113,21 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: scouter-server-*
+          path: dist
 
       - name: list dist files
         run: |
-         ls -lh
-         ls -l
+         ls -lh dist
+         ls -l dist
          echo "`ls dist | wc -l` files"
 
-      - name: Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: scouter-server-*
-          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload files to release tag
+        run: |
+          for file in dist/*; do
+            echo "Uploading $file"
+            gh release upload ${{ github.event.release.name }} $file
+          done
+
+     
+
 

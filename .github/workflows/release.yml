@@ -117,9 +117,7 @@ jobs:
         run: |
           for i in $(find dist -type f -print)
           do
-              filename=$(basename -- "$i")
-              echo "uploading: $filename"
-              gh release upload ${{ github.event.release.name }} $filename
+            gh release upload ${{ github.event.release.name }} $i
           done
 
 

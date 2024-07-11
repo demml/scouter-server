@@ -50,6 +50,7 @@ jobs:
       TARGET: ${{ matrix.target }}
 
     runs-on: ${{ matrix.os }}
+    container: aarch64/python
 
     steps:
       - name: Checkout repository
@@ -77,7 +78,9 @@ jobs:
 
       - name: Install ARM target toolchain
         if: matrix.target == 'arm-unknown-linux-gnueabihf'
-        run: sudo apt-get install gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf
+        run: |
+              sudo apt-get install gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf
+              aarch64/python
 
       - name: Build binaries
         run: cargo build --release --target ${{ matrix.target }}

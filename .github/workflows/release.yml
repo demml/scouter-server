@@ -71,23 +71,23 @@ jobs:
       - name: Build binaries
         run: |
             cargo build --release --target ${{ matrix.target }}
-            ls -lhR ./target/release/${{ matrix.target }}
+            ls -lhR ./target/${{ matrix.target }}
 
       - name: Zip Windows binaries
         if: contains(matrix.archive, 'zip') && contains(matrix.os, 'windows')
-        run: Compress-Archive ./target/release/${{ matrix.target }} scouter-server-${{ matrix.target }}.zip
+        run: Compress-Archive ./target/${{ matrix.target }} scouter-server-${{ matrix.target }}.zip
 
       - name: Zip MacOS binaries
         if: contains(matrix.archive, 'zip') && contains(matrix.os, 'macos')
-        run: zip -r scouter-server-${{ matrix.target }}.zip ./target/release/${{ matrix.target }}
+        run: zip -r scouter-server-${{ matrix.target }}.zip ./target/${{ matrix.target }}
 
       - name: gzip binaries
         if: contains(matrix.archive, 'tar.gz')
-        run: tar -czf scouter-server-${{ matrix.target }}.tar.gz ./target/release/${{ matrix.target }}
+        run: tar -czf scouter-server-${{ matrix.target }}.tar.gz ./target/${{ matrix.target }}
 
       - name: xz binaries
         if: contains(matrix.archive, 'tar.xz')
-        run: tar -cJf scouter-server-${{ matrix.target }}.tar.xz ./target/release/${{ matrix.target }}
+        run: tar -cJf scouter-server-${{ matrix.target }}.tar.xz ./target/${{ matrix.target }}
 
       - uses: actions/upload-artifact@v4
         with:

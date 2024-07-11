@@ -83,8 +83,8 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: scouter-server-${{ matrix.target }}.{{matrix.archive}}
-          path: scouter-server-${{ matrix.target }}.{{matrix.archive}}
+          name: scouter-server-${{ matrix.target }}.${{matrix.archive}}
+          path: scouter-server-${{ matrix.target }}.${{matrix.archive}}
 
   release-plz:
     needs: [build]

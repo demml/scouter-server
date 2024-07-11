@@ -14,6 +14,8 @@ env:
   INTERPRETER: '3.11'
   RUSTFLAGS: -C debuginfo=0
   PYO3_CROSS_PYTHON_VERSION: 3.11
+  CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+  CARGO_TARGET_ARM_UNKNOWN_LINUX_GNUEABIHF_LINKER: arm-linux-gnueabihf-gcc
 
 jobs:
     
@@ -33,6 +35,12 @@ jobs:
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             code-target: linux-x64
+          - os: ubuntu-22.04
+            target: aarch64-unknown-linux-gnu
+            code-target: linux-arm64
+          - os: ubuntu-22.04
+            target: arm-unknown-linux-gnueabihf
+            code-target: linux-armhf
           - os: macos-latest
             target: x86_64-apple-darwin
           - os: macos-latest

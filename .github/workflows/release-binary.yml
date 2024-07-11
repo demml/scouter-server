@@ -16,7 +16,6 @@ env:
   RUSTFLAGS: -C debuginfo=0
 
 jobs:
-    
 
   build:
     name: build - ${{ matrix.target }}

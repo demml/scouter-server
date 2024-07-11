@@ -6,7 +6,7 @@ semver_check = true
 publish_timeout = "10m" # set a timeout for `cargo publish`
 git_tag_enable = true
 git_release_enable = false
-publish = true
+publish = false
 
 [[package]]
 name = "scouter-server"

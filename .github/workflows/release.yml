@@ -77,18 +77,16 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: scouter-server-*
-          merge-multiple: true
-          path: dist
 
       - name: list dist files
         run: |
-         ls -lh dist/
-         ls -l dist/
+         ls -lh
+         ls -l
          echo "`ls dist | wc -l` files"
 
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*
+          files: scouter-server-*
           token: ${{ secrets.GITHUB_TOKEN }}
 

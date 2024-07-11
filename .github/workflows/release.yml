@@ -27,7 +27,11 @@ jobs:
 
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
-            archive: tar.gz tar.xz
+            archive: tar.gz
+
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            archive: tar.xz
 
           - os: macos-latest
             target: x86_64-apple-darwin
@@ -66,8 +70,8 @@ jobs:
         run: cargo build --release --target ${{ matrix.target }}
 
       - name: Zip binaries
-        if: contains(matrix.archive, 'zip')
-        run: zip -r scouter-server-${{ matrix.target }}.zip ./target/release/
+        if: contains(matrix.archive, 'zip') && contains(matrix.os, 'windows')
+        run: Compress-Archive ./target/release/ scouter-server-${{ matrix.target }}.zip
 
       - name: gzip binaries
         if: contains(matrix.archive, 'tar.gz')
@@ -79,8 +83,8 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: scouter-server-${{ matrix.target }}.{matrix.archive}
-          path: scouter-server-${{ matrix.target }}.{matrix.archive}
+          name: scouter-server-${{ matrix.target }}.{{matrix.archive}}
+          path: scouter-server-${{ matrix.target }}.{{matrix.archive}}
 
   release-plz:
     needs: [build]

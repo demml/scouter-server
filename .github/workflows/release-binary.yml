@@ -1,21 +1,19 @@
 name: Release-binary
 
-on:
-  push:
-    branches:
-      - main
-      - master
-  pull_request:
 
 permissions:
-  contents: read
+  pull-requests: write
+  contents: write
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
 
 env:
   INTERPRETER: '3.11'
   RUSTFLAGS: -C debuginfo=0
-  PYO3_CROSS_PYTHON_VERSION: 3.11
-  CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
-  CARGO_TARGET_ARM_UNKNOWN_LINUX_GNUEABIHF_LINKER: arm-linux-gnueabihf-gcc
 
 jobs:
     
@@ -35,12 +33,6 @@ jobs:
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             code-target: linux-x64
-          - os: ubuntu-22.04
-            target: aarch64-unknown-linux-gnu
-            code-target: linux-arm64
-          - os: ubuntu-22.04
-            target: arm-unknown-linux-gnueabihf
-            code-target: linux-armhf
           - os: macos-latest
             target: x86_64-apple-darwin
           - os: macos-latest
@@ -72,20 +64,37 @@ jobs:
             sudo apt-get update -y
             sudo apt-get install pkg-config libssl-dev
 
-      - name: Install AArch64 target toolchain
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: sudo apt-get install gcc-aarch64-linux-gnu libc6-dev-arm64-cross  g++-aarch64-linux-gnu libssl-dev:aarch64
-
-      - name: Install ARM target toolchain
-        if: matrix.target == 'arm-unknown-linux-gnueabihf'
-        run: |
-              sudo apt-get install gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf
-              aarch64/python
-
       - name: Build binaries
         run: cargo build --release --target ${{ matrix.target }}
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.target }}
+          name: scouter-server-${{ matrix.target }}
           path: ./target/release/
+
+  inspect-binary-assets:
+    needs: [build]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: get dist artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: scouter-server-*
+          merge-multiple: true
+          path: dist
+
+      - name: list dist files
+        run: |
+         ls -lh dist/
+         ls -l dist/
+         echo "`ls dist | wc -l` files"
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          token: ${{ secrets.GITHUB_TOKEN }}
+

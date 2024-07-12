@@ -72,9 +72,10 @@ jobs:
       - name: Build windows binaries
         if: contains(matrix.os, 'windows')
         run: |
-              export AWS_LC_SYS_NO_ASM=1
               cargo add nasm-rs
               cargo build --release --target ${{ matrix.target }}
+        env:
+          AWS_LC_SYS_NO_ASM: 1
 
       - name: Build MacOS and linux Binaries
         if: contains(matrix.os, 'macos') || contains(matrix.os, 'ubuntu')

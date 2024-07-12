@@ -27,6 +27,8 @@ tracing-subscriber = {version = "0.3.18", features = ["json", "time"]}
 rdkafka = { version = "0.36.2", features = ["cmake-build"] }
 cron = "0.12.1"
 scouter = "0.2.1"
+metrics-exporter-prometheus = "0.15.1"
+metrics = "0.23.0"
 
 [dev-dependencies]
 approx = "0.5.1"

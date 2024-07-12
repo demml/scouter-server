@@ -10,6 +10,7 @@ on:
       - main
   release:
     types: [published]
+  pull_request:
 
 env:
   INTERPRETER: '3.11'
@@ -92,6 +93,43 @@ jobs:
         with:
           name: scouter_server_${{ matrix.target }}_${{matrix.archive}}
           path: scouter-server-${{ matrix.target }}.${{matrix.archive}}
+
+  build-musl:
+    name: build-musl
+    runs-on: ubuntu-latest
+    env:
+      TARGET: x86_64-unknown-linux-musl
+      ARCHIVE: tar.gz
+      RUSTFLAGS: "-C link-arg=-fuse-ld=lld -C target-feature=-crt-static"
+    container:
+      image: rust:alpine
+      volumes:
+        - /usr/local/cargo/registry:/usr/local/cargo/registry
+
+    steps:
+      - name: Install dependencies
+        run: apk add --no-cache git clang lld musl-dev nodejs npm openssl-dev pkgconfig g++
+      
+      - name: Install python
+        run: apk add --update --no-cache python3 && ln -sf python3 /usr/bin/python
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build binaries
+        run: |
+            cargo build --release --target ${{ env.TARGET }}
+
+      - name: gzip binaries
+        run: tar -czf scouter-server-${{ env.TARGET }}.${{ env.ARCHIVE }} ./target/${{ env.TARGET }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scouter_server_${{ env.TARGET }}_${{ env.ARCHIVE }}
+          path: scouter-server-${{ env.TARGET }}.${{ env.ARCHIVE }}
+
 
   release-binary-assets:
     if: github.event_name == 'release'

@@ -71,11 +71,13 @@ jobs:
 
       - name: Build binaries
         run: |
-            if [ ${{ matrix.os }} == 'windows-latest' ]; then
+            if (contains(matrix.os, 'windows')) {
+              export AWS_LC_SYS_NO_ASM=1
               cargo add nasm-rs
               cargo build --release --target ${{ matrix.target }}
-            else
+            } else {
               cargo build --release --target ${{ matrix.target }}
+            }
             fi
 
 

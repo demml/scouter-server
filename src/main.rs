@@ -1,6 +1,7 @@
 mod api;
 mod kafka;
 mod sql;
+use crate::api::metrics::metrics_app;
 use crate::api::route::AppState;
 use crate::api::setup::{create_db_pool, setup_logging};
 use crate::kafka::consumer::start_kafka_background_poll;
@@ -14,8 +15,21 @@ use tracing::info;
 
 const NUM_WORKERS: usize = 5;
 
-#[tokio::main]
-async fn main() -> Result<(), anyhow::Error> {
+async fn start_metrics_server() -> Result<(), anyhow::Error> {
+    let app = metrics_app().with_context(|| "Failed to setup metrics app")?;
+
+    // NOTE: expose metrics endpoint on a different port
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:8001")
+        .await
+        .with_context(|| "Failed to bind to port 8001 for metrics server")?;
+    axum::serve(listener, app)
+        .await
+        .with_context(|| "Failed to start metrics server")?;
+
+    Ok(())
+}
+
+async fn start_main_server() -> Result<(), anyhow::Error> {
     // setup logging
     setup_logging()
         .await
@@ -81,8 +95,17 @@ async fn main() -> Result<(), anyhow::Error> {
         .await
         .with_context(|| "Failed to bind to port 8000")?;
 
-    info!("🚀 Server started successfully");
-    axum::serve(listener, app).await.unwrap();
+    info!("🚀 Scouter Server started successfully");
+    axum::serve(listener, app)
+        .await
+        .with_context(|| "Failed to start main server")?;
+
+    Ok(())
+}
+
+#[tokio::main]
+async fn main() -> Result<(), anyhow::Error> {
+    let (_main_server, _metrics_server) = tokio::join!(start_main_server(), start_metrics_server());
 
     Ok(())
 }

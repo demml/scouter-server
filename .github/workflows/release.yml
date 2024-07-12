@@ -69,16 +69,20 @@ jobs:
             sudo apt-get update -y
             sudo apt-get install
 
-      - name: Build binaries
+      - name: Build windows binaries
+        if: contains(matrix.os, 'windows')
         run: |
-            if (contains(matrix.os, 'windows')) {
+
+            if [ ${{ matrix.os }} == 'windows-latest' ]; then
               export AWS_LC_SYS_NO_ASM=1
               cargo add nasm-rs
               cargo build --release --target ${{ matrix.target }}
-            } else {
+            else
               cargo build --release --target ${{ matrix.target }}
-            }
             fi
+
+            
+   
 
 
       - name: Zip Windows binaries

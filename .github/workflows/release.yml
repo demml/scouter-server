@@ -71,7 +71,13 @@ jobs:
 
       - name: Build binaries
         run: |
-            cargo build --release --target ${{ matrix.target }}
+            if [ ${{ matrix.os }} == 'windows-latest' ]; then
+              cargo add nasm-rs
+              cargo build --release --target ${{ matrix.target }}
+            else
+              cargo build --release --target ${{ matrix.target }}
+            fi
+
 
       - name: Zip Windows binaries
         if: contains(matrix.archive, 'zip') && contains(matrix.os, 'windows')
@@ -108,7 +114,7 @@ jobs:
 
     steps:
       - name: Install dependencies
-        run: apk add --no-cache git clang lld musl-dev nodejs npm openssl-dev pkgconfig g++ cmake librdkafka
+        run: apk add --no-cache git clang lld musl-dev nodejs npm openssl-dev pkgconfig g++ librdkafka make
       
       - name: Install python
         run: apk add --update --no-cache python3 && ln -sf python3 /usr/bin/python

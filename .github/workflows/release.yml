@@ -10,8 +10,6 @@ on:
       - main
   release:
     types: [published]
-  pull_request:
-
 env:
   INTERPRETER: '3.11'
   RUSTFLAGS: -C debuginfo=0

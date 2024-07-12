@@ -108,7 +108,7 @@ jobs:
 
     steps:
       - name: Install dependencies
-        run: apk add --no-cache git clang lld musl-dev nodejs npm openssl-dev pkgconfig g++
+        run: apk add --no-cache git clang lld musl-dev nodejs npm openssl-dev pkgconfig g++ cmake librdkafka
       
       - name: Install python
         run: apk add --update --no-cache python3 && ln -sf python3 /usr/bin/python

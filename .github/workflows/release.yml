@@ -72,18 +72,13 @@ jobs:
       - name: Build windows binaries
         if: contains(matrix.os, 'windows')
         run: |
-
-            if [ ${{ matrix.os }} == 'windows-latest' ]; then
               export AWS_LC_SYS_NO_ASM=1
               cargo add nasm-rs
               cargo build --release --target ${{ matrix.target }}
-            else
-              cargo build --release --target ${{ matrix.target }}
-            fi
 
-            
-   
-
+      - name: Build MacOS and linux Binaries
+        if: contains(matrix.os, 'macos') || contains(matrix.os, 'ubuntu')
+        run: cargo build --release --target ${{ matrix.target }}
 
       - name: Zip Windows binaries
         if: contains(matrix.archive, 'zip') && contains(matrix.os, 'windows')

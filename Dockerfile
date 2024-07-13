@@ -10,7 +10,8 @@ RUN apt-get update \
 	libssl-dev \
 	make \
 	pkg-config \
-	postgresql-server-dev-16
+	postgresql-server-dev-16 \
+	postgresql-16-cron
 
 WORKDIR /monitor
 

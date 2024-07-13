@@ -46,8 +46,11 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
         .await
         .with_context(|| "Failed to run migrations")?;
 
+    // setup background pg_partman run_maintenance function
+
     // setup background task if kafka is enabled
     if std::env::var("KAFKA_BROKER").is_ok() {
+        info!("🚀 Starting Kafka consumer");
         let brokers = std::env::var("KAFKA_BROKER").unwrap();
         let topics = vec![std::env::var("KAFKA_TOPIC").unwrap_or("scouter_monitoring".to_string())];
         let group_id = std::env::var("KAFKA_GROUP").unwrap_or("scouter".to_string());

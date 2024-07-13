@@ -14,7 +14,6 @@ GRANT ALL ON ALL TABLES IN SCHEMA scouter TO partman_user;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA scouter TO partman_user;
 GRANT EXECUTE ON ALL PROCEDURES IN SCHEMA scouter TO partman_user;
 GRANT ALL ON SCHEMA scouter TO partman_user;
-GRANT TEMPORARY ON DATABASE monitor to partman_user;
 
 CREATE TABLE scouter.drift (
   created_at timestamp not null default (timezone('utc', now())),

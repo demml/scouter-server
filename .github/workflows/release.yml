@@ -166,7 +166,7 @@ jobs:
 
   release-binary-assets:
     if: github.event_name == 'release'
-    needs: [build]
+    needs: [build, build-windows, build-musl]
     runs-on: ubuntu-latest
 
     steps:

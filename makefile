@@ -8,3 +8,6 @@ lints:
 test:
 	cargo test -- --nocapture  --test-threads=1
 
+setup-local-deps:
+	docker-compose up --build init-kafka
+	docker-compose up --build db

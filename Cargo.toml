@@ -26,7 +26,9 @@ tracing = "0.1.40"
 tracing-subscriber = {version = "0.3.18", features = ["json", "time"]}
 rdkafka = { version = "0.36.2", features = ["cmake-build"] }
 cron = "0.12.1"
+ndarray = "0.15.6"
 scouter = "0.2.1"
+reqwest = { version = "0.12.5", features = ["json"] }
 
 [dev-dependencies]
 approx = "0.5.1"

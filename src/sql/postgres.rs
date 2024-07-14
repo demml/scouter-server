@@ -1,18 +1,19 @@
 use crate::sql::query::{
-    GetBinnedFeatureValuesParams, GetFeatureValuesParams, GetFeaturesParams,
-    InsertMonitorProfileParams, InsertParams, Queries,
+    GetBinnedFeatureValuesParams, GetDriftProfileParams, GetFeatureValuesParams, GetFeaturesParams,
+    InsertDriftProfileParams, InsertParams, Queries,
 };
-use crate::sql::schema::{DriftRecord, FeatureResult, MonitorProfile, QueryResult};
+use crate::sql::schema::{DriftRecord, FeatureResult, QueryResult};
 use anyhow::*;
 use futures::future::join_all;
 use include_dir::{include_dir, Dir};
 use sqlx::{
     postgres::{PgQueryResult, PgRow},
-    Pool, Postgres, QueryBuilder, Row,
+    Pool, Postgres, QueryBuilder, Row, Transaction,
 };
 
 use chrono::Utc;
 use cron::Schedule;
+use scouter::utils::types::DriftProfile;
 use std::collections::BTreeMap;
 use std::result::Result::Ok;
 use std::str::FromStr;
@@ -128,31 +129,31 @@ impl PostgresClient {
 
     pub async fn insert_drift_profile(
         &self,
-        monitor_profile: &MonitorProfile,
+        drift_profile: &DriftProfile,
     ) -> Result<PgQueryResult, anyhow::Error> {
-        let query = Queries::InsertMonitorProfile.get_query();
+        let query = Queries::InsertDriftProfile.get_query();
 
-        let cron = Schedule::from_str(&monitor_profile.config.cron).with_context(|| {
+        let cron = Schedule::from_str(&drift_profile.config.schedule).with_context(|| {
             format!(
                 "Failed to parse cron expression: {}",
-                &monitor_profile.config.cron
+                &drift_profile.config.schedule
             )
         })?;
 
         let next_run = cron.upcoming(Utc).take(1).next().with_context(|| {
             format!(
                 "Failed to get next run time for cron expression: {}",
-                &monitor_profile.config.cron
+                &drift_profile.config.schedule
             )
         })?;
 
-        let params = InsertMonitorProfileParams {
+        let params = InsertDriftProfileParams {
             table: "scouter.drift_profile".to_string(),
-            name: monitor_profile.config.name.clone(),
-            repository: monitor_profile.config.repository.clone(),
-            version: monitor_profile.config.version.clone(),
-            profile: serde_json::to_string(&monitor_profile).unwrap(),
-            cron: monitor_profile.config.cron.clone(),
+            name: drift_profile.config.name.clone(),
+            repository: drift_profile.config.repository.clone(),
+            version: drift_profile.config.version.clone(),
+            profile: serde_json::to_string(&drift_profile).unwrap(),
+            schedule: drift_profile.config.schedule.clone(),
             next_run: next_run.naive_utc(),
         };
 
@@ -168,6 +169,23 @@ impl PostgresClient {
                 Err(anyhow!("Failed to insert record into database: {:?}", e))
             }
         }
+    }
+
+    pub async fn get_drift_profile(&self) -> Result<Option<PgRow>, Error> {
+        let query = Queries::GetDriftProfile.get_query();
+
+        let params = GetDriftProfileParams {
+            table: "scouter.drift_profile".to_string(),
+        };
+
+        let mut transaction = self.pool.begin().await?;
+        let result = sqlx::query(query.format(&params).as_str())
+            .fetch_optional(&mut *transaction)
+            .await?;
+
+        transaction.commit().await?;
+
+        Ok(result)
     }
 
     //func batch insert drift records
@@ -461,10 +479,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_client() {
-        env::set_var(
-            "DATABASE_URL",
-            "postgresql://postgres:admin@localhost:5432/monitor?",
-        );
+        unsafe {
+            env::set_var(
+                "DATABASE_URL",
+                "postgresql://postgres:admin@localhost:5432/monitor?",
+            );
+        }
 
         let pool = create_db_pool(None)
             .await

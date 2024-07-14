@@ -1,13 +1,14 @@
 use scouter_server::api::schema::DriftRecordRequest;
-use scouter_server::sql::schema::{
-    AlertRule, FeatureMonitorProfile, MonitorConfig, MonitorProfile, ProcessAlertRule, QueryResult,
-};
+use scouter_server::sql::schema::QueryResult;
 
 use axum::{
     body::Body,
     http::{self, Request, StatusCode},
 };
 use http_body_util::BodyExt;
+use scouter::utils::types::{
+    AlertRule, DriftConfig, DriftProfile, FeatureDriftProfile, ProcessAlertRule,
+};
 use serde_json::Value;
 use std::collections::HashMap;
 use tower::Service;
@@ -125,7 +126,7 @@ async fn test_api_profile() {
     let mut features = HashMap::new();
     features.insert(
         "feature1".to_string(),
-        FeatureMonitorProfile {
+        FeatureDriftProfile {
             id: "feature1".to_string(),
             center: 0.0,
             one_ucl: 1.0,
@@ -134,25 +135,25 @@ async fn test_api_profile() {
             two_lcl: -2.0,
             three_ucl: 3.0,
             three_lcl: -3.0,
-            timestamp: chrono::Utc::now().naive_utc().to_string(),
+            timestamp: chrono::Utc::now().naive_utc(),
         },
     );
 
-    let monitor_profile = MonitorProfile {
+    let monitor_profile = DriftProfile {
         features,
-        config: MonitorConfig {
+        config: DriftConfig {
             sample_size: 100,
             sample: true,
             name: "test_app".to_string(),
             repository: "test".to_string(),
             version: "1.0.0".to_string(),
             alert_rule: AlertRule {
-                control: Some(ProcessAlertRule {
+                process: Some(ProcessAlertRule {
                     rule: "test".to_string(),
                 }),
                 percentage: None,
             },
-            cron: "0 0 * * * *".to_string(),
+            schedule: "0 0 * * * *".to_string(),
         },
     };
 

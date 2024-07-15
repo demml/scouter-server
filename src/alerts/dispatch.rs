@@ -5,6 +5,8 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::env;
 
+// TODO convert to use trait and add slack
+
 trait AlertDispatcher {
     async fn process_alerts(&self);
     async fn send_alert(&self, message: &str);
@@ -28,7 +30,7 @@ impl Default for OpsGenieAlertDispatcher {
 }
 
 impl OpsGenieAlertDispatcher {
-    pub async fn process_alerts(&self, feature_alerts: FeatureAlerts, model_name: &str) -> Result<()> {
+    pub async fn process_alerts(&self, feature_alerts: &FeatureAlerts, model_name: &str) -> Result<()> {
         let mut alert_description = String::new();
         for (i, (_, feature_alert))in feature_alerts.features.iter().enumerate() {
             if feature_alert.alerts.is_empty() {
@@ -50,7 +52,7 @@ impl OpsGenieAlertDispatcher {
     fn construct_alert_body(alert_description: &str, model_name: &str)-> Value {
         json!(
                 {
-                    "message": format!("Model drift detected for model example {}", model_name),
+                    "message": format!("Model drift detected for {}", model_name),
                     // TODO create unique string for alias
                     "alias": "123abc",
                     "description": alert_description,

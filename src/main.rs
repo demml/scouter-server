@@ -90,6 +90,7 @@ async fn main() -> Result<(), anyhow::Error> {
         loop {
             interval.tick().await;
             if let Err(e) = drift_executor.execute().await {
+                // add logging here and not print
                 println!("Drift Executor Error: {e}")
             }
         }

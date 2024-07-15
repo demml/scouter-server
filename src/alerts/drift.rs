@@ -101,8 +101,8 @@ impl DriftExecutor {
                 )
                 .with_context(|| "error generating drift alerts")?;
 
-                // Process alerts
-                self.ops_genie_alert_dispatcher.process_alerts(alerts, &drift_profile.config.name).await?;
+                // Process alerts TODO make this more generic, i.e. a generic alerts dispatcher
+                self.ops_genie_alert_dispatcher.process_alerts(&alerts, &drift_profile.config.name).await?;
             } else {
                 println!("No more drift profiles to process, shutting down...");
                 break;

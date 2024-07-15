@@ -10,6 +10,7 @@ use anyhow::{Context, Result};
 use crate::alerts::dispatch::OpsGenieAlertDispatcher;
 use ndarray::Array2;
 use sqlx::Row;
+use tracing::info;
 
 #[derive(Debug)]
 pub struct DriftExecutor {
@@ -101,10 +102,13 @@ impl DriftExecutor {
                 )
                 .with_context(|| "error generating drift alerts")?;
 
-                // Process alerts TODO make this more generic, i.e. a generic alerts dispatcher
+                // Process alerts
                 self.ops_genie_alert_dispatcher.process_alerts(&alerts, &drift_profile.config.name).await?;
+
+                // Mark row as processed in db
+                
             } else {
-                println!("No more drift profiles to process, shutting down...");
+                info!("No more drift profiles to process, shutting down...");
                 break;
             }
         }

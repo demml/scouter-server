@@ -20,7 +20,7 @@ use std::env;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
-use tracing::info;
+use tracing::{info, error};
 
 const NUM_WORKERS: usize = 5;
 
@@ -90,8 +90,7 @@ async fn main() -> Result<(), anyhow::Error> {
         loop {
             interval.tick().await;
             if let Err(e) = drift_executor.execute().await {
-                // add logging here and not print
-                println!("Drift Executor Error: {e}")
+                error!("Drift Executor Error: {e}")
             }
         }
     });

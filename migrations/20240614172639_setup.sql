@@ -1,21 +1,6 @@
--- Add migration script here
-CREATE SCHEMA if not exists scouter;
-CREATE EXTENSION if not exists pg_partman SCHEMA scouter;
+-- Migrations
 
--- add pg_cron
--- run as superuser:
-CREATE EXTENSION if not exists pg_cron;
-
-
-CREATE ROLE partman_user WITH LOGIN;
-GRANT ALL ON SCHEMA scouter TO partman_user;
-GRANT USAGE ON SCHEMA cron TO partman_user;
-GRANT ALL ON ALL TABLES IN SCHEMA scouter TO partman_user;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA scouter TO partman_user;
-GRANT EXECUTE ON ALL PROCEDURES IN SCHEMA scouter TO partman_user;
-GRANT ALL ON SCHEMA scouter TO partman_user;
-
-CREATE TABLE scouter.drift (
+CREATE TABLE IF NOT exists scouter.drift (
   created_at timestamp not null default (timezone('utc', now())),
   name varchar(256),
   repository varchar(256),
@@ -37,9 +22,8 @@ SELECT scouter.create_parent(
 
 UPDATE scouter.part_config SET retention = '1 days' WHERE parent_table = 'scouter.drift';
 
-
 -- Create table for service drift configuration
-CREATE TABLE scouter.drift_profile (
+CREATE table IF NOT exists scouter.drift_profile (
   created_at timestamp not null default (timezone('utc', now())),
   updated_at timestamp not null default (timezone('utc', now())),
   name varchar(256),

@@ -4,7 +4,7 @@ By default, Scouter-Server uses postgres and is configured to run with both `pg_
 
 ## User Roles and DB Config
 
-Upon application startup, Scouter-Server will attempt to run an initial migration to setup the scouter schema, database tables and partitioning and cron configurations. Prior to application startup, you will need to create the `scouter` schema, as well as the `pg_partman` and `pg_cron` extensions and create a user and database for Scouter-Server to use (unless you are using a superuser). If using a non-superuser when running the application, the user will need to have a variety of permissions on the database and the `scouter` and `cron` schemas.
+Upon application startup, Scouter-Server will attempt to run an initial migration to setup database tables, partitioning and cron configurations. Prior to application startup, you will need to create the `scouter` schema, as well as the `pg_partman` and `pg_cron` extensions and create a user and database for Scouter-Server to use (unless you are using a superuser). If using a non-superuser when running the application, the user will need to have a variety of permissions on the database and the `scouter` and `cron` schemas.
 
 ## This must be run by a superuser when the databse is created
 ```sql

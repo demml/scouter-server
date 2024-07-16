@@ -20,7 +20,7 @@ SELECT scouter.create_parent(
     '1 day'
 );
 
-UPDATE scouter.part_config SET retention = '1 days' WHERE parent_table = 'scouter.drift';
+UPDATE scouter.part_config SET retention = '7 days' WHERE parent_table = 'scouter.drift';
 
 -- Create table for service drift configuration
 CREATE table IF NOT exists scouter.drift_profile (

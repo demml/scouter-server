@@ -20,9 +20,9 @@ use tracing::info;
 pub async fn populate_topic(topic_name: &str) {
     // Produce some messages
 
-    let kafka_broker = env::var("KAFKA_BROKER").unwrap_or_else(|_| "localhost:9092".to_owned());
+    let kafka_brokers = env::var("KAFKA_BROKERS").unwrap_or_else(|_| "localhost:9092".to_owned());
     let producer: &FutureProducer = &ClientConfig::new()
-        .set("bootstrap.servers", &kafka_broker)
+        .set("bootstrap.servers", &kafka_brokers)
         .set("statistics.interval.ms", "500")
         .set("api.version.request", "true")
         .set("debug", "all")

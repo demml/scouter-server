@@ -1,6 +1,6 @@
 use crate::sql::query::{
     GetBinnedFeatureValuesParams, GetDriftProfileParams, GetFeatureValuesParams, GetFeaturesParams,
-    InsertDriftProfileParams, InsertParams, Queries,
+    InsertDriftProfileParams, InsertParams, Queries, UpdateDriftProfileRunDatesParams,
 };
 use crate::sql::schema::{DriftRecord, FeatureResult, QueryResult};
 use anyhow::*;
@@ -171,21 +171,61 @@ impl PostgresClient {
         }
     }
 
-    pub async fn get_drift_profile(&self) -> Result<Option<PgRow>, Error> {
+    pub async fn get_drift_profile(
+        transaction: &mut Transaction<'_, Postgres>,
+    ) -> Result<Option<PgRow>, Error> {
         let query = Queries::GetDriftProfile.get_query();
 
         let params = GetDriftProfileParams {
             table: "scouter.drift_profile".to_string(),
         };
 
-        let mut transaction = self.pool.begin().await?;
         let result = sqlx::query(query.format(&params).as_str())
-            .fetch_optional(&mut *transaction)
-            .await?;
-
-        transaction.commit().await?;
+            .fetch_optional(&mut **transaction)
+            .await
+            .with_context(|| "Failed to get drift profile from database")?;
 
         Ok(result)
+    }
+
+    pub async fn update_drift_profile_run_dates(
+        transaction: &mut Transaction<'_, Postgres>,
+        name: &str,
+        repository: &str,
+        version: &str,
+        schedule: &str,
+    ) -> Result<(), Error> {
+        let query = Queries::UpdateDriftProfileRunDates.get_query();
+
+        let cron = Schedule::from_str(schedule)
+            .with_context(|| format!("Failed to parse cron expression: {}", schedule))?;
+
+        let next_run = cron.upcoming(Utc).take(1).next().with_context(|| {
+            format!(
+                "Failed to get next run time for cron expression: {}",
+                schedule
+            )
+        })?;
+
+        let params = UpdateDriftProfileRunDatesParams {
+            table: "scouter.drift_profile".to_string(),
+            name: name.to_string(),
+            repository: repository.to_string(),
+            version: version.to_string(),
+            next_run: next_run.naive_utc(),
+        };
+
+        let query_result = sqlx::query(query.format(&params).as_str())
+            .execute(&mut **transaction)
+            .await;
+
+        match query_result {
+            Ok(_) => Ok(()),
+            Err(e) => Err(anyhow!(
+                "Failed to update drift profile run dates in database: {:?}",
+                e
+            )),
+        }
     }
 
     //func batch insert drift records

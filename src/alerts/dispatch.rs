@@ -15,8 +15,7 @@ pub struct OpsGenieAlertDispatcher {
 impl Default for OpsGenieAlertDispatcher {
     fn default() -> Self {
         Self {
-            ops_genie_api_url: env::var("OPSGENIE_API_URL")
-                .unwrap_or("api_url".to_string()),
+            ops_genie_api_url: env::var("OPSGENIE_API_URL").unwrap_or("api_url".to_string()),
             ops_genie_api_key: env::var("OPSGENIE_API_KEY").unwrap_or("api_key".to_string()),
             http_client: reqwest::Client::new(),
         }
@@ -24,18 +23,25 @@ impl Default for OpsGenieAlertDispatcher {
 }
 
 impl OpsGenieAlertDispatcher {
-    pub async fn process_alerts(&self, feature_alerts: &FeatureAlerts, model_name: &str) -> Result<()> {
+    pub async fn process_alerts(
+        &self,
+        feature_alerts: &FeatureAlerts,
+        model_name: &str,
+    ) -> Result<()> {
         let mut alert_description = String::new();
-        for (i, (_, feature_alert))in feature_alerts.features.iter().enumerate() {
+        for (i, (_, feature_alert)) in feature_alerts.features.iter().enumerate() {
             if feature_alert.alerts.is_empty() {
                 continue;
             }
-            if i == 0{
+            if i == 0 {
                 alert_description.push_str("Features that have drifted \n");
             }
             alert_description.push_str(&format!("{} alerts: \n", &feature_alert.feature));
             feature_alert.alerts.iter().for_each(|alert| {
-                alert_description.push_str(&format!("alert kind {} -- alert zone: {} \n", &alert.kind, &alert.zone))
+                alert_description.push_str(&format!(
+                    "alert kind {} -- alert zone: {} \n",
+                    &alert.kind, &alert.zone
+                ))
             });
         }
         if !alert_description.is_empty() {
@@ -45,7 +51,7 @@ impl OpsGenieAlertDispatcher {
         Ok(())
     }
 
-    fn construct_alert_body(alert_description: &str, model_name: &str)-> Value {
+    fn construct_alert_body(alert_description: &str, model_name: &str) -> Value {
         json!(
                 {
                     "message": format!("Model drift detected for {}", model_name),
@@ -71,7 +77,7 @@ impl OpsGenieAlertDispatcher {
             )
             .json(&body)
             .send()
-            .await?;
+            .await.with_context(|| "Error posting alert to opsgenie")?;
         Ok(())
     }
 }

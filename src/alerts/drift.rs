@@ -9,7 +9,7 @@ use anyhow::{Context, Result};
 
 use crate::alerts::dispatch::OpsGenieAlertDispatcher;
 use ndarray::Array2;
-use sqlx::Row;
+use sqlx::{Postgres, Row};
 use tracing::info;
 
 #[derive(Debug)]
@@ -75,10 +75,9 @@ impl DriftExecutor {
 
     pub async fn execute(&self) -> Result<()> {
         loop {
+            let mut transaction: sqlx::Transaction<Postgres> = self.db_client.pool.begin().await?;
             // Get drift profile
-            let profile = self
-                .db_client
-                .get_drift_profile()
+            let profile = PostgresClient::get_drift_profile(&mut transaction)
                 .await
                 .with_context(|| "error retrieving drift profile(s) from db!")?;
 
@@ -88,6 +87,7 @@ impl DriftExecutor {
                         "error converting postgres jsonb profile to struct type DriftProfile"
                     })?;
                 let previous_run: NaiveDateTime = profile.get("previous_run");
+                let schedule: String = profile.get("schedule");
                 // Compute drift
                 let drift_array = self
                     .compute_drift(&drift_profile, &previous_run)
@@ -103,14 +103,24 @@ impl DriftExecutor {
                 .with_context(|| "error generating drift alerts")?;
 
                 // Process alerts
-                self.ops_genie_alert_dispatcher.process_alerts(&alerts, &drift_profile.config.name).await?;
+                self.ops_genie_alert_dispatcher
+                    .process_alerts(&alerts, &drift_profile.config.name)
+                    .await?;
 
-                // Mark row as processed in db
-                
+                // Update run dates for profile
+                PostgresClient::update_drift_profile_run_dates(
+                    &mut transaction,
+                    &drift_profile.config.name,
+                    &drift_profile.config.repository,
+                    &drift_profile.config.version,
+                    &schedule,
+                )
+                .await?;
             } else {
                 info!("No more drift profiles to process, shutting down...");
                 break;
             }
+            transaction.commit().await?;
         }
         Ok(())
     }

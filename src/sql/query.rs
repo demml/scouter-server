@@ -9,8 +9,30 @@ const GET_BINNED_FEATURE_VALUES: &str = include_str!("scripts/binned_feature_val
 const GET_FEATURE_VALUES: &str = include_str!("scripts/feature_values.sql");
 const INSERT_DRIFT_PROFILE: &str = include_str!("scripts/insert_drift_profile.sql");
 const GET_DRIFT_PROFILE: &'static str = include_str!("scripts/get_drift_profile.sql");
+const UPDATE_DRIFT_PROFILE_RUN_DATES: &'static str =
+    include_str!("scripts/update_drift_profile_run_dates.sql");
 pub trait ToMap {
     fn to_map(&self) -> BTreeMap<String, String>;
+}
+
+pub struct UpdateDriftProfileRunDatesParams {
+    pub table: String,
+    pub name: String,
+    pub repository: String,
+    pub version: String,
+    pub next_run: NaiveDateTime,
+}
+
+impl ToMap for UpdateDriftProfileRunDatesParams {
+    fn to_map(&self) -> BTreeMap<String, String> {
+        let mut params = BTreeMap::new();
+        params.insert("table".to_string(), self.table.clone());
+        params.insert("name".to_string(), self.name.clone());
+        params.insert("repository".to_string(), self.repository.clone());
+        params.insert("version".to_string(), self.version.clone());
+        params.insert("next_run".to_string(), self.next_run.to_string());
+        params
+    }
 }
 
 pub struct GetDriftProfileParams {
@@ -150,6 +172,7 @@ pub enum Queries {
     GetBinnedFeatureValues,
     GetFeatureValues,
     GetDriftProfile,
+    UpdateDriftProfileRunDates,
 }
 
 impl Queries {
@@ -162,6 +185,7 @@ impl Queries {
             Queries::GetFeatureValues => SqlQuery::new(GET_FEATURE_VALUES),
             Queries::InsertDriftProfile => SqlQuery::new(INSERT_DRIFT_PROFILE),
             Queries::GetDriftProfile => SqlQuery::new(&GET_DRIFT_PROFILE),
+            Queries::UpdateDriftProfileRunDates => SqlQuery::new(&UPDATE_DRIFT_PROFILE_RUN_DATES),
         }
     }
 }
@@ -255,7 +279,6 @@ WHERE
 
         let formatted_sql = query.format(&params);
 
-        dbg!(&formatted_sql);
         assert_eq!(
             formatted_sql,
             "with PROFILE as (SELECT name, repository, version
@@ -269,6 +292,31 @@ UPDATE schema.table
 SET processing = true
 WHERE (name, repository, version) IN (SELECT name, repository, version from PROFILE)
 RETURNING profile, previous_run, schedule;"
+        );
+    }
+
+    #[test]
+    fn test_update_drift_profile_run_dates_query() {
+        let query = Queries::UpdateDriftProfileRunDates.get_query();
+
+        let params = UpdateDriftProfileRunDatesParams {
+            table: "schema.table".to_string(),
+            name: "name".to_string(),
+            repository: "repository".to_string(),
+            version: "version".to_string(),
+            next_run: Default::default(),
+        };
+
+        let formatted_sql = query.format(&params);
+
+        assert_eq!(
+            formatted_sql,
+            "UPDATE schema.table
+SET previous_run = CURRENT_TIMESTAMP + interval '1 minute',
+    next_run     = '1970-01-01 00:00:00'
+WHERE name = 'name'
+  and repository = 'repository'
+  and version = 'version'"
         );
     }
 

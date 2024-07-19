@@ -49,7 +49,7 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
     // setup background pg_partman run_maintenance function
 
     // setup background task if kafka is enabled
-
+    println!("Printing env vars");
     println!("KAFKA_BROKERS: {:?}", std::env::var("KAFKA_BROKERS"));
     println!("KAFKA_TOPIC: {:?}", std::env::var("KAFKA_TOPIC"));
     println!("KAFKA_USERNAME: {:?}", std::env::var("KAFKA_USERNAME"));

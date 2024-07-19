@@ -49,6 +49,11 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
     // setup background pg_partman run_maintenance function
 
     // setup background task if kafka is enabled
+
+    println!("KAFKA_BROKERS: {:?}", std::env::var("KAFKA_BROKERS"));
+    println!("KAFKA_TOPIC: {:?}", std::env::var("KAFKA_TOPIC"));
+    println!("KAFKA_USERNAME: {:?}", std::env::var("KAFKA_USERNAME"));
+    println!("KAFKA_PASSWORD: {:?}", std::env::var("KAFKA_PASSWORD"));
     if std::env::var("KAFKA_BROKERS").is_ok() {
         info!("🚀 Starting Kafka consumer");
         let brokers = std::env::var("KAFKA_BROKERS").unwrap();

@@ -46,7 +46,6 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
     //    .await
     //    .with_context(|| "Failed to run migrations")?;
     //
-    // setup background pg_partman run_maintenance function
 
     // setup background task if kafka is enabled
     println!("Printing env vars");

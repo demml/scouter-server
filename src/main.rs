@@ -41,11 +41,11 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
         .with_context(|| "Failed to create Postgres client")?;
 
     // run migrations
-    sqlx::migrate!()
-        .run(&pool)
-        .await
-        .with_context(|| "Failed to run migrations")?;
-
+    //sqlx::migrate!()
+    //    .run(&pool)
+    //    .await
+    //    .with_context(|| "Failed to run migrations")?;
+    //
     // setup background pg_partman run_maintenance function
 
     // setup background task if kafka is enabled

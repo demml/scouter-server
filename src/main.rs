@@ -54,7 +54,7 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
     println!("KAFKA_TOPIC: {:?}", std::env::var("KAFKA_TOPIC"));
     println!("KAFKA_USERNAME: {:?}", std::env::var("KAFKA_USERNAME"));
     println!("KAFKA_PASSWORD: {:?}", std::env::var("KAFKA_PASSWORD"));
-    if std::env::var("KAFKA_BROKERS").is_ok() {
+    if std::env::var("KAFKA_BROKERSZ").is_ok() {
         info!("🚀 Starting Kafka consumer");
         let brokers = std::env::var("KAFKA_BROKERS").unwrap();
         let topics = vec![std::env::var("KAFKA_TOPIC").unwrap_or("scouter_monitoring".to_string())];

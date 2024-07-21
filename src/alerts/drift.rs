@@ -31,7 +31,7 @@ impl DriftExecutor {
         profile: &DriftProfile,
         limit_time_stamp: &str,
     ) -> Result<QueryResult> {
-        Ok(self
+        let records = self
             .db_client
             .get_drift_records(
                 profile.config.name.as_str(),
@@ -39,7 +39,8 @@ impl DriftExecutor {
                 profile.config.version.as_str(),
                 limit_time_stamp,
             )
-            .await?)
+            .await?;
+        Ok(records)
     }
 
     async fn compute_drift(
@@ -66,11 +67,12 @@ impl DriftExecutor {
         };
         let nd_feature_arr = Array2::from_shape_vec((num_rows, num_cols), feature_values)
             .with_context(|| "Shape error")?;
-        Ok(Monitor::new().calculate_drift_from_sample(
+        let drift = Monitor::new().calculate_drift_from_sample(
             &feature_keys,
             &nd_feature_arr.view(),
-            &drift_profile,
-        )?)
+            drift_profile,
+        )?;
+        Ok(drift)
     }
 
     pub async fn execute(&self) -> Result<()> {

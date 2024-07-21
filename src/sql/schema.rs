@@ -1,7 +1,6 @@
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DriftRecord {

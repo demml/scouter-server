@@ -1,8 +1,6 @@
-use crate::sql::postgres::PostgresClient;
 use anyhow::{Context, Result};
-use scouter::utils::types::{Alert, FeatureAlerts};
+use scouter::utils::types::FeatureAlerts;
 use serde_json::{json, Value};
-use std::collections::HashMap;
 use std::env;
 
 #[derive(Debug)]
@@ -93,6 +91,7 @@ impl OpsGenieAlertDispatcher {
 mod tests {
     use super::*;
     use scouter::utils::types::{Alert, AlertType, AlertZone, FeatureAlert};
+    use std::collections::HashMap;
 
     #[test]
     fn test_construct_opsgenie_alert_description() {
@@ -119,17 +118,33 @@ mod tests {
                 indices: Default::default(),
             },
         );
-        let alert_description = OpsGenieAlertDispatcher::construct_alert_description(&FeatureAlerts{features});
+        let alert_description =
+            OpsGenieAlertDispatcher::construct_alert_description(&FeatureAlerts { features });
         let expected_alert_description = "Features that have drifted \ntest_feature_1 alerts: \nalert kind Out of bounds -- alert zone: Out of bounds \ntest_feature_2 alerts: \nalert kind Out of bounds -- alert zone: Zone 1 \n".to_string();
         assert_eq!(&alert_description.len(), &expected_alert_description.len());
-        assert_eq!(&alert_description.contains("test_feature_1 alerts: \nalert kind Out of bounds -- alert zone: Out of bounds"), &expected_alert_description.contains("test_feature_1 alerts: \nalert kind Out of bounds -- alert zone: Out of bounds"));
-        assert_eq!(&alert_description.contains("test_feature_2 alerts: \nalert kind Out of bounds -- alert zone: Zone 1"), &expected_alert_description.contains("test_feature_2 alerts: \nalert kind Out of bounds -- alert zone: Zone 1"));
+        assert_eq!(
+            &alert_description.contains(
+                "test_feature_1 alerts: \nalert kind Out of bounds -- alert zone: Out of bounds"
+            ),
+            &expected_alert_description.contains(
+                "test_feature_1 alerts: \nalert kind Out of bounds -- alert zone: Out of bounds"
+            )
+        );
+        assert_eq!(
+            &alert_description.contains(
+                "test_feature_2 alerts: \nalert kind Out of bounds -- alert zone: Zone 1"
+            ),
+            &expected_alert_description.contains(
+                "test_feature_2 alerts: \nalert kind Out of bounds -- alert zone: Zone 1"
+            )
+        );
     }
 
     #[test]
     fn test_construct_opsgenie_alert_description_empty() {
-        let mut features: HashMap<String, FeatureAlert> = HashMap::new();
-        let alert_description = OpsGenieAlertDispatcher::construct_alert_description(&FeatureAlerts{features});
+        let features: HashMap<String, FeatureAlert> = HashMap::new();
+        let alert_description =
+            OpsGenieAlertDispatcher::construct_alert_description(&FeatureAlerts { features });
         let expected_alert_description = "".to_string();
         assert_eq!(alert_description, expected_alert_description);
     }
@@ -150,7 +165,8 @@ mod tests {
                     "priority": "P1"
                 }
         );
-        let alert_body =OpsGenieAlertDispatcher::construct_alert_body("Features have drifted", "test_ml_model");
+        let alert_body =
+            OpsGenieAlertDispatcher::construct_alert_body("Features have drifted", "test_ml_model");
         assert_eq!(alert_body, expected_alert_body);
     }
 }

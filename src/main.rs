@@ -3,8 +3,6 @@ mod api;
 mod kafka;
 mod sql;
 
-use crate::alerts::dispatch;
-use crate::alerts::dispatch::OpsGenieAlertDispatcher;
 use crate::alerts::drift::DriftExecutor;
 use crate::api::route::AppState;
 use crate::api::setup::{create_db_pool, setup_logging};
@@ -12,14 +10,10 @@ use crate::kafka::consumer::start_kafka_background_poll;
 use crate::sql::postgres::PostgresClient;
 use anyhow::Context;
 use api::route::create_router;
-use futures::executor::block_on;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
-use sqlx::{Pool, Postgres};
-use std::env;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::time::sleep;
 use tracing::{error, info};
 
 const NUM_WORKERS: usize = 5;

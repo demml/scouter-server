@@ -8,8 +8,8 @@ const GET_FEATURES: &str = include_str!("scripts/unique_features.sql");
 const GET_BINNED_FEATURE_VALUES: &str = include_str!("scripts/binned_feature_values.sql");
 const GET_FEATURE_VALUES: &str = include_str!("scripts/feature_values.sql");
 const INSERT_DRIFT_PROFILE: &str = include_str!("scripts/insert_drift_profile.sql");
-const GET_DRIFT_PROFILE: &'static str = include_str!("scripts/get_drift_profile.sql");
-const UPDATE_DRIFT_PROFILE_RUN_DATES: &'static str =
+const GET_DRIFT_PROFILE: &str = include_str!("scripts/get_drift_profile.sql");
+const UPDATE_DRIFT_PROFILE_RUN_DATES: &str =
     include_str!("scripts/update_drift_profile_run_dates.sql");
 pub trait ToMap {
     fn to_map(&self) -> BTreeMap<String, String>;
@@ -184,8 +184,8 @@ impl Queries {
             Queries::GetBinnedFeatureValues => SqlQuery::new(GET_BINNED_FEATURE_VALUES),
             Queries::GetFeatureValues => SqlQuery::new(GET_FEATURE_VALUES),
             Queries::InsertDriftProfile => SqlQuery::new(INSERT_DRIFT_PROFILE),
-            Queries::GetDriftProfile => SqlQuery::new(&GET_DRIFT_PROFILE),
-            Queries::UpdateDriftProfileRunDates => SqlQuery::new(&UPDATE_DRIFT_PROFILE_RUN_DATES),
+            Queries::GetDriftProfile => SqlQuery::new(GET_DRIFT_PROFILE),
+            Queries::UpdateDriftProfileRunDates => SqlQuery::new(UPDATE_DRIFT_PROFILE_RUN_DATES),
         }
     }
 }
@@ -281,17 +281,7 @@ WHERE
 
         assert_eq!(
             formatted_sql,
-            "with PROFILE as (SELECT name, repository, version
-                 FROM schema.table
-                 WHERE active
-                   AND next_run < CURRENT_TIMESTAMP
-                   AND NOT processing
-                 LIMIT 1 FOR UPDATE SKIP LOCKED)
-
-UPDATE schema.table
-SET processing = true
-WHERE (name, repository, version) IN (SELECT name, repository, version from PROFILE)
-RETURNING profile, previous_run, schedule;"
+            "SELECT profile, previous_run, schedule\nFROM schema.table\nWHERE active\n  AND next_run < CURRENT_TIMESTAMP\nLIMIT 1 FOR UPDATE SKIP LOCKED;"
         );
     }
 
@@ -316,7 +306,7 @@ SET previous_run = CURRENT_TIMESTAMP + interval '1 minute',
     next_run     = '1970-01-01 00:00:00'
 WHERE name = 'name'
   and repository = 'repository'
-  and version = 'version'"
+  and version = 'version';"
         );
     }
 

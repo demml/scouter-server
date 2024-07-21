@@ -28,6 +28,16 @@ impl OpsGenieAlertDispatcher {
         feature_alerts: &FeatureAlerts,
         model_name: &str,
     ) -> Result<()> {
+        let alert_description = Self::construct_alert_description(feature_alerts);
+
+        if !alert_description.is_empty() {
+            let alert_body = Self::construct_alert_body(&alert_description, model_name);
+            self.send_alerts(alert_body).await?;
+        }
+        Ok(())
+    }
+
+    fn construct_alert_description(feature_alerts: &FeatureAlerts) -> String {
         let mut alert_description = String::new();
         for (i, (_, feature_alert)) in feature_alerts.features.iter().enumerate() {
             if feature_alert.alerts.is_empty() {
@@ -44,11 +54,7 @@ impl OpsGenieAlertDispatcher {
                 ))
             });
         }
-        if !alert_description.is_empty() {
-            let alert_body = Self::construct_alert_body(&alert_description, model_name);
-            self.send_alerts(alert_body).await?;
-        }
-        Ok(())
+        alert_description
     }
 
     fn construct_alert_body(alert_description: &str, model_name: &str) -> Value {
@@ -77,7 +83,74 @@ impl OpsGenieAlertDispatcher {
             )
             .json(&body)
             .send()
-            .await.with_context(|| "Error posting alert to opsgenie")?;
+            .await
+            .with_context(|| "Error posting alert to opsgenie")?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use scouter::utils::types::{Alert, AlertType, AlertZone, FeatureAlert};
+
+    #[test]
+    fn test_construct_opsgenie_alert_description() {
+        let mut features: HashMap<String, FeatureAlert> = HashMap::new();
+        features.insert(
+            "test_feature_1".to_string(),
+            FeatureAlert {
+                feature: "test_feature_1".to_string(),
+                alerts: vec![Alert {
+                    zone: AlertZone::OutOfBounds.to_str(),
+                    kind: AlertType::OutOfBounds.to_str(),
+                }],
+                indices: Default::default(),
+            },
+        );
+        features.insert(
+            "test_feature_2".to_string(),
+            FeatureAlert {
+                feature: "test_feature_2".to_string(),
+                alerts: vec![Alert {
+                    zone: AlertZone::Zone1.to_str(),
+                    kind: AlertType::OutOfBounds.to_str(),
+                }],
+                indices: Default::default(),
+            },
+        );
+        let alert_description = OpsGenieAlertDispatcher::construct_alert_description(&FeatureAlerts{features});
+        let expected_alert_description = "Features that have drifted \ntest_feature_1 alerts: \nalert kind Out of bounds -- alert zone: Out of bounds \ntest_feature_2 alerts: \nalert kind Out of bounds -- alert zone: Zone 1 \n".to_string();
+        assert_eq!(&alert_description.len(), &expected_alert_description.len());
+        assert_eq!(&alert_description.contains("test_feature_1 alerts: \nalert kind Out of bounds -- alert zone: Out of bounds"), &expected_alert_description.contains("test_feature_1 alerts: \nalert kind Out of bounds -- alert zone: Out of bounds"));
+        assert_eq!(&alert_description.contains("test_feature_2 alerts: \nalert kind Out of bounds -- alert zone: Zone 1"), &expected_alert_description.contains("test_feature_2 alerts: \nalert kind Out of bounds -- alert zone: Zone 1"));
+    }
+
+    #[test]
+    fn test_construct_opsgenie_alert_description_empty() {
+        let mut features: HashMap<String, FeatureAlert> = HashMap::new();
+        let alert_description = OpsGenieAlertDispatcher::construct_alert_description(&FeatureAlerts{features});
+        let expected_alert_description = "".to_string();
+        assert_eq!(alert_description, expected_alert_description);
+    }
+
+    #[test]
+    fn test_construct_opsgenie_alert_body() {
+        let expected_alert_body = json!(
+                {
+                    "message": "Model drift detected for test_ml_model",
+                    "description": "Features have drifted",
+                    "responders":[
+                        {"name":"ds-team", "type":"team"}
+                    ],
+                    "visibleTo":[
+                        {"name":"ds-team", "type":"team"}
+                    ],
+                    "tags": ["Model Drift"],
+                    "priority": "P1"
+                }
+        );
+        let alert_body =OpsGenieAlertDispatcher::construct_alert_body("Features have drifted", "test_ml_model");
+        assert_eq!(alert_body, expected_alert_body);
     }
 }

@@ -10,7 +10,6 @@ on:
       - main
   release:
     types: [published]
-
 env:
   INTERPRETER: '3.11'
   RUSTFLAGS: -C debuginfo=0
@@ -23,9 +22,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            archive: zip
 
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
@@ -68,31 +64,112 @@ jobs:
             sudo apt-get update -y
             sudo apt-get install
 
-      - name: Build binaries
+      - name: Build Binaries
         run: cargo build --release --target ${{ matrix.target }}
-
-      - name: Zip Windows binaries
-        if: contains(matrix.archive, 'zip') && contains(matrix.os, 'windows')
-        run: Compress-Archive ./target/release/ scouter-server-${{ matrix.target }}.zip
 
       - name: Zip MacOS binaries
         if: contains(matrix.archive, 'zip') && contains(matrix.os, 'macos')
-        run: zip -r scouter-server-${{ matrix.target }}.zip ./target/release/
+        run: zip -r scouter-server-${{ matrix.target }}.zip ./target/${{ matrix.target }}
 
       - name: gzip binaries
         if: contains(matrix.archive, 'tar.gz')
-        run: tar -czf scouter-server-${{ matrix.target }}.tar.gz ./target/release/
+        run: tar -czf scouter-server-${{ matrix.target }}.tar.gz ./target/${{ matrix.target }}
 
       - name: xz binaries
         if: contains(matrix.archive, 'tar.xz')
-        run: tar -cJf scouter-server-${{ matrix.target }}.tar.xz ./target/release/
+        run: tar -cJf scouter-server-${{ matrix.target }}.tar.xz ./target/${{ matrix.target }}
 
       - uses: actions/upload-artifact@v4
         with:
           name: scouter_server_${{ matrix.target }}_${{matrix.archive}}
           path: scouter-server-${{ matrix.target }}.${{matrix.archive}}
 
+  # NASM should be included in windows base image!
+  build-windows:
+    name: build - ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: zip
+    env:
+      TARGET: ${{ matrix.target }}
 
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Rust
+        run: |
+              rustup override set stable
+              rustup update
+              rustup target add ${{ matrix.target }}
+              rustup component add rust-src
+              
+      - name: Add NASM to path
+        uses: ilammy/setup-nasm@v1
+      
+      - name: Build windows binaries
+        run: |
+              cargo build --release --target ${{ matrix.target }}
+
+      - name: Zip Windows binaries
+        run: Compress-Archive ./target/${{ matrix.target }} scouter-server-${{ matrix.target }}.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scouter_server_${{ matrix.target }}_${{matrix.archive}}
+          path: scouter-server-${{ matrix.target }}.${{matrix.archive}}
+
+  build-musl:
+    name: build-musl
+    runs-on: ubuntu-latest
+    env:
+      TARGET: x86_64-unknown-linux-musl
+      ARCHIVE: tar.gz
+      RUSTFLAGS: "-C link-arg=-fuse-ld=lld -C target-feature=-crt-static"
+    container:
+      image: rust:alpine
+      volumes:
+        - /usr/local/cargo/registry:/usr/local/cargo/registry
+
+    steps:
+      - name: Install dependencies
+        run: apk add --no-cache git clang lld musl-dev nodejs npm openssl-dev pkgconfig g++ librdkafka make cmake
+      
+      - name: Install python
+        run: apk add --update --no-cache python3 && ln -sf python3 /usr/bin/python
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build binaries
+        run: |
+            cargo build --release --target ${{ env.TARGET }}
+
+      - name: gzip binaries
+        run: tar -czf scouter-server-${{ env.TARGET }}.${{ env.ARCHIVE }} ./target/${{ env.TARGET }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scouter_server_${{ env.TARGET }}_${{ env.ARCHIVE }}
+          path: scouter-server-${{ env.TARGET }}.${{ env.ARCHIVE }}
+
+
+  release-binary-assets:
+    if: github.event_name == 'release'
+    needs: [build, build-windows, build-musl]
+    runs-on: ubuntu-latest
+
+    steps:
       - uses: actions/checkout@v4
 
       - name: get dist artifacts
@@ -106,33 +183,15 @@ jobs:
          ls -lhR dist
          echo "`ls dist | wc -l` files"
 
-  release-binary-assets:
-    if: github.event_name == 'release'
-    needs: [build]
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: get dist artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: scouter-server-*
-          path: dist
-
-      - name: list dist files
-        run: |
-         ls -lhR dist
-         echo "`ls dist | wc -l` files"
-
       - name: Upload files to release tag
         env:
           GH_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN }}
         run: |
-          for file in dist/*; do
-            echo "Uploading $file"
-            gh release upload ${{ github.event.release.name }} $file
+          for i in $(find dist -type f -print)
+          do
+            gh release upload ${{ github.event.release.name }} $i
           done
+
 
      
 

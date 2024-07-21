@@ -6,6 +6,7 @@ mod sql;
 use crate::alerts::dispatch;
 use crate::alerts::dispatch::OpsGenieAlertDispatcher;
 use crate::alerts::drift::DriftExecutor;
+use crate::api::metrics::metrics_app;
 use crate::api::route::AppState;
 use crate::api::setup::{create_db_pool, setup_logging};
 use crate::kafka::consumer::start_kafka_background_poll;
@@ -24,8 +25,21 @@ use tracing::{error, info};
 
 const NUM_WORKERS: usize = 5;
 
-#[tokio::main]
-async fn main() -> Result<(), anyhow::Error> {
+async fn start_metrics_server() -> Result<(), anyhow::Error> {
+    let app = metrics_app().with_context(|| "Failed to setup metrics app")?;
+
+    // NOTE: expose metrics endpoint on a different port
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:8001")
+        .await
+        .with_context(|| "Failed to bind to port 8001 for metrics server")?;
+    axum::serve(listener, app)
+        .await
+        .with_context(|| "Failed to start metrics server")?;
+
+    Ok(())
+}
+
+async fn start_main_server() -> Result<(), anyhow::Error> {
     // setup logging
     setup_logging()
         .await
@@ -43,8 +57,14 @@ async fn main() -> Result<(), anyhow::Error> {
     //     .with_context(|| "Failed to run migrations")?;
 
     // setup background task if kafka is enabled
-    if std::env::var("KAFKA_BROKER").is_ok() {
-        let brokers = std::env::var("KAFKA_BROKER").unwrap();
+    println!("Printing env vars");
+    println!("KAFKA_BROKERS: {:?}", std::env::var("KAFKA_BROKERS"));
+    println!("KAFKA_TOPIC: {:?}", std::env::var("KAFKA_TOPIC"));
+    println!("KAFKA_USERNAME: {:?}", std::env::var("KAFKA_USERNAME"));
+    println!("KAFKA_PASSWORD: {:?}", std::env::var("KAFKA_PASSWORD"));
+    if std::env::var("KAFKA_BROKERS").is_ok() {
+        info!("🚀 Starting Kafka consumer");
+        let brokers = std::env::var("KAFKA_BROKERS").unwrap();
         let topics = vec![std::env::var("KAFKA_TOPIC").unwrap_or("scouter_monitoring".to_string())];
         let group_id = std::env::var("KAFKA_GROUP").unwrap_or("scouter".to_string());
         let username: Option<String> = std::env::var("KAFKA_USERNAME").ok();
@@ -107,8 +127,17 @@ async fn main() -> Result<(), anyhow::Error> {
         .await
         .with_context(|| "Failed to bind to port 8000")?;
 
-    info!("🚀 Server started successfully");
-    axum::serve(listener, app).await.unwrap();
+    info!("🚀 Scouter Server started successfully");
+    axum::serve(listener, app)
+        .await
+        .with_context(|| "Failed to start main server")?;
+
+    Ok(())
+}
+
+#[tokio::main]
+async fn main() -> Result<(), anyhow::Error> {
+    let (_main_server, _metrics_server) = tokio::join!(start_main_server(), start_metrics_server());
 
     Ok(())
 }

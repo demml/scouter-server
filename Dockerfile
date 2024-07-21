@@ -10,7 +10,8 @@ RUN apt-get update \
 	libssl-dev \
 	make \
 	pkg-config \
-	postgresql-server-dev-16
+	postgresql-server-dev-16 \
+	postgresql-16-cron
 
 WORKDIR /monitor
 
@@ -24,3 +25,4 @@ RUN apt install -y libcurl4-openssl-dev liblz4-dev libzstd-dev autoconf
 FROM postgres:16.3-bookworm
 COPY --from=builder /usr/share/postgresql/16/extension /usr/share/postgresql/16/extension
 COPY --from=builder /usr/lib/postgresql/16/lib /usr/lib/postgresql/16/lib
+COPY setup/init.sql /docker-entrypoint-initdb.d/

@@ -10,13 +10,11 @@ use axum::{
 use scouter::utils::types::DriftProfile;
 use serde_json::json;
 use std::sync::Arc;
-use tracing::{error, info};
+use tracing::error;
 
 use crate::api::route::AppState;
 
 pub async fn health_check() -> impl IntoResponse {
-    info!("Health check endpoint is called");
-
     const MESSAGE: &str = "Alive";
 
     let json_response = serde_json::json!({

@@ -113,9 +113,8 @@ jobs:
       
       - name: Build windows binaries
         run: |
-            choco install openssl
-            $env:OPENSSL_DIR = "C:\Program Files\OpenSSL-Win64";
-            $env:OPENSSL_STATIC = "true";
+            echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
+            cpkg install openssl:x64-windows-static-md
             cargo build --release --target ${{ matrix.target }}
 
       - name: Zip Windows binaries
@@ -179,7 +178,7 @@ jobs:
         run: |
               rustup override set stable
               rustup update
-              rustup target add ${{ env.target }}
+              rustup target add ${{ env.TARGET }}
               rustup component add rust-src
               
 
@@ -189,15 +188,15 @@ jobs:
             sudo apt-get install
 
       - name: Build Binaries
-        run: cargo build --release --target ${{ env.target }}
+        run: cargo build --release --target ${{ env.TARGET }}
 
       - name: Zip MacOS binaries
-        run: zip -r scouter-server-${{ env.target }}.zip ./target/${{ env.target }}
+        run: zip -r scouter-server-${{ env.TARGET }}.zip ./target/${{ env.TARGET }}
 
       - uses: actions/upload-artifact@v4
         with:
-          name: scouter_server_${{ env.target }}_${{env.archive}}
-          path: scouter-server-${{ env.target }}.${{env.archive}}
+          name: scouter_server_${{ env.TARGET }}_${{env.ARCHIVE}}
+          path: scouter-server-${{ env.TARGET }}.${{env.ARCHIVE}}
 
 
   release-binary-assets:

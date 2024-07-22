@@ -41,7 +41,7 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
         .with_context(|| "Failed to create Postgres client")?;
 
     // run migrations
-    let _migration = sqlx::migrate!().run(&pool).await?;
+    sqlx::migrate!().run(&pool).await?;
 
     // setup background task if kafka is enabled
     if std::env::var("KAFKA_BROKERS").is_ok() {

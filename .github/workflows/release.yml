@@ -114,7 +114,7 @@ jobs:
       - name: Build windows binaries
         run: |
             echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
-            cpkg install openssl:x64-windows-static-md
+            vcpkg install openssl:x64-windows-static-md
             cargo build --release --target ${{ matrix.target }}
 
       - name: Zip Windows binaries

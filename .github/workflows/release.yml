@@ -80,51 +80,6 @@ jobs:
           name: scouter_server_${{ matrix.target }}_${{matrix.archive}}
           path: scouter-server-${{ matrix.target }}.${{matrix.archive}}
 
-  # NASM should be included in windows base image!
-  build-windows:
-    name: build - ${{ matrix.target }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            archive: zip
-    env:
-      TARGET: ${{ matrix.target }}
-
-    runs-on: ${{ matrix.os }}
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Rust
-        run: |
-              rustup override set stable
-              rustup update
-              rustup target add ${{ matrix.target }}
-              rustup component add rust-src
-              
-      - name: Add NASM to path
-        uses: ilammy/setup-nasm@v1
-      
-      - name: Build windows binaries
-        run: |
-            echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
-            vcpkg install openssl:x64-windows-static-md
-            cargo build --release --target ${{ matrix.target }}
-
-      - name: Zip Windows binaries
-        run: Compress-Archive ./target/${{ matrix.target }} scouter-server-${{ matrix.target }}.zip
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: scouter_server_${{ matrix.target }}_${{matrix.archive}}
-          path: scouter-server-${{ matrix.target }}.${{matrix.archive}}
-
   build-musl:
     name: build-musl
     runs-on: ubuntu-latest
@@ -196,7 +151,7 @@ jobs:
 
   release-binary-assets:
     if: github.event_name == 'release'
-    needs: [build, build-windows, build-musl, build-mac-x86_64]
+    needs: [build, build-musl, build-mac-x86_64]
     runs-on: ubuntu-latest
 
     steps:

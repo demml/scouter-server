@@ -49,8 +49,6 @@ pub async fn create_kafka_consumer(
     sasl_mechanism: Option<String>,
     config_overrides: Option<HashMap<&str, &str>>,
 ) -> Result<StreamConsumer, anyhow::Error> {
-    info!("Setting up Kafka consumer");
-
     let mut config = ClientConfig::new();
 
     config
@@ -82,6 +80,7 @@ pub async fn create_kafka_consumer(
         .subscribe(&topics)
         .expect("Can't subscribe to specified topics");
 
+    info!("✅ Started consumer for topics: {:?}", topics);
     Ok(consumer)
 }
 

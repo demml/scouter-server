@@ -44,20 +44,12 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
         .await
         .with_context(|| "Failed to create Postgres client")?;
 
-    // // run migrations
-    // sqlx::migrate!()
-    //     .run(&pool)
-    //     .await
-    //     .with_context(|| "Failed to run migrations")?;
+    // run migrations
+    sqlx::migrate!().run(&pool).await?;
 
     // setup background task if kafka is enabled
-    println!("Printing env vars");
-    println!("KAFKA_BROKERS: {:?}", std::env::var("KAFKA_BROKERS"));
-    println!("KAFKA_TOPIC: {:?}", std::env::var("KAFKA_TOPIC"));
-    println!("KAFKA_USERNAME: {:?}", std::env::var("KAFKA_USERNAME"));
-    println!("KAFKA_PASSWORD: {:?}", std::env::var("KAFKA_PASSWORD"));
     if std::env::var("KAFKA_BROKERS").is_ok() {
-        info!("🚀 Starting Kafka consumer");
+        info!("Starting Kafka consumer");
         let brokers = std::env::var("KAFKA_BROKERS").unwrap();
         let topics = vec![std::env::var("KAFKA_TOPIC").unwrap_or("scouter_monitoring".to_string())];
         let group_id = std::env::var("KAFKA_GROUP").unwrap_or("scouter".to_string());

@@ -49,7 +49,7 @@ pub async fn create_db_pool(database_url: Option<String>) -> Result<Pool<Postgre
             pool
         }
         Err(err) => {
-            error!("🔥 Failed to connect to database {:?}", err);
+            error!("🚨 Failed to connect to database {:?}", err);
             std::process::exit(1);
         }
     };

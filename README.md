@@ -2,7 +2,7 @@
 
 ## Coming Soon
 
-CRUD api for real-time monitoring with scouter
+CRUD api for real-time monitoring with [scouter](https://github.com/demml/scouter)
 
 ## Installation
 

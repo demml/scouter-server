@@ -8,14 +8,14 @@ const GET_FEATURES: &str = include_str!("scripts/unique_features.sql");
 const GET_BINNED_FEATURE_VALUES: &str = include_str!("scripts/binned_feature_values.sql");
 const GET_FEATURE_VALUES: &str = include_str!("scripts/feature_values.sql");
 const INSERT_DRIFT_PROFILE: &str = include_str!("scripts/insert_drift_profile.sql");
-const INSERT_INTO_QUEUE: &str = include_str!("scripts/insert_into_queue.sql");
-const DELETE_FROM_QUEUE: &str = include_str!("scripts/delete_from_queue.sql");
-
+const GET_DRIFT_PROFILE: &str = include_str!("scripts/get_drift_profile.sql");
+const UPDATE_DRIFT_PROFILE_RUN_DATES: &str =
+    include_str!("scripts/update_drift_profile_run_dates.sql");
 pub trait ToMap {
     fn to_map(&self) -> BTreeMap<String, String>;
 }
 
-pub struct QueueParams {
+pub struct UpdateDriftProfileRunDatesParams {
     pub table: String,
     pub name: String,
     pub repository: String,
@@ -23,7 +23,7 @@ pub struct QueueParams {
     pub next_run: NaiveDateTime,
 }
 
-impl ToMap for QueueParams {
+impl ToMap for UpdateDriftProfileRunDatesParams {
     fn to_map(&self) -> BTreeMap<String, String> {
         let mut params = BTreeMap::new();
         params.insert("table".to_string(), self.table.clone());
@@ -31,6 +31,18 @@ impl ToMap for QueueParams {
         params.insert("repository".to_string(), self.repository.clone());
         params.insert("version".to_string(), self.version.clone());
         params.insert("next_run".to_string(), self.next_run.to_string());
+        params
+    }
+}
+
+pub struct GetDriftProfileParams {
+    pub table: String,
+}
+
+impl ToMap for GetDriftProfileParams {
+    fn to_map(&self) -> BTreeMap<String, String> {
+        let mut params = BTreeMap::new();
+        params.insert("table".to_string(), self.table.clone());
         params
     }
 }
@@ -102,17 +114,17 @@ impl ToMap for GetFeatureValuesParams {
     }
 }
 
-pub struct InsertMonitorProfileParams {
+pub struct InsertDriftProfileParams {
     pub table: String,
     pub name: String,
     pub repository: String,
     pub version: String,
     pub profile: String,
-    pub cron: String,
+    pub schedule: String,
     pub next_run: NaiveDateTime,
 }
 
-impl ToMap for InsertMonitorProfileParams {
+impl ToMap for InsertDriftProfileParams {
     fn to_map(&self) -> BTreeMap<String, String> {
         let mut params = BTreeMap::new();
         params.insert("table".to_string(), self.table.clone());
@@ -120,7 +132,7 @@ impl ToMap for InsertMonitorProfileParams {
         params.insert("repository".to_string(), self.repository.clone());
         params.insert("version".to_string(), self.version.clone());
         params.insert("profile".to_string(), self.profile.clone());
-        params.insert("cron".to_string(), self.cron.clone());
+        params.insert("schedule".to_string(), self.schedule.clone());
         params.insert("next_run".to_string(), self.next_run.to_string());
 
         params
@@ -156,11 +168,11 @@ impl ToMap for GetBinnedFeatureValuesParams {
 pub enum Queries {
     GetFeatures,
     InsertDriftRecord,
-    InsertMonitorProfile,
+    InsertDriftProfile,
     GetBinnedFeatureValues,
     GetFeatureValues,
-    InsertIntoQueue,
-    DeleteFromQueue,
+    GetDriftProfile,
+    UpdateDriftProfileRunDates,
 }
 
 impl Queries {
@@ -171,9 +183,9 @@ impl Queries {
             Queries::InsertDriftRecord => SqlQuery::new(INSERT_DRIFT_RECORD),
             Queries::GetBinnedFeatureValues => SqlQuery::new(GET_BINNED_FEATURE_VALUES),
             Queries::GetFeatureValues => SqlQuery::new(GET_FEATURE_VALUES),
-            Queries::InsertMonitorProfile => SqlQuery::new(INSERT_DRIFT_PROFILE),
-            Queries::InsertIntoQueue => SqlQuery::new(INSERT_INTO_QUEUE),
-            Queries::DeleteFromQueue => SqlQuery::new(DELETE_FROM_QUEUE),
+            Queries::InsertDriftProfile => SqlQuery::new(INSERT_DRIFT_PROFILE),
+            Queries::GetDriftProfile => SqlQuery::new(GET_DRIFT_PROFILE),
+            Queries::UpdateDriftProfileRunDates => SqlQuery::new(UPDATE_DRIFT_PROFILE_RUN_DATES),
         }
     }
 }
@@ -254,6 +266,47 @@ WHERE
    name = 'test'
    AND repository = 'test'
    AND version = 'test';"
+        );
+    }
+
+    #[test]
+    fn test_get_drift_profile_query() {
+        let query = Queries::GetDriftProfile.get_query();
+
+        let params = GetDriftProfileParams {
+            table: "schema.table".to_string(),
+        };
+
+        let formatted_sql = query.format(&params);
+
+        assert_eq!(
+            formatted_sql,
+            "SELECT profile, previous_run, schedule\nFROM schema.table\nWHERE active\n  AND next_run < CURRENT_TIMESTAMP\nLIMIT 1 FOR UPDATE SKIP LOCKED;"
+        );
+    }
+
+    #[test]
+    fn test_update_drift_profile_run_dates_query() {
+        let query = Queries::UpdateDriftProfileRunDates.get_query();
+
+        let params = UpdateDriftProfileRunDatesParams {
+            table: "schema.table".to_string(),
+            name: "name".to_string(),
+            repository: "repository".to_string(),
+            version: "version".to_string(),
+            next_run: Default::default(),
+        };
+
+        let formatted_sql = query.format(&params);
+
+        assert_eq!(
+            formatted_sql,
+            "UPDATE schema.table
+SET previous_run = CURRENT_TIMESTAMP + interval '1 minute',
+    next_run     = '1970-01-01 00:00:00'
+WHERE name = 'name'
+  and repository = 'repository'
+  and version = 'version';"
         );
     }
 

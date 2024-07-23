@@ -1,6 +1,9 @@
+mod alerts;
 mod api;
 mod kafka;
 mod sql;
+
+use crate::alerts::drift::DriftExecutor;
 use crate::api::metrics::metrics_app;
 use crate::api::route::AppState;
 use crate::api::setup::{create_db_pool, setup_logging};
@@ -11,7 +14,8 @@ use api::route::create_router;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use std::sync::Arc;
-use tracing::info;
+use std::time::Duration;
+use tracing::{error, info};
 
 const NUM_WORKERS: usize = 5;
 
@@ -64,10 +68,10 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
 
         let _background = (0..NUM_WORKERS)
             .map(|_| {
-                let db_client = PostgresClient::new(pool.clone())
+                let kafka_db_client = PostgresClient::new(pool.clone())
                     .with_context(|| "Failed to create Postgres client")
                     .unwrap();
-                let message_handler = kafka::consumer::MessageHandler::Postgres(db_client);
+                let message_handler = kafka::consumer::MessageHandler::Postgres(kafka_db_client);
                 tokio::spawn(start_kafka_background_poll(
                     message_handler,
                     group_id.clone(),
@@ -83,11 +87,27 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
             .for_each(|_| async {});
     }
 
-    // start server
-    let db_client =
-        PostgresClient::new(pool).with_context(|| "Failed to create Postgres client")?;
+    // run drift background task
+    let alert_db_client =
+        PostgresClient::new(pool.clone()).with_context(|| "Failed to create Postgres client")?;
+    tokio::task::spawn(async move {
+        let drift_executor = DriftExecutor::new(alert_db_client);
+        let mut interval = tokio::time::interval(Duration::from_secs(4));
+        loop {
+            interval.tick().await;
+            if let Err(e) = drift_executor.execute().await {
+                error!("Drift Executor Error: {e}")
+            }
+        }
+    });
 
-    let app = create_router(Arc::new(AppState { db: db_client }));
+    // start server
+    let server_db_client =
+        PostgresClient::new(pool.clone()).with_context(|| "Failed to create Postgres client")?;
+
+    let app = create_router(Arc::new(AppState {
+        db: server_db_client,
+    }));
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8000")
         .await

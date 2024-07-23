@@ -1,12 +1,13 @@
 use crate::api::schema::{DriftRecordRequest, ServiceDriftRequest};
 use crate::sql::postgres::TimeInterval;
-use crate::sql::schema::{DriftRecord, MonitorProfile};
+use crate::sql::schema::DriftRecord;
 use axum::{
     extract::{Query, State},
     http::StatusCode,
     response::IntoResponse,
     Json,
 };
+use scouter::utils::types::DriftProfile;
 use serde_json::json;
 use std::sync::Arc;
 use tracing::error;
@@ -101,7 +102,7 @@ pub async fn insert_drift(
 
 pub async fn insert_drift_profile(
     State(data): State<Arc<AppState>>,
-    Json(body): Json<MonitorProfile>,
+    Json(body): Json<DriftProfile>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     let query_result = &data.db.insert_drift_profile(&body).await;
 

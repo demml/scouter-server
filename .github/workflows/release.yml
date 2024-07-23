@@ -32,10 +32,6 @@ jobs:
             archive: tar.xz
 
           - os: macos-latest
-            target: x86_64-apple-darwin
-            archive: zip
-
-          - os: macos-latest
             target: aarch64-apple-darwin
             archive: zip
 
@@ -84,49 +80,6 @@ jobs:
           name: scouter_server_${{ matrix.target }}_${{matrix.archive}}
           path: scouter-server-${{ matrix.target }}.${{matrix.archive}}
 
-  # NASM should be included in windows base image!
-  build-windows:
-    name: build - ${{ matrix.target }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            archive: zip
-    env:
-      TARGET: ${{ matrix.target }}
-
-    runs-on: ${{ matrix.os }}
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Rust
-        run: |
-              rustup override set stable
-              rustup update
-              rustup target add ${{ matrix.target }}
-              rustup component add rust-src
-              
-      - name: Add NASM to path
-        uses: ilammy/setup-nasm@v1
-      
-      - name: Build windows binaries
-        run: |
-              cargo build --release --target ${{ matrix.target }}
-
-      - name: Zip Windows binaries
-        run: Compress-Archive ./target/${{ matrix.target }} scouter-server-${{ matrix.target }}.zip
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: scouter_server_${{ matrix.target }}_${{matrix.archive}}
-          path: scouter-server-${{ matrix.target }}.${{matrix.archive}}
-
   build-musl:
     name: build-musl
     runs-on: ubuntu-latest
@@ -163,10 +116,42 @@ jobs:
           name: scouter_server_${{ env.TARGET }}_${{ env.ARCHIVE }}
           path: scouter-server-${{ env.TARGET }}.${{ env.ARCHIVE }}
 
+  build-mac-x86_64:
+    name: build-macos-x86_64
+    runs-on: macos-13
+    env:
+      TARGET: x86_64-apple-darwin
+      ARCHIVE: zip
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Rust
+        run: |
+              rustup override set stable
+              rustup update
+              rustup target add ${{ env.TARGET }}
+              rustup component add rust-src
+              
+
+      - name: Build Binaries
+        run: cargo build --release --target ${{ env.TARGET }}
+
+      - name: Zip MacOS binaries
+        run: zip -r scouter-server-${{ env.TARGET }}.zip ./target/${{ env.TARGET }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scouter_server_${{ env.TARGET }}_${{env.ARCHIVE}}
+          path: scouter-server-${{ env.TARGET }}.${{env.ARCHIVE}}
+
 
   release-binary-assets:
     if: github.event_name == 'release'
-    needs: [build, build-windows, build-musl]
+    needs: [build, build-musl, build-mac-x86_64]
     runs-on: ubuntu-latest
 
     steps:

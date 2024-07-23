@@ -7,7 +7,7 @@ use scouter::utils::types::DriftProfile;
 
 use anyhow::{Context, Result};
 
-use crate::alerts::dispatch::OpsGenieAlertDispatcher;
+use crate::alerts::dispatch::{AlertDispatcher, OpsGenieAlertDispatcher};
 use ndarray::Array2;
 use sqlx::{Postgres, Row};
 use tracing::info;
@@ -15,14 +15,14 @@ use tracing::info;
 #[derive(Debug)]
 pub struct DriftExecutor {
     db_client: PostgresClient,
-    ops_genie_alert_dispatcher: OpsGenieAlertDispatcher,
+    alert_dispatcher: AlertDispatcher,
 }
 
 impl DriftExecutor {
     pub fn new(db_client: PostgresClient) -> Self {
         Self {
             db_client,
-            ops_genie_alert_dispatcher: OpsGenieAlertDispatcher::default(),
+            alert_dispatcher: AlertDispatcher::OpsGenie(OpsGenieAlertDispatcher::default()),
         }
     }
 
@@ -105,7 +105,7 @@ impl DriftExecutor {
                 .with_context(|| "error generating drift alerts")?;
 
                 // Process alerts
-                self.ops_genie_alert_dispatcher
+                self.alert_dispatcher
                     .process_alerts(&alerts, &drift_profile.config.name)
                     .await?;
 

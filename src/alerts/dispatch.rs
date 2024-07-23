@@ -10,6 +10,31 @@ pub struct OpsGenieAlertDispatcher {
     http_client: reqwest::Client,
 }
 
+#[allow(dead_code)]
+#[derive(Debug)]
+pub enum AlertDispatcher {
+    Console(),
+    OpsGenie(OpsGenieAlertDispatcher),
+}
+
+impl AlertDispatcher {
+    pub async fn process_alerts(
+        &self,
+        feature_alerts: &FeatureAlerts,
+        model_name: &str,
+    ) -> Result<()> {
+        match self {
+            AlertDispatcher::Console() => {
+                println!("Console alert dispatcher");
+                Ok(())
+            }
+            AlertDispatcher::OpsGenie(dispatcher) => {
+                dispatcher.process_alerts(feature_alerts, model_name).await
+            }
+        }
+    }
+}
+
 impl Default for OpsGenieAlertDispatcher {
     fn default() -> Self {
         Self {

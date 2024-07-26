@@ -32,7 +32,6 @@ reqwest = { version = "0.12.5", features = ["json"] }
 metrics-exporter-prometheus = "0.15.1"
 metrics = "0.23.0"
 async-trait = "0.1.81"
-log = "0.4.22"
 
 [dev-dependencies]
 approx = "0.5.1"

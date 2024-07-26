@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use scouter::utils::types::FeatureAlerts;
 use serde_json::{json, Value};
 use std::env;
-// TODO rename
+
 trait DispatchHelpers {
     fn construct_alert_description(feature_alerts: &FeatureAlerts) -> String {
         let mut alert_description = String::new();

@@ -27,7 +27,7 @@ trait DispatchHelpers {
 }
 
 #[async_trait]
-pub trait DispatchAsync {
+pub trait Dispatch {
     async fn process_alerts(&self, feature_alerts: &FeatureAlerts, model_name: &str) -> Result<()>;
 }
 
@@ -49,7 +49,7 @@ impl Default for OpsGenieAlertDispatcher {
 }
 
 #[async_trait]
-impl DispatchAsync for OpsGenieAlertDispatcher {
+impl Dispatch for OpsGenieAlertDispatcher {
     async fn process_alerts(&self, feature_alerts: &FeatureAlerts, model_name: &str) -> Result<()> {
         let alert_description = Self::construct_alert_description(feature_alerts);
 
@@ -100,7 +100,7 @@ impl OpsGenieAlertDispatcher {
 pub struct ConsoleAlertDispatcher;
 
 #[async_trait]
-impl DispatchAsync for ConsoleAlertDispatcher {
+impl Dispatch for ConsoleAlertDispatcher {
     async fn process_alerts(&self, feature_alerts: &FeatureAlerts, model_name: &str) -> Result<()> {
         let alert_description = Self::construct_alert_description(feature_alerts);
 

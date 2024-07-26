@@ -1,65 +1,10 @@
 use anyhow::{Context, Result};
+use async_trait::async_trait;
 use scouter::utils::types::FeatureAlerts;
 use serde_json::{json, Value};
 use std::env;
-
-#[derive(Debug)]
-pub struct OpsGenieAlertDispatcher {
-    ops_genie_api_url: String,
-    ops_genie_api_key: String,
-    http_client: reqwest::Client,
-}
-
-#[allow(dead_code)]
-#[derive(Debug)]
-pub enum AlertDispatcher {
-    Console(),
-    OpsGenie(OpsGenieAlertDispatcher),
-}
-
-impl AlertDispatcher {
-    pub async fn process_alerts(
-        &self,
-        feature_alerts: &FeatureAlerts,
-        model_name: &str,
-    ) -> Result<()> {
-        match self {
-            AlertDispatcher::Console() => {
-                println!("Console alert dispatcher");
-                Ok(())
-            }
-            AlertDispatcher::OpsGenie(dispatcher) => {
-                dispatcher.process_alerts(feature_alerts, model_name).await
-            }
-        }
-    }
-}
-
-impl Default for OpsGenieAlertDispatcher {
-    fn default() -> Self {
-        Self {
-            ops_genie_api_url: env::var("OPSGENIE_API_URL").unwrap_or("api_url".to_string()),
-            ops_genie_api_key: env::var("OPSGENIE_API_KEY").unwrap_or("api_key".to_string()),
-            http_client: reqwest::Client::new(),
-        }
-    }
-}
-
-impl OpsGenieAlertDispatcher {
-    pub async fn process_alerts(
-        &self,
-        feature_alerts: &FeatureAlerts,
-        model_name: &str,
-    ) -> Result<()> {
-        let alert_description = Self::construct_alert_description(feature_alerts);
-
-        if !alert_description.is_empty() {
-            let alert_body = Self::construct_alert_body(&alert_description, model_name);
-            self.send_alerts(alert_body).await?;
-        }
-        Ok(())
-    }
-
+// TODO rename
+trait DispatchHelpers {
     fn construct_alert_description(feature_alerts: &FeatureAlerts) -> String {
         let mut alert_description = String::new();
         for (i, (_, feature_alert)) in feature_alerts.features.iter().enumerate() {
@@ -79,7 +24,46 @@ impl OpsGenieAlertDispatcher {
         }
         alert_description
     }
+}
 
+#[async_trait]
+pub trait DispatchAsync {
+    async fn process_alerts(&self, feature_alerts: &FeatureAlerts, model_name: &str) -> Result<()>;
+}
+
+#[derive(Debug)]
+pub struct OpsGenieAlertDispatcher {
+    ops_genie_api_url: String,
+    ops_genie_api_key: String,
+    http_client: reqwest::Client,
+}
+
+impl Default for OpsGenieAlertDispatcher {
+    fn default() -> Self {
+        Self {
+            ops_genie_api_url: env::var("OPSGENIE_API_URL").unwrap_or("api_url".to_string()),
+            ops_genie_api_key: env::var("OPSGENIE_API_KEY").unwrap_or("api_key".to_string()),
+            http_client: reqwest::Client::new(),
+        }
+    }
+}
+
+#[async_trait]
+impl DispatchAsync for OpsGenieAlertDispatcher {
+    async fn process_alerts(&self, feature_alerts: &FeatureAlerts, model_name: &str) -> Result<()> {
+        let alert_description = Self::construct_alert_description(feature_alerts);
+
+        if !alert_description.is_empty() {
+            let alert_body = Self::construct_alert_body(&alert_description, model_name);
+            self.send_alerts(alert_body).await?;
+        }
+        Ok(())
+    }
+}
+
+impl DispatchHelpers for OpsGenieAlertDispatcher {}
+
+impl OpsGenieAlertDispatcher {
     fn construct_alert_body(alert_description: &str, model_name: &str) -> Value {
         json!(
                 {
@@ -112,12 +96,60 @@ impl OpsGenieAlertDispatcher {
     }
 }
 
+#[derive(Debug)]
+pub struct ConsoleAlertDispatcher;
+
+#[async_trait]
+impl DispatchAsync for ConsoleAlertDispatcher {
+    async fn process_alerts(&self, feature_alerts: &FeatureAlerts, model_name: &str) -> Result<()> {
+        let alert_description = Self::construct_alert_description(feature_alerts);
+
+        if !alert_description.is_empty() {
+            Self::send_alerts(&alert_description, model_name);
+        }
+        Ok(())
+    }
+}
+
+impl DispatchHelpers for ConsoleAlertDispatcher {}
+
+impl ConsoleAlertDispatcher {
+    fn send_alerts(alert_description: &str, model_name: &str) {
+        println!(
+            "{} is experiencing drift. \n{}",
+            model_name, alert_description
+        );
+    }
+}
+
+#[derive(Debug)]
+pub enum AlertDispatcher {
+    Console(ConsoleAlertDispatcher),
+    OpsGenie(OpsGenieAlertDispatcher),
+}
+
+impl AlertDispatcher {
+    pub async fn process_alerts(
+        &self,
+        feature_alerts: &FeatureAlerts,
+        model_name: &str,
+    ) -> Result<()> {
+        match self {
+            AlertDispatcher::Console(dispatcher) => {
+                dispatcher.process_alerts(feature_alerts, model_name).await
+            }
+            AlertDispatcher::OpsGenie(dispatcher) => {
+                dispatcher.process_alerts(feature_alerts, model_name).await
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use scouter::utils::types::{Alert, AlertType, AlertZone, FeatureAlert};
     use std::collections::HashMap;
-
     #[test]
     fn test_construct_opsgenie_alert_description() {
         let mut features: HashMap<String, FeatureAlert> = HashMap::new();

@@ -133,17 +133,18 @@ impl PostgresClient {
     ) -> Result<PgQueryResult, anyhow::Error> {
         let query = Queries::InsertDriftProfile.get_query();
 
-        let cron = Schedule::from_str(&drift_profile.config.schedule).with_context(|| {
-            format!(
-                "Failed to parse cron expression: {}",
-                &drift_profile.config.schedule
-            )
-        })?;
+        let cron =
+            Schedule::from_str(&drift_profile.config.alert_config.schedule).with_context(|| {
+                format!(
+                    "Failed to parse cron expression: {}",
+                    &drift_profile.config.alert_config.schedule
+                )
+            })?;
 
         let next_run = cron.upcoming(Utc).take(1).next().with_context(|| {
             format!(
                 "Failed to get next run time for cron expression: {}",
-                &drift_profile.config.schedule
+                &drift_profile.config.alert_config.schedule
             )
         })?;
 
@@ -153,7 +154,7 @@ impl PostgresClient {
             repository: drift_profile.config.repository.clone(),
             version: drift_profile.config.version.clone(),
             profile: serde_json::to_string(&drift_profile).unwrap(),
-            schedule: drift_profile.config.schedule.clone(),
+            schedule: drift_profile.config.alert_config.schedule.clone(),
             next_run: next_run.naive_utc(),
         };
 

@@ -3,11 +3,11 @@ use crate::sql::schema::QueryResult;
 use chrono::NaiveDateTime;
 use scouter::core::alert::generate_alerts;
 use scouter::core::monitor::Monitor;
-use scouter::utils::types::DriftProfile;
+use scouter::utils::types::{AlertDispatchType, DriftProfile};
 
 use anyhow::{Context, Result};
 
-use crate::alerts::dispatch::{AlertDispatcher, OpsGenieAlertDispatcher};
+use crate::alerts::dispatch::{AlertDispatcher, ConsoleAlertDispatcher, OpsGenieAlertDispatcher};
 use ndarray::Array2;
 use sqlx::{Postgres, Row};
 use tracing::info;
@@ -22,7 +22,7 @@ impl DriftExecutor {
     pub fn new(db_client: PostgresClient) -> Self {
         Self {
             db_client,
-            alert_dispatcher: AlertDispatcher::OpsGenie(OpsGenieAlertDispatcher::default()),
+            alert_dispatcher: AlertDispatcher::Console(ConsoleAlertDispatcher),
         }
     }
 
@@ -74,8 +74,18 @@ impl DriftExecutor {
         )?;
         Ok(drift)
     }
+    fn map_dispatcher(dispatch_type: &AlertDispatchType) -> AlertDispatcher {
+        match dispatch_type {
+            AlertDispatchType::Console => AlertDispatcher::Console(ConsoleAlertDispatcher),
+            AlertDispatchType::OpsGenie => {
+                AlertDispatcher::OpsGenie(OpsGenieAlertDispatcher::default())
+            }
+            AlertDispatchType::Slack => panic!("Unsupported dispatcher type: Slack"),
+            AlertDispatchType::Email => panic!("Unsupported dispatcher type: Email"),
+        }
+    }
 
-    pub async fn execute(&self) -> Result<()> {
+    pub async fn execute(&mut self) -> Result<()> {
         loop {
             let mut transaction: sqlx::Transaction<Postgres> = self.db_client.pool.begin().await?;
             // Get drift profile
@@ -100,9 +110,13 @@ impl DriftExecutor {
                 let alerts = generate_alerts(
                     &drift_array.view(),
                     drift_profile.features.keys().cloned().collect(),
-                    drift_profile.config.alert_rule,
+                    drift_profile.config.alert_config.alert_rule,
                 )
                 .with_context(|| "error generating drift alerts")?;
+
+                // Check if non-default "Console" dispatcher type specified
+                self.alert_dispatcher =
+                    Self::map_dispatcher(&drift_profile.config.alert_config.alert_dispatch_type);
 
                 // Process alerts
                 self.alert_dispatcher

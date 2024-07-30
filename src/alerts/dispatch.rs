@@ -26,7 +26,11 @@ trait DispatchHelpers {
 }
 
 pub trait Dispatch {
-    fn process_alerts(&self, feature_alerts: &FeatureAlerts, model_name: &str) -> Result<()>;
+    fn process_alerts(
+        &self,
+        feature_alerts: &FeatureAlerts,
+        model_name: &str,
+    ) -> impl futures::Future<Output = Result<()>>;
 }
 
 #[derive(Debug)]
@@ -47,12 +51,14 @@ impl Default for OpsGenieAlertDispatcher {
 }
 
 impl Dispatch for OpsGenieAlertDispatcher {
-    fn process_alerts(&self, feature_alerts: &FeatureAlerts, model_name: &str) -> Result<()> {
+    async fn process_alerts(&self, feature_alerts: &FeatureAlerts, model_name: &str) -> Result<()> {
         let alert_description = Self::construct_alert_description(feature_alerts);
 
         if !alert_description.is_empty() {
             let alert_body = Self::construct_alert_body(&alert_description, model_name);
-            self.send_alerts(alert_body).await?;
+            self.send_alerts(alert_body)
+                .await
+                .with_context(|| "Error sending alerts")?;
         }
         Ok(())
     }
@@ -97,11 +103,13 @@ impl OpsGenieAlertDispatcher {
 pub struct ConsoleAlertDispatcher;
 
 impl Dispatch for ConsoleAlertDispatcher {
-    fn process_alerts(&self, feature_alerts: &FeatureAlerts, model_name: &str) -> Result<()> {
+    async fn process_alerts(&self, feature_alerts: &FeatureAlerts, model_name: &str) -> Result<()> {
         let alert_description = Self::construct_alert_description(feature_alerts);
 
         if !alert_description.is_empty() {
-            Self::send_alerts(&alert_description, model_name);
+            Self::send_alerts(&alert_description, model_name)
+                .await
+                .with_context(|| "Error sending alerts to console")?;
         }
         Ok(())
     }
@@ -110,11 +118,13 @@ impl Dispatch for ConsoleAlertDispatcher {
 impl DispatchHelpers for ConsoleAlertDispatcher {}
 
 impl ConsoleAlertDispatcher {
-    fn send_alerts(alert_description: &str, model_name: &str) {
+    async fn send_alerts(alert_description: &str, model_name: &str) -> Result<()> {
         println!(
             "{} is experiencing drift. \n{}",
             model_name, alert_description
         );
+
+        Ok(())
     }
 }
 
@@ -132,12 +142,14 @@ impl AlertDispatcher {
         model_name: &str,
     ) -> Result<()> {
         match self {
-            AlertDispatcher::Console(dispatcher) => {
-                dispatcher.process_alerts(feature_alerts, model_name)
-            }
-            AlertDispatcher::OpsGenie(dispatcher) => {
-                dispatcher.process_alerts(feature_alerts, model_name)
-            }
+            AlertDispatcher::Console(dispatcher) => dispatcher
+                .process_alerts(feature_alerts, model_name)
+                .await
+                .with_context(|| "Error processing alerts"),
+            AlertDispatcher::OpsGenie(dispatcher) => dispatcher
+                .process_alerts(feature_alerts, model_name)
+                .await
+                .with_context(|| "Error processing alerts"),
         }
     }
 }
@@ -273,9 +285,9 @@ mod tests {
 
         mock_get_path.assert();
 
-        //unsafe {
-        //    env::remove_var("OPSGENIE_API_URL");
-        //    env::remove_var("OPSGENIE_API_KEY");
-        //}
+        unsafe {
+            env::remove_var("OPSGENIE_API_URL");
+            env::remove_var("OPSGENIE_API_KEY");
+        }
     }
 }

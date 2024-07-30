@@ -520,10 +520,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_client() {
-        env::set_var(
-            "DATABASE_URL",
-            "postgresql://postgres:admin@localhost:5432/monitor?",
-        );
+        unsafe {
+            env::set_var(
+                "DATABASE_URL",
+                "postgresql://postgres:admin@localhost:5432/monitor?",
+            );
+        }
 
         let pool = create_db_pool(None)
             .await

@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-use async_trait::async_trait;
 use scouter::utils::types::FeatureAlerts;
 use serde_json::{json, Value};
 use std::env;
@@ -26,9 +25,8 @@ trait DispatchHelpers {
     }
 }
 
-#[async_trait]
 pub trait Dispatch {
-    async fn process_alerts(&self, feature_alerts: &FeatureAlerts, model_name: &str) -> Result<()>;
+    fn process_alerts(&self, feature_alerts: &FeatureAlerts, model_name: &str) -> Result<()>;
 }
 
 #[derive(Debug)]
@@ -48,9 +46,8 @@ impl Default for OpsGenieAlertDispatcher {
     }
 }
 
-#[async_trait]
 impl Dispatch for OpsGenieAlertDispatcher {
-    async fn process_alerts(&self, feature_alerts: &FeatureAlerts, model_name: &str) -> Result<()> {
+    fn process_alerts(&self, feature_alerts: &FeatureAlerts, model_name: &str) -> Result<()> {
         let alert_description = Self::construct_alert_description(feature_alerts);
 
         if !alert_description.is_empty() {
@@ -99,9 +96,8 @@ impl OpsGenieAlertDispatcher {
 #[derive(Debug)]
 pub struct ConsoleAlertDispatcher;
 
-#[async_trait]
 impl Dispatch for ConsoleAlertDispatcher {
-    async fn process_alerts(&self, feature_alerts: &FeatureAlerts, model_name: &str) -> Result<()> {
+    fn process_alerts(&self, feature_alerts: &FeatureAlerts, model_name: &str) -> Result<()> {
         let alert_description = Self::construct_alert_description(feature_alerts);
 
         if !alert_description.is_empty() {
@@ -129,6 +125,7 @@ pub enum AlertDispatcher {
 }
 
 impl AlertDispatcher {
+    // process alerts can be called asynchronously
     pub async fn process_alerts(
         &self,
         feature_alerts: &FeatureAlerts,
@@ -136,10 +133,10 @@ impl AlertDispatcher {
     ) -> Result<()> {
         match self {
             AlertDispatcher::Console(dispatcher) => {
-                dispatcher.process_alerts(feature_alerts, model_name).await
+                dispatcher.process_alerts(feature_alerts, model_name)
             }
             AlertDispatcher::OpsGenie(dispatcher) => {
-                dispatcher.process_alerts(feature_alerts, model_name).await
+                dispatcher.process_alerts(feature_alerts, model_name)
             }
         }
     }
@@ -150,6 +147,8 @@ mod tests {
     use super::*;
     use scouter::utils::types::{Alert, AlertType, AlertZone, FeatureAlert};
     use std::collections::HashMap;
+    use std::env;
+
     #[test]
     fn test_construct_opsgenie_alert_description() {
         let mut features: HashMap<String, FeatureAlert> = HashMap::new();
@@ -225,5 +224,58 @@ mod tests {
         let alert_body =
             OpsGenieAlertDispatcher::construct_alert_body("Features have drifted", "test_ml_model");
         assert_eq!(alert_body, expected_alert_body);
+    }
+
+    #[tokio::test]
+    async fn test_send_opsgenie_alerts() {
+        let mut download_server = mockito::Server::new_async().await;
+        let url = download_server.url();
+
+        // set env variables
+        unsafe {
+            env::set_var("OPSGENIE_API_URL", url);
+            env::set_var("OPSGENIE_API_KEY", "api_key");
+        }
+
+        let mock_get_path = download_server
+            .mock("Post", "/alerts")
+            .with_status(201)
+            .create();
+
+        let mut features: HashMap<String, FeatureAlert> = HashMap::new();
+        features.insert(
+            "test_feature_1".to_string(),
+            FeatureAlert {
+                feature: "test_feature_1".to_string(),
+                alerts: vec![Alert {
+                    zone: AlertZone::OutOfBounds.to_str(),
+                    kind: AlertType::OutOfBounds.to_str(),
+                }],
+                indices: Default::default(),
+            },
+        );
+        features.insert(
+            "test_feature_2".to_string(),
+            FeatureAlert {
+                feature: "test_feature_2".to_string(),
+                alerts: vec![Alert {
+                    zone: AlertZone::Zone1.to_str(),
+                    kind: AlertType::OutOfBounds.to_str(),
+                }],
+                indices: Default::default(),
+            },
+        );
+
+        let dispatcher = AlertDispatcher::OpsGenie(OpsGenieAlertDispatcher::default());
+        let _ = dispatcher
+            .process_alerts(&FeatureAlerts { features }, "test_ml_model")
+            .await;
+
+        mock_get_path.assert();
+
+        //unsafe {
+        //    env::remove_var("OPSGENIE_API_URL");
+        //    env::remove_var("OPSGENIE_API_KEY");
+        //}
     }
 }

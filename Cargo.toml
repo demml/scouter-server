@@ -36,6 +36,7 @@ async-trait = "0.1.81"
 [dev-dependencies]
 approx = "0.5.1"
 http-body-util = "0.1.2"
+mockito = "1.4.0"
 sqlx-cli = { version = "0.7.4", default-features = false, features = ["native-tls", "postgres"] }
 tower = { version = "0.4.13", features = ["util"] }
 

@@ -29,7 +29,7 @@ pub trait Dispatch {
     fn process_alerts(
         &self,
         feature_alerts: &FeatureAlerts,
-        model_name: &str,
+        service_name: &str,
     ) -> impl futures::Future<Output = Result<()>>;
 }
 
@@ -51,11 +51,15 @@ impl Default for OpsGenieAlertDispatcher {
 }
 
 impl Dispatch for OpsGenieAlertDispatcher {
-    async fn process_alerts(&self, feature_alerts: &FeatureAlerts, model_name: &str) -> Result<()> {
+    async fn process_alerts(
+        &self,
+        feature_alerts: &FeatureAlerts,
+        service_name: &str,
+    ) -> Result<()> {
         let alert_description = Self::construct_alert_description(feature_alerts);
 
         if !alert_description.is_empty() {
-            let alert_body = Self::construct_alert_body(&alert_description, model_name);
+            let alert_body = Self::construct_alert_body(&alert_description, service_name);
             self.send_alerts(alert_body)
                 .await
                 .with_context(|| "Error sending alerts")?;
@@ -67,10 +71,10 @@ impl Dispatch for OpsGenieAlertDispatcher {
 impl DispatchHelpers for OpsGenieAlertDispatcher {}
 
 impl OpsGenieAlertDispatcher {
-    fn construct_alert_body(alert_description: &str, model_name: &str) -> Value {
+    fn construct_alert_body(alert_description: &str, service_name: &str) -> Value {
         json!(
                 {
-                    "message": format!("Model drift detected for {}", model_name),
+                    "message": format!("Model drift detected for {}", service_name),
                     "description": alert_description,
                     "responders":[
                         {"name":"ds-team", "type":"team"}
@@ -103,11 +107,15 @@ impl OpsGenieAlertDispatcher {
 pub struct ConsoleAlertDispatcher;
 
 impl Dispatch for ConsoleAlertDispatcher {
-    async fn process_alerts(&self, feature_alerts: &FeatureAlerts, model_name: &str) -> Result<()> {
+    async fn process_alerts(
+        &self,
+        feature_alerts: &FeatureAlerts,
+        service_name: &str,
+    ) -> Result<()> {
         let alert_description = Self::construct_alert_description(feature_alerts);
 
         if !alert_description.is_empty() {
-            Self::send_alerts(&alert_description, model_name)
+            Self::send_alerts(&alert_description, service_name)
                 .await
                 .with_context(|| "Error sending alerts to console")?;
         }
@@ -118,10 +126,10 @@ impl Dispatch for ConsoleAlertDispatcher {
 impl DispatchHelpers for ConsoleAlertDispatcher {}
 
 impl ConsoleAlertDispatcher {
-    async fn send_alerts(alert_description: &str, model_name: &str) -> Result<()> {
+    async fn send_alerts(alert_description: &str, service_name: &str) -> Result<()> {
         println!(
             "{} is experiencing drift. \n{}",
-            model_name, alert_description
+            service_name, alert_description
         );
 
         Ok(())
@@ -139,15 +147,15 @@ impl AlertDispatcher {
     pub async fn process_alerts(
         &self,
         feature_alerts: &FeatureAlerts,
-        model_name: &str,
+        service_name: &str,
     ) -> Result<()> {
         match self {
             AlertDispatcher::Console(dispatcher) => dispatcher
-                .process_alerts(feature_alerts, model_name)
+                .process_alerts(feature_alerts, service_name)
                 .await
                 .with_context(|| "Error processing alerts"),
             AlertDispatcher::OpsGenie(dispatcher) => dispatcher
-                .process_alerts(feature_alerts, model_name)
+                .process_alerts(feature_alerts, service_name)
                 .await
                 .with_context(|| "Error processing alerts"),
         }

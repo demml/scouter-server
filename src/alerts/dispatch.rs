@@ -169,9 +169,9 @@ mod tests {
     use std::collections::HashMap;
     use std::env;
 
-    #[test]
-    fn test_construct_opsgenie_alert_description() {
+    fn test_features_hashmap() -> HashMap<String, FeatureAlert>{
         let mut features: HashMap<String, FeatureAlert> = HashMap::new();
+
         features.insert(
             "test_feature_1".to_string(),
             FeatureAlert {
@@ -194,6 +194,12 @@ mod tests {
                 indices: Default::default(),
             },
         );
+        features
+    }
+    #[test]
+    fn test_construct_opsgenie_alert_description() {
+        let features = test_features_hashmap();
+
         let alert_description =
             OpsGenieAlertDispatcher::construct_alert_description(&FeatureAlerts { features });
         let expected_alert_description = "Features that have drifted \ntest_feature_1 alerts: \nalert kind Out of bounds -- alert zone: Out of bounds \ntest_feature_2 alerts: \nalert kind Out of bounds -- alert zone: Zone 1 \n".to_string();
@@ -262,29 +268,7 @@ mod tests {
             .with_status(201)
             .create();
 
-        let mut features: HashMap<String, FeatureAlert> = HashMap::new();
-        features.insert(
-            "test_feature_1".to_string(),
-            FeatureAlert {
-                feature: "test_feature_1".to_string(),
-                alerts: vec![Alert {
-                    zone: AlertZone::OutOfBounds.to_str(),
-                    kind: AlertType::OutOfBounds.to_str(),
-                }],
-                indices: Default::default(),
-            },
-        );
-        features.insert(
-            "test_feature_2".to_string(),
-            FeatureAlert {
-                feature: "test_feature_2".to_string(),
-                alerts: vec![Alert {
-                    zone: AlertZone::Zone1.to_str(),
-                    kind: AlertType::OutOfBounds.to_str(),
-                }],
-                indices: Default::default(),
-            },
-        );
+        let features = test_features_hashmap();
 
         let dispatcher = AlertDispatcher::OpsGenie(OpsGenieAlertDispatcher::default());
         let _ = dispatcher
@@ -297,5 +281,16 @@ mod tests {
             env::remove_var("OPSGENIE_API_URL");
             env::remove_var("OPSGENIE_API_KEY");
         }
+    }
+
+    #[tokio::test]
+    async fn test_send_console_alerts() {
+        let features = test_features_hashmap();
+        let dispatcher = AlertDispatcher::Console(ConsoleAlertDispatcher);
+        let result = dispatcher
+            .process_alerts(&FeatureAlerts { features }, "test_ml_model")
+            .await;
+
+        assert!(result.is_ok());
     }
 }

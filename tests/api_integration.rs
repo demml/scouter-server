@@ -7,7 +7,8 @@ use axum::{
 };
 use http_body_util::BodyExt;
 use scouter::utils::types::{
-    AlertRule, DriftConfig, DriftProfile, FeatureDriftProfile, ProcessAlertRule,
+    AlertConfig, AlertDispatchType, AlertRule, DriftConfig, DriftProfile, FeatureDriftProfile,
+    ProcessAlertRule,
 };
 use serde_json::Value;
 use std::collections::HashMap;
@@ -147,13 +148,16 @@ async fn test_api_profile() {
             name: "test_app".to_string(),
             repository: "test".to_string(),
             version: "1.0.0".to_string(),
-            alert_rule: AlertRule {
-                process: Some(ProcessAlertRule {
-                    rule: "test".to_string(),
-                }),
-                percentage: None,
+            alert_config: AlertConfig {
+                alert_rule: AlertRule {
+                    process: Some(ProcessAlertRule {
+                        rule: "test".to_string(),
+                    }),
+                    percentage: None,
+                },
+                alert_dispatch_type: AlertDispatchType::Console,
+                schedule: "0 0 * * * *".to_string(),
             },
-            schedule: "0 0 * * * *".to_string(),
         },
     };
 

@@ -3,63 +3,7 @@ use scouter::utils::types::FeatureAlerts;
 use serde_json::{json, Value};
 use std::env;
 
-#[derive(Debug)]
-pub struct OpsGenieAlertDispatcher {
-    ops_genie_api_url: String,
-    ops_genie_api_key: String,
-    http_client: reqwest::Client,
-}
-
-#[allow(dead_code)]
-#[derive(Debug)]
-pub enum AlertDispatcher {
-    Console(),
-    OpsGenie(OpsGenieAlertDispatcher),
-}
-
-impl AlertDispatcher {
-    pub async fn process_alerts(
-        &self,
-        feature_alerts: &FeatureAlerts,
-        model_name: &str,
-    ) -> Result<()> {
-        match self {
-            AlertDispatcher::Console() => {
-                println!("Console alert dispatcher");
-                Ok(())
-            }
-            AlertDispatcher::OpsGenie(dispatcher) => {
-                dispatcher.process_alerts(feature_alerts, model_name).await
-            }
-        }
-    }
-}
-
-impl Default for OpsGenieAlertDispatcher {
-    fn default() -> Self {
-        Self {
-            ops_genie_api_url: env::var("OPSGENIE_API_URL").unwrap_or("api_url".to_string()),
-            ops_genie_api_key: env::var("OPSGENIE_API_KEY").unwrap_or("api_key".to_string()),
-            http_client: reqwest::Client::new(),
-        }
-    }
-}
-
-impl OpsGenieAlertDispatcher {
-    pub async fn process_alerts(
-        &self,
-        feature_alerts: &FeatureAlerts,
-        model_name: &str,
-    ) -> Result<()> {
-        let alert_description = Self::construct_alert_description(feature_alerts);
-
-        if !alert_description.is_empty() {
-            let alert_body = Self::construct_alert_body(&alert_description, model_name);
-            self.send_alerts(alert_body).await?;
-        }
-        Ok(())
-    }
-
+trait DispatchHelpers {
     fn construct_alert_description(feature_alerts: &FeatureAlerts) -> String {
         let mut alert_description = String::new();
         for (i, (_, feature_alert)) in feature_alerts.features.iter().enumerate() {
@@ -79,11 +23,58 @@ impl OpsGenieAlertDispatcher {
         }
         alert_description
     }
+}
 
-    fn construct_alert_body(alert_description: &str, model_name: &str) -> Value {
+pub trait Dispatch {
+    fn process_alerts(
+        &self,
+        feature_alerts: &FeatureAlerts,
+        service_name: &str,
+    ) -> impl futures::Future<Output = Result<()>>;
+}
+
+#[derive(Debug)]
+pub struct OpsGenieAlertDispatcher {
+    ops_genie_api_url: String,
+    ops_genie_api_key: String,
+    http_client: reqwest::Client,
+}
+
+impl Default for OpsGenieAlertDispatcher {
+    fn default() -> Self {
+        Self {
+            ops_genie_api_url: env::var("OPSGENIE_API_URL").unwrap_or("api_url".to_string()),
+            ops_genie_api_key: env::var("OPSGENIE_API_KEY").unwrap_or("api_key".to_string()),
+            http_client: reqwest::Client::new(),
+        }
+    }
+}
+
+impl Dispatch for OpsGenieAlertDispatcher {
+    async fn process_alerts(
+        &self,
+        feature_alerts: &FeatureAlerts,
+        service_name: &str,
+    ) -> Result<()> {
+        let alert_description = Self::construct_alert_description(feature_alerts);
+
+        if !alert_description.is_empty() {
+            let alert_body = Self::construct_alert_body(&alert_description, service_name);
+            self.send_alerts(alert_body)
+                .await
+                .with_context(|| "Error sending alerts")?;
+        }
+        Ok(())
+    }
+}
+
+impl DispatchHelpers for OpsGenieAlertDispatcher {}
+
+impl OpsGenieAlertDispatcher {
+    fn construct_alert_body(alert_description: &str, service_name: &str) -> Value {
         json!(
                 {
-                    "message": format!("Model drift detected for {}", model_name),
+                    "message": format!("Model drift detected for {}", service_name),
                     "description": alert_description,
                     "responders":[
                         {"name":"ds-team", "type":"team"}
@@ -112,15 +103,75 @@ impl OpsGenieAlertDispatcher {
     }
 }
 
+#[derive(Debug)]
+pub struct ConsoleAlertDispatcher;
+
+impl Dispatch for ConsoleAlertDispatcher {
+    async fn process_alerts(
+        &self,
+        feature_alerts: &FeatureAlerts,
+        service_name: &str,
+    ) -> Result<()> {
+        let alert_description = Self::construct_alert_description(feature_alerts);
+
+        if !alert_description.is_empty() {
+            Self::send_alerts(&alert_description, service_name)
+                .await
+                .with_context(|| "Error sending alerts to console")?;
+        }
+        Ok(())
+    }
+}
+
+impl DispatchHelpers for ConsoleAlertDispatcher {}
+
+impl ConsoleAlertDispatcher {
+    async fn send_alerts(alert_description: &str, service_name: &str) -> Result<()> {
+        println!(
+            "{} is experiencing drift. \n{}",
+            service_name, alert_description
+        );
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub enum AlertDispatcher {
+    Console(ConsoleAlertDispatcher),
+    OpsGenie(OpsGenieAlertDispatcher),
+}
+
+impl AlertDispatcher {
+    // process alerts can be called asynchronously
+    pub async fn process_alerts(
+        &self,
+        feature_alerts: &FeatureAlerts,
+        service_name: &str,
+    ) -> Result<()> {
+        match self {
+            AlertDispatcher::Console(dispatcher) => dispatcher
+                .process_alerts(feature_alerts, service_name)
+                .await
+                .with_context(|| "Error processing alerts"),
+            AlertDispatcher::OpsGenie(dispatcher) => dispatcher
+                .process_alerts(feature_alerts, service_name)
+                .await
+                .with_context(|| "Error processing alerts"),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use scouter::utils::types::{Alert, AlertType, AlertZone, FeatureAlert};
     use std::collections::HashMap;
+    use std::env;
 
-    #[test]
-    fn test_construct_opsgenie_alert_description() {
+    fn test_features_hashmap() -> HashMap<String, FeatureAlert>{
         let mut features: HashMap<String, FeatureAlert> = HashMap::new();
+
         features.insert(
             "test_feature_1".to_string(),
             FeatureAlert {
@@ -143,6 +194,12 @@ mod tests {
                 indices: Default::default(),
             },
         );
+        features
+    }
+    #[test]
+    fn test_construct_opsgenie_alert_description() {
+        let features = test_features_hashmap();
+
         let alert_description =
             OpsGenieAlertDispatcher::construct_alert_description(&FeatureAlerts { features });
         let expected_alert_description = "Features that have drifted \ntest_feature_1 alerts: \nalert kind Out of bounds -- alert zone: Out of bounds \ntest_feature_2 alerts: \nalert kind Out of bounds -- alert zone: Zone 1 \n".to_string();
@@ -193,5 +250,47 @@ mod tests {
         let alert_body =
             OpsGenieAlertDispatcher::construct_alert_body("Features have drifted", "test_ml_model");
         assert_eq!(alert_body, expected_alert_body);
+    }
+
+    #[tokio::test]
+    async fn test_send_opsgenie_alerts() {
+        let mut download_server = mockito::Server::new_async().await;
+        let url = download_server.url();
+
+        // set env variables
+        unsafe {
+            env::set_var("OPSGENIE_API_URL", url);
+            env::set_var("OPSGENIE_API_KEY", "api_key");
+        }
+
+        let mock_get_path = download_server
+            .mock("Post", "/alerts")
+            .with_status(201)
+            .create();
+
+        let features = test_features_hashmap();
+
+        let dispatcher = AlertDispatcher::OpsGenie(OpsGenieAlertDispatcher::default());
+        let _ = dispatcher
+            .process_alerts(&FeatureAlerts { features }, "test_ml_model")
+            .await;
+
+        mock_get_path.assert();
+
+        unsafe {
+            env::remove_var("OPSGENIE_API_URL");
+            env::remove_var("OPSGENIE_API_KEY");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_send_console_alerts() {
+        let features = test_features_hashmap();
+        let dispatcher = AlertDispatcher::Console(ConsoleAlertDispatcher);
+        let result = dispatcher
+            .process_alerts(&FeatureAlerts { features }, "test_ml_model")
+            .await;
+
+        assert!(result.is_ok());
     }
 }

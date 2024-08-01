@@ -91,7 +91,7 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
     let alert_db_client =
         PostgresClient::new(pool.clone()).with_context(|| "Failed to create Postgres client")?;
     tokio::task::spawn(async move {
-        let drift_executor = DriftExecutor::new(alert_db_client);
+        let mut drift_executor = DriftExecutor::new(alert_db_client);
         let mut interval = tokio::time::interval(Duration::from_secs(4));
         loop {
             interval.tick().await;

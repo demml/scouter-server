@@ -11,18 +11,16 @@ on:
   release:
     types: [published]
 env:
-  INTERPRETER: '3.11'
+  INTERPRETER: "3.11"
   RUSTFLAGS: -C debuginfo=0
 
 jobs:
-
   build:
     name: build - ${{ matrix.target }}
     strategy:
       fail-fast: false
       matrix:
         include:
-
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             archive: tar.gz
@@ -48,17 +46,16 @@ jobs:
 
       - name: Set up Rust
         run: |
-              rustup override set stable
-              rustup update
-              rustup target add ${{ matrix.target }}
-              rustup component add rust-src
-              
+          rustup override set stable
+          rustup update
+          rustup target add ${{ matrix.target }}
+          rustup component add rust-src
 
       - name: Update apt repositories
         if: contains(matrix.os, 'ubuntu')
         run: |
-            sudo apt-get update -y
-            sudo apt-get install
+          sudo apt-get update -y
+          sudo apt-get install
 
       - name: Build Binaries
         run: cargo build --release --target ${{ matrix.target }}
@@ -95,9 +92,9 @@ jobs:
     steps:
       - name: Install dependencies
         run: apk add --no-cache git clang lld musl-dev nodejs npm openssl-dev pkgconfig g++ librdkafka make cmake
-      
+
       - name: Install python
-        run: apk add --update --no-cache python3 && ln -sf python3 /usr/bin/python
+        run: apk add --update --no-cache python3~3.11 && ln -sf python3 /usr/bin/python
 
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -106,7 +103,7 @@ jobs:
 
       - name: Build binaries
         run: |
-            cargo build --release --target ${{ env.TARGET }}
+          cargo build --release --target ${{ env.TARGET }}
 
       - name: gzip binaries
         run: tar -czf scouter-server-${{ env.TARGET }}.${{ env.ARCHIVE }} ./target/${{ env.TARGET }}
@@ -131,11 +128,10 @@ jobs:
 
       - name: Set up Rust
         run: |
-              rustup override set stable
-              rustup update
-              rustup target add ${{ env.TARGET }}
-              rustup component add rust-src
-              
+          rustup override set stable
+          rustup update
+          rustup target add ${{ env.TARGET }}
+          rustup component add rust-src
 
       - name: Build Binaries
         run: cargo build --release --target ${{ env.TARGET }}
@@ -147,7 +143,6 @@ jobs:
         with:
           name: scouter_server_${{ env.TARGET }}_${{env.ARCHIVE}}
           path: scouter-server-${{ env.TARGET }}.${{env.ARCHIVE}}
-
 
   release-binary-assets:
     if: github.event_name == 'release'
@@ -165,8 +160,8 @@ jobs:
 
       - name: list dist files
         run: |
-         ls -lhR dist
-         echo "`ls dist | wc -l` files"
+          ls -lhR dist
+          echo "`ls dist | wc -l` files"
 
       - name: Upload files to release tag
         env:
@@ -176,8 +171,3 @@ jobs:
           do
             gh release upload ${{ github.event.release.name }} $i
           done
-
-
-     
-
-

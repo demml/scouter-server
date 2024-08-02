@@ -87,6 +87,9 @@ jobs:
         with:
           python-version: "3.11.9"
 
+      - name: Install OpenSSL
+        run: apk add --no-cache openssl-dev
+
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
         with:

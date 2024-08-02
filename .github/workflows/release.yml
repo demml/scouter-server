@@ -77,6 +77,31 @@ jobs:
           name: scouter_server_${{ matrix.target }}_${{matrix.archive}}
           path: scouter-server-${{ matrix.target }}.${{matrix.archive}}
 
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build x86_64-unknown-linux-musl binary
+        uses: actions/checkout@v3
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11.9"
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: x86_64-unknown-linux-musl
+          override: true
+
+      - name: Build binary
+        uses: actions-rs/cargo@v1
+        env:
+          RUSTFLAGS: "-C target-feature=+crt-static"
+        with:
+          command: build
+          args: --release --target x86_64-unknown-linux-musl
+
   build-musl:
     name: build-musl
     runs-on: ubuntu-latest

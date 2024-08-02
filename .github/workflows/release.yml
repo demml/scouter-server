@@ -87,8 +87,10 @@ jobs:
         with:
           python-version: "3.11.9"
 
-      - name: Install OpenSSL
-        run: apk add --no-cache openssl-dev
+      - name: Install OpenSSL and musl-tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev musl-tools
 
       - name: Set up Rust
         uses: actions-rs/toolchain@v1

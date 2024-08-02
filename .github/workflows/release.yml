@@ -94,12 +94,7 @@ jobs:
         run: apk add --no-cache git clang lld musl-dev nodejs npm openssl-dev pkgconfig g++ librdkafka make cmake
 
       - name: Install python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      #- name: Install python
-      #run: apk --update --no-cache add python3~3.11 --repository=http://dl-cdn.alpinelinux.org/alpine/edge/main && ln -sf python3 /usr/bin/python
+        run: apk --update --no-cache add python3=3.11.9-r0 && ln -sf python3 /usr/bin/python
 
       - name: Checkout repository
         uses: actions/checkout@v4

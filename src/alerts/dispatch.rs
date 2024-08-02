@@ -169,7 +169,7 @@ mod tests {
     use std::collections::HashMap;
     use std::env;
 
-    fn test_features_hashmap() -> HashMap<String, FeatureAlert>{
+    fn test_features_hashmap() -> HashMap<String, FeatureAlert> {
         let mut features: HashMap<String, FeatureAlert> = HashMap::new();
 
         features.insert(

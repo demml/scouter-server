@@ -93,6 +93,9 @@ jobs:
       - name: Install dependencies
         run: apk add --no-cache git clang lld musl-dev nodejs npm openssl-dev pkgconfig g++ librdkafka make cmake
 
+      - name: Search Python
+        run: apk search python
+
       - name: Install python
         run: apk --update --no-cache add python3=3.11.9-r0 && ln -sf python3 /usr/bin/python
 

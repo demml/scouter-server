@@ -110,7 +110,7 @@ jobs:
 
   release-binary-assets:
     if: github.event_name == 'release'
-    needs: [build, build-musl, build-mac-x86_64]
+    needs: [build, build-mac-x86_64]
     runs-on: ubuntu-latest
 
     steps:

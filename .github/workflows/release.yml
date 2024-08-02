@@ -11,7 +11,7 @@ on:
   release:
     types: [published]
 env:
-  INTERPRETER: "3.11"
+  INTERPRETER: "3.12"
   RUSTFLAGS: -C debuginfo=0
 
 jobs:

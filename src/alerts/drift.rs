@@ -7,7 +7,7 @@ use scouter::utils::types::{AlertDispatchType, DriftProfile};
 
 use anyhow::{Context, Result};
 
-use crate::alerts::dispatch::{AlertDispatcher, ConsoleAlertDispatcher, OpsGenieAlertDispatcher};
+use crate::alerts::dispatch::{AlertDispatcher, ConsoleAlertDispatcher, OpsGenieAlertDispatcher, SlackAlertDispatcher};
 use ndarray::Array2;
 use sqlx::{Postgres, Row};
 use tracing::info;
@@ -80,7 +80,7 @@ impl DriftExecutor {
             AlertDispatchType::OpsGenie => {
                 AlertDispatcher::OpsGenie(OpsGenieAlertDispatcher::default())
             }
-            AlertDispatchType::Slack => panic!("Unsupported dispatcher type: Slack"),
+            AlertDispatchType::Slack => AlertDispatcher::Slack(SlackAlertDispatcher::default()),
             AlertDispatchType::Email => panic!("Unsupported dispatcher type: Email"),
         }
     }

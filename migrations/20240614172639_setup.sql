@@ -31,8 +31,9 @@ CREATE table IF NOT exists scouter.drift_profile (
   version varchar(256),
   profile jsonb,
   active boolean default true,
-  cron  varchar(256),
+  schedule  varchar(256),
   next_run timestamp,
+  previous_run timestamp,
   PRIMARY KEY (name, repository, version)
 );
 

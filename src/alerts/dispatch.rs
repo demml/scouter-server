@@ -34,6 +34,104 @@ pub trait Dispatch {
 }
 
 #[derive(Debug)]
+pub struct SlackAlertDispatcher {
+    slack_bot_token: String,
+    slack_api_url: String,
+    http_client: reqwest::Client,
+}
+
+impl Default for SlackAlertDispatcher {
+    fn default() -> Self {
+        Self {
+            slack_bot_token: env::var("SLACK_BOT_TOKEN").unwrap_or("slack_token".to_string()),
+            slack_api_url: env::var("SLACK_API_URL").unwrap_or("slack_api_url".to_string()),
+            http_client: reqwest::Client::new(),
+        }
+    }
+}
+
+impl Dispatch for SlackAlertDispatcher {
+    async fn process_alerts(
+        &self,
+        feature_alerts: &FeatureAlerts,
+        service_name: &str,
+    ) -> Result<()> {
+        let alert_description = Self::construct_alert_description(feature_alerts);
+
+        if !alert_description.is_empty() {
+            let alert_body = Self::construct_alert_body(&alert_description, service_name, "bot-test");
+            self.send_alerts(alert_body)
+                .await
+                .with_context(|| "Error sending alerts")?;
+        }
+        Ok(())
+    }
+}
+
+impl DispatchHelpers for SlackAlertDispatcher {
+    fn construct_alert_description(feature_alerts: &FeatureAlerts) -> String {
+        let mut alert_description = String::new();
+        for (_, feature_alert) in feature_alerts.features.iter() {
+            if feature_alert.alerts.is_empty() {
+                continue;
+            }
+            alert_description.push_str(&format!("*{}* \n", &feature_alert.feature));
+            feature_alert.alerts.iter().for_each(|alert| {
+                alert_description.push_str(&format!(
+                    "{} in {} \n",
+                    &alert.kind, &alert.zone
+                ))
+            });
+        }
+        alert_description
+    }
+}
+
+impl SlackAlertDispatcher {
+    fn construct_alert_body(alert_description: &str, service_name: &str, channel_name: &str) -> Value {
+        json!({
+            "channel": channel_name,
+            "blocks": [
+                {
+                    "type": "header",
+                    "text": {
+                        "type": "plain_text",
+                        "text": format!(":red_circle: Model drift detected for {} :red_circle:", service_name),
+                        "emoji": true
+                    }
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": alert_description
+                    },
+                    "accessory": {
+                        "type": "image",
+                        "image_url": "https://www.shutterstock.com/shutterstock/photos/2196561307/display_1500/stock-vector--d-vector-yellow-warning-sign-with-exclamation-mark-concept-eps-vector-2196561307.jpg",
+                        "alt_text": "Alert Symbol"
+                    }
+                }
+            ]
+        })
+    }
+
+    async fn send_alerts(&self, body: Value) -> Result<()> {
+        self.http_client
+            .post(format!("{}/chat.postMessage", &self.slack_api_url))
+            .header(
+                "Authorization",
+                format!("Bearer {}", &self.slack_bot_token),
+            )
+            .json(&body)
+            .send()
+            .await
+            .with_context(|| "Error posting alert to slack")?;
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
 pub struct OpsGenieAlertDispatcher {
     ops_genie_api_url: String,
     ops_genie_api_key: String,
@@ -140,6 +238,7 @@ impl ConsoleAlertDispatcher {
 pub enum AlertDispatcher {
     Console(ConsoleAlertDispatcher),
     OpsGenie(OpsGenieAlertDispatcher),
+    Slack(SlackAlertDispatcher)
 }
 
 impl AlertDispatcher {
@@ -155,6 +254,10 @@ impl AlertDispatcher {
                 .await
                 .with_context(|| "Error processing alerts"),
             AlertDispatcher::OpsGenie(dispatcher) => dispatcher
+                .process_alerts(feature_alerts, service_name)
+                .await
+                .with_context(|| "Error processing alerts"),
+            AlertDispatcher::Slack(dispatcher) => dispatcher
                 .process_alerts(feature_alerts, service_name)
                 .await
                 .with_context(|| "Error processing alerts"),

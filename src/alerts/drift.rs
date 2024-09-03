@@ -7,12 +7,13 @@ use scouter::utils::types::{AlertDispatchType, DriftProfile};
 
 use anyhow::{Context, Result};
 
-use crate::alerts::dispatch::{AlertDispatcher, ConsoleAlertDispatcher, OpsGenieAlertDispatcher, SlackAlertDispatcher};
+use crate::alerts::dispatch::{
+    AlertDispatcher, ConsoleAlertDispatcher, HttpAlertDispatcher, OpsGenieAlerter, SlackAlerter,
+};
 use ndarray::Array2;
 use sqlx::{Postgres, Row};
 use tracing::info;
 
-#[derive(Debug)]
 pub struct DriftExecutor {
     db_client: PostgresClient,
     alert_dispatcher: AlertDispatcher,
@@ -77,10 +78,12 @@ impl DriftExecutor {
     fn map_dispatcher(dispatch_type: &AlertDispatchType) -> AlertDispatcher {
         match dispatch_type {
             AlertDispatchType::Console => AlertDispatcher::Console(ConsoleAlertDispatcher),
-            AlertDispatchType::OpsGenie => {
-                AlertDispatcher::OpsGenie(OpsGenieAlertDispatcher::default())
-            }
-            AlertDispatchType::Slack => AlertDispatcher::Slack(SlackAlertDispatcher::default()),
+            AlertDispatchType::OpsGenie => AlertDispatcher::OpsGenieAlertDispatcher(
+                HttpAlertDispatcher::new(OpsGenieAlerter::default()),
+            ),
+            AlertDispatchType::Slack => AlertDispatcher::SlackAlertDispatcher(
+                HttpAlertDispatcher::new(SlackAlerter::default()),
+            ),
             AlertDispatchType::Email => panic!("Unsupported dispatcher type: Email"),
         }
     }

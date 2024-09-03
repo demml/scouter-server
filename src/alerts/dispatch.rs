@@ -232,8 +232,8 @@ impl DispatchHelpers for ConsoleAlertDispatcher {}
 #[derive(Debug)]
 pub enum AlertDispatcher {
     Console(ConsoleAlertDispatcher),
-    OpsGenieAlertDispatcher(HttpAlertDispatcher<OpsGenieAlerter>),
-    SlackAlertDispatcher(HttpAlertDispatcher<SlackAlerter>),
+    OpsGenie(HttpAlertDispatcher<OpsGenieAlerter>),
+    Slack(HttpAlertDispatcher<SlackAlerter>),
 }
 
 impl AlertDispatcher {
@@ -248,11 +248,11 @@ impl AlertDispatcher {
                 .process_alerts(feature_alerts, service_name)
                 .await
                 .with_context(|| "Error processing alerts"),
-            AlertDispatcher::OpsGenieAlertDispatcher(dispatcher) => dispatcher
+            AlertDispatcher::OpsGenie(dispatcher) => dispatcher
                 .process_alerts(feature_alerts, service_name)
                 .await
                 .with_context(|| "Error processing alerts"),
-            AlertDispatcher::SlackAlertDispatcher(dispatcher) => dispatcher
+            AlertDispatcher::Slack(dispatcher) => dispatcher
                 .process_alerts(feature_alerts, service_name)
                 .await
                 .with_context(|| "Error processing alerts"),

@@ -78,10 +78,10 @@ impl DriftExecutor {
     fn map_dispatcher(dispatch_type: &AlertDispatchType) -> AlertDispatcher {
         match dispatch_type {
             AlertDispatchType::Console => AlertDispatcher::Console(ConsoleAlertDispatcher),
-            AlertDispatchType::OpsGenie => AlertDispatcher::OpsGenieAlertDispatcher(
+            AlertDispatchType::OpsGenie => AlertDispatcher::OpsGenie(
                 HttpAlertDispatcher::new(OpsGenieAlerter::default()),
             ),
-            AlertDispatchType::Slack => AlertDispatcher::SlackAlertDispatcher(
+            AlertDispatchType::Slack => AlertDispatcher::Slack(
                 HttpAlertDispatcher::new(SlackAlerter::default()),
             ),
             AlertDispatchType::Email => panic!("Unsupported dispatcher type: Email"),

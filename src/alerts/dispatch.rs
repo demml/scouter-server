@@ -260,135 +260,223 @@ impl AlertDispatcher {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use scouter::utils::types::{Alert, AlertType, AlertZone, FeatureAlert};
-//     use std::collections::HashMap;
-//     use std::env;
-//
-//     fn test_features_hashmap() -> HashMap<String, FeatureAlert> {
-//         let mut features: HashMap<String, FeatureAlert> = HashMap::new();
-//
-//         features.insert(
-//             "test_feature_1".to_string(),
-//             FeatureAlert {
-//                 feature: "test_feature_1".to_string(),
-//                 alerts: vec![Alert {
-//                     zone: AlertZone::OutOfBounds.to_str(),
-//                     kind: AlertType::OutOfBounds.to_str(),
-//                 }],
-//                 indices: Default::default(),
-//             },
-//         );
-//         features.insert(
-//             "test_feature_2".to_string(),
-//             FeatureAlert {
-//                 feature: "test_feature_2".to_string(),
-//                 alerts: vec![Alert {
-//                     zone: AlertZone::Zone1.to_str(),
-//                     kind: AlertType::OutOfBounds.to_str(),
-//                 }],
-//                 indices: Default::default(),
-//             },
-//         );
-//         features
-//     }
-//     #[test]
-//     fn test_construct_opsgenie_alert_description() {
-//         let features = test_features_hashmap();
-//
-//         let alert_description =
-//             OpsGenieAlertDispatcher::construct_alert_description(&FeatureAlerts { features });
-//         let expected_alert_description = "Features that have drifted \ntest_feature_1 alerts: \nalert kind Out of bounds -- alert zone: Out of bounds \ntest_feature_2 alerts: \nalert kind Out of bounds -- alert zone: Zone 1 \n".to_string();
-//         assert_eq!(&alert_description.len(), &expected_alert_description.len());
-//         assert_eq!(
-//             &alert_description.contains(
-//                 "test_feature_1 alerts: \nalert kind Out of bounds -- alert zone: Out of bounds"
-//             ),
-//             &expected_alert_description.contains(
-//                 "test_feature_1 alerts: \nalert kind Out of bounds -- alert zone: Out of bounds"
-//             )
-//         );
-//         assert_eq!(
-//             &alert_description.contains(
-//                 "test_feature_2 alerts: \nalert kind Out of bounds -- alert zone: Zone 1"
-//             ),
-//             &expected_alert_description.contains(
-//                 "test_feature_2 alerts: \nalert kind Out of bounds -- alert zone: Zone 1"
-//             )
-//         );
-//     }
-//
-//     #[test]
-//     fn test_construct_opsgenie_alert_description_empty() {
-//         let features: HashMap<String, FeatureAlert> = HashMap::new();
-//         let alert_description =
-//             OpsGenieAlertDispatcher::construct_alert_description(&FeatureAlerts { features });
-//         let expected_alert_description = "".to_string();
-//         assert_eq!(alert_description, expected_alert_description);
-//     }
-//
-//     #[test]
-//     fn test_construct_opsgenie_alert_body() {
-//         let expected_alert_body = json!(
-//                 {
-//                     "message": "Model drift detected for test_ml_model",
-//                     "description": "Features have drifted",
-//                     "responders":[
-//                         {"name":"ds-team", "type":"team"}
-//                     ],
-//                     "visibleTo":[
-//                         {"name":"ds-team", "type":"team"}
-//                     ],
-//                     "tags": ["Model Drift"],
-//                     "priority": "P1"
-//                 }
-//         );
-//         let alert_body =
-//             OpsGenieAlertDispatcher::construct_alert_body("Features have drifted", "test_ml_model");
-//         assert_eq!(alert_body, expected_alert_body);
-//     }
-//
-//     #[tokio::test]
-//     async fn test_send_opsgenie_alerts() {
-//         let mut download_server = mockito::Server::new_async().await;
-//         let url = download_server.url();
-//
-//         // set env variables
-//         unsafe {
-//             env::set_var("OPSGENIE_API_URL", url);
-//             env::set_var("OPSGENIE_API_KEY", "api_key");
-//         }
-//
-//         let mock_get_path = download_server
-//             .mock("Post", "/alerts")
-//             .with_status(201)
-//             .create();
-//
-//         let features = test_features_hashmap();
-//
-//         let dispatcher = AlertDispatcher::OpsGenie(OpsGenieAlertDispatcher::default());
-//         let _ = dispatcher
-//             .process_alerts(&FeatureAlerts { features }, "test_ml_model")
-//             .await;
-//
-//         mock_get_path.assert();
-//
-//         unsafe {
-//             env::remove_var("OPSGENIE_API_URL");
-//             env::remove_var("OPSGENIE_API_KEY");
-//         }
-//     }
-//
-//     #[tokio::test]
-//     async fn test_send_console_alerts() {
-//         let features = test_features_hashmap();
-//         let dispatcher = AlertDispatcher::Console(ConsoleAlertDispatcher);
-//         let result = dispatcher
-//             .process_alerts(&FeatureAlerts { features }, "test_ml_model")
-//             .await;
-//
-//         assert!(result.is_ok());
-//     }
-// }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use scouter::utils::types::{Alert, AlertType, AlertZone, FeatureAlert};
+    use std::collections::HashMap;
+    use std::env;
+
+    fn test_features_hashmap() -> HashMap<String, FeatureAlert> {
+        let mut features: HashMap<String, FeatureAlert> = HashMap::new();
+
+        features.insert(
+            "test_feature_1".to_string(),
+            FeatureAlert {
+                feature: "test_feature_1".to_string(),
+                alerts: vec![Alert {
+                    zone: AlertZone::OutOfBounds.to_str(),
+                    kind: AlertType::OutOfBounds.to_str(),
+                }],
+                indices: Default::default(),
+            },
+        );
+        features.insert(
+            "test_feature_2".to_string(),
+            FeatureAlert {
+                feature: "test_feature_2".to_string(),
+                alerts: vec![Alert {
+                    zone: AlertZone::Zone1.to_str(),
+                    kind: AlertType::OutOfBounds.to_str(),
+                }],
+                indices: Default::default(),
+            },
+        );
+        features
+    }
+    #[test]
+    fn test_construct_opsgenie_alert_description() {
+        let features = test_features_hashmap();
+        let alerter = OpsGenieAlerter::default();
+        let alert_description = alerter.construct_alert_description(&FeatureAlerts { features });
+        let expected_alert_description = "Features that have drifted \ntest_feature_1 alerts: \nalert kind Out of bounds -- alert zone: Out of bounds \ntest_feature_2 alerts: \nalert kind Out of bounds -- alert zone: Zone 1 \n".to_string();
+        assert_eq!(&alert_description.len(), &expected_alert_description.len());
+        assert_eq!(
+            &alert_description.contains(
+                "test_feature_1 alerts: \nalert kind Out of bounds -- alert zone: Out of bounds"
+            ),
+            &expected_alert_description.contains(
+                "test_feature_1 alerts: \nalert kind Out of bounds -- alert zone: Out of bounds"
+            )
+        );
+        assert_eq!(
+            &alert_description.contains(
+                "test_feature_2 alerts: \nalert kind Out of bounds -- alert zone: Zone 1"
+            ),
+            &expected_alert_description.contains(
+                "test_feature_2 alerts: \nalert kind Out of bounds -- alert zone: Zone 1"
+            )
+        );
+    }
+
+    #[test]
+    fn test_construct_opsgenie_alert_description_empty() {
+        let features: HashMap<String, FeatureAlert> = HashMap::new();
+        let alerter = OpsGenieAlerter::default();
+        let alert_description = alerter.construct_alert_description(&FeatureAlerts { features });
+        let expected_alert_description = "".to_string();
+        assert_eq!(alert_description, expected_alert_description);
+    }
+
+    #[tokio::test]
+    async fn test_construct_opsgenie_alert_body() {
+        // set env variables
+        let download_server = mockito::Server::new_async().await;
+        let url = download_server.url();
+
+        // set env variables
+        unsafe {
+            env::set_var("OPSGENIE_API_URL", url);
+            env::set_var("OPSGENIE_API_KEY", "api_key");
+        }
+        let expected_alert_body = json!(
+                {
+                    "message": "Model drift detected for test_ml_model",
+                    "description": "Features have drifted",
+                    "responders":[
+                        {"name":"ds-team", "type":"team"}
+                    ],
+                    "visibleTo":[
+                        {"name":"ds-team", "type":"team"}
+                    ],
+                    "tags": ["Model Drift"],
+                    "priority": "P1"
+                }
+        );
+        let alerter = OpsGenieAlerter::default();
+        let alert_body = alerter.construct_alert_body("Features have drifted", "test_ml_model");
+        assert_eq!(alert_body, expected_alert_body);
+        unsafe {
+            env::remove_var("OPSGENIE_API_URL");
+            env::remove_var("OPSGENIE_API_KEY");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_send_opsgenie_alerts() {
+        let mut download_server = mockito::Server::new_async().await;
+        let url = download_server.url();
+
+        // set env variables
+        unsafe {
+            env::set_var("OPSGENIE_API_URL", url);
+            env::set_var("OPSGENIE_API_KEY", "api_key");
+        }
+
+        let mock_get_path = download_server
+            .mock("Post", "/alerts")
+            .with_status(201)
+            .create();
+
+        let features = test_features_hashmap();
+
+        let dispatcher =
+            AlertDispatcher::OpsGenie(HttpAlertDispatcher::new(OpsGenieAlerter::default()));
+        let _ = dispatcher
+            .process_alerts(&FeatureAlerts { features }, "test_ml_model")
+            .await;
+
+        mock_get_path.assert();
+
+        unsafe {
+            env::remove_var("OPSGENIE_API_URL");
+            env::remove_var("OPSGENIE_API_KEY");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_send_console_alerts() {
+        let features = test_features_hashmap();
+        let dispatcher = AlertDispatcher::Console(ConsoleAlertDispatcher);
+        let result = dispatcher
+            .process_alerts(&FeatureAlerts { features }, "test_ml_model")
+            .await;
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_send_slack_alerts() {
+        let mut download_server = mockito::Server::new_async().await;
+        let url = download_server.url();
+
+        // set env variables
+        unsafe {
+            env::set_var("SLACK_API_URL", url);
+            env::set_var("SLACK_BOT_TOKEN", "bot_token");
+        }
+
+        let mock_get_path = download_server
+            .mock("Post", "/chat.postMessage")
+            .with_status(201)
+            .create();
+
+        let features = test_features_hashmap();
+
+        let dispatcher = AlertDispatcher::Slack(HttpAlertDispatcher::new(SlackAlerter::default()));
+        let _ = dispatcher
+            .process_alerts(&FeatureAlerts { features }, "test_ml_model")
+            .await;
+
+        mock_get_path.assert();
+
+        unsafe {
+            env::remove_var("SLACK_API_URL");
+            env::remove_var("SLACK_BOT_TOKEN");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_construct_slack_alert_body() {
+        // set env variables
+        let download_server = mockito::Server::new_async().await;
+        let url = download_server.url();
+
+        unsafe {
+            env::set_var("SLACK_API_URL", url);
+            env::set_var("SLACK_BOT_TOKEN", "bot_token");
+        }
+        let expected_alert_body = json!({
+            "channel": "bot-test",
+            "blocks": [
+                {
+                    "type": "header",
+                    "text": {
+                        "type": "plain_text",
+                        "text": ":red_circle: Model drift detected for test_ml_model :red_circle:",
+                        "emoji": true
+                    }
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": "*Features have drifted*"
+                    },
+                    "accessory": {
+                        "type": "image",
+                        "image_url": "https://www.shutterstock.com/shutterstock/photos/2196561307/display_1500/stock-vector--d-vector-yellow-warning-sign-with-exclamation-mark-concept-eps-vector-2196561307.jpg",
+                        "alt_text": "Alert Symbol"
+                    }
+                }
+            ]
+        });
+        let alerter = SlackAlerter::default();
+        let alert_body = alerter.construct_alert_body("*Features have drifted*", "test_ml_model");
+        assert_eq!(alert_body, expected_alert_body);
+        unsafe {
+            env::remove_var("SLACK_API_URL");
+            env::remove_var("SLACK_BOT_TOKEN");
+        }
+    }
+}

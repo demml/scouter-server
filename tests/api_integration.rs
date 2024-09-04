@@ -163,6 +163,8 @@ async fn test_api_profile() {
 
     let body = serde_json::to_string(&monitor_profile).unwrap();
 
+    println!("{}", body);
+
     // insert data for new version
     let response = app
         .oneshot(

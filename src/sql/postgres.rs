@@ -154,9 +154,11 @@ impl PostgresClient {
             repository: drift_profile.config.repository.clone(),
             version: drift_profile.config.version.clone(),
             profile: serde_json::to_string(&drift_profile).unwrap(),
-            schedule: drift_profile.config.alert_config.schedule.clone(),
+            cron: drift_profile.config.alert_config.schedule.clone(),
             next_run: next_run.naive_utc(),
         };
+
+        println!("{:?}", query.format(&params).as_str());
 
         let query_result: std::prelude::v1::Result<sqlx::postgres::PgQueryResult, sqlx::Error> =
             sqlx::raw_sql(query.format(&params).as_str())

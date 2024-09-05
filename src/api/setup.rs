@@ -1,8 +1,6 @@
-use anyhow::Context;
 use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
-use tracing::{error, info};
-
 use std::io;
+use tracing::{error, info};
 
 use tracing_subscriber;
 use tracing_subscriber::fmt::time::UtcTime;
@@ -28,9 +26,11 @@ pub async fn setup_logging() -> Result<(), anyhow::Error> {
 /// Setup the application with the given database pool.
 
 pub async fn create_db_pool(database_url: Option<String>) -> Result<Pool<Postgres>, anyhow::Error> {
+    // get env var
     let database_url = match database_url {
         Some(url) => url,
-        None => std::env::var("DATABASE_URL").with_context(|| "DATABASE_URL must be set")?,
+        None => std::env::var("DATABASE_URL")
+            .unwrap_or("postgresql://postgres:admin@localhost:5432/monitor?".to_string()),
     };
 
     // get max connections from env or set to 10

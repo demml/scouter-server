@@ -12,7 +12,6 @@ use crate::alerts::dispatch::{
 };
 use ndarray::Array2;
 use sqlx::{Postgres, Row};
-use tracing::info;
 
 pub struct DriftExecutor {
     db_client: PostgresClient,
@@ -47,10 +46,10 @@ impl DriftExecutor {
     async fn compute_drift(
         &self,
         drift_profile: &DriftProfile,
-        previous_run: &NaiveDateTime,
+        next_run: &NaiveDateTime,
     ) -> Result<Array2<f64>> {
         let drift_features = self
-            .get_drift_features(drift_profile, &previous_run.to_string())
+            .get_drift_features(drift_profile, &next_run.to_string())
             .await
             .with_context(|| "error retrieving raw feature data to compute drift")?;
         let feature_keys: Vec<String> = drift_features.features.keys().cloned().collect();
@@ -101,11 +100,11 @@ impl DriftExecutor {
                     .with_context(|| {
                         "error converting postgres jsonb profile to struct type DriftProfile"
                     })?;
-                let previous_run: NaiveDateTime = profile.get("previous_run");
-                let schedule: String = profile.get("schedule");
+                let next_run: NaiveDateTime = profile.get("next_run");
+                let cron: String = profile.get("cron");
                 // Compute drift
                 let drift_array = self
-                    .compute_drift(&drift_profile, &previous_run)
+                    .compute_drift(&drift_profile, &next_run)
                     .await
                     .with_context(|| "error computing drift")?;
 
@@ -132,11 +131,10 @@ impl DriftExecutor {
                     &drift_profile.config.name,
                     &drift_profile.config.repository,
                     &drift_profile.config.version,
-                    &schedule,
+                    &cron,
                 )
                 .await?;
             } else {
-                info!("No more drift profiles to process, shutting down...");
                 break;
             }
             transaction.commit().await?;

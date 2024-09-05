@@ -120,7 +120,7 @@ pub struct InsertDriftProfileParams {
     pub repository: String,
     pub version: String,
     pub profile: String,
-    pub schedule: String,
+    pub cron: String,
     pub next_run: NaiveDateTime,
 }
 
@@ -132,7 +132,7 @@ impl ToMap for InsertDriftProfileParams {
         params.insert("repository".to_string(), self.repository.clone());
         params.insert("version".to_string(), self.version.clone());
         params.insert("profile".to_string(), self.profile.clone());
-        params.insert("schedule".to_string(), self.schedule.clone());
+        params.insert("cron".to_string(), self.cron.clone());
         params.insert("next_run".to_string(), self.next_run.to_string());
 
         params
@@ -281,7 +281,7 @@ WHERE
 
         assert_eq!(
             formatted_sql,
-            "SELECT profile, previous_run, schedule\nFROM schema.table\nWHERE active\n  AND next_run < CURRENT_TIMESTAMP\nLIMIT 1 FOR UPDATE SKIP LOCKED;"
+            "SELECT profile, next_run, cron\nFROM schema.table\nWHERE active\n  AND next_run < CURRENT_TIMESTAMP\nLIMIT 1 FOR UPDATE SKIP LOCKED;"
         );
     }
 
@@ -302,7 +302,7 @@ WHERE
         assert_eq!(
             formatted_sql,
             "UPDATE schema.table
-SET previous_run = CURRENT_TIMESTAMP + interval '1 minute',
+SET next_run = CURRENT_TIMESTAMP + interval '1 minute',
     next_run     = '1970-01-01 00:00:00'
 WHERE name = 'name'
   and repository = 'repository'

@@ -1,6 +1,3 @@
-use scouter_server::api::schema::DriftRecordRequest;
-use scouter_server::sql::schema::QueryResult;
-
 use axum::{
     body::Body,
     http::{self, Request, StatusCode},
@@ -10,11 +7,14 @@ use scouter::utils::types::{
     AlertConfig, AlertDispatchType, AlertRule, DriftConfig, DriftProfile, FeatureDriftProfile,
     ProcessAlertRule,
 };
+use scouter_server::api::schema::{DriftRecordRequest, ProfileStatusRequest};
+use scouter_server::sql::schema::QueryResult;
 use serde_json::Value;
 use std::collections::HashMap;
 use tower::Service;
 use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
 mod test_utils;
+use sqlx::Row;
 
 #[tokio::test]
 async fn test_api_drift() {
@@ -177,5 +177,76 @@ async fn test_api_profile() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
+
+    test_utils::teardown().await.unwrap();
+}
+
+#[tokio::test]
+async fn test_api_profile_update() {
+    let app = test_utils::setup_api(true).await.unwrap();
+    let pool = test_utils::setup_db(true).await.unwrap();
+
+    // populate the database
+    let populate_script = include_str!("scripts/populate.sql");
+    sqlx::raw_sql(populate_script).execute(&pool).await.unwrap();
+
+    // get current active status
+    let result = sqlx::raw_sql(
+        r#"
+        SELECT * 
+        FROM scouter.drift_profile
+        WHERE name = 'test_app'
+        AND repository = 'mathworld'
+        "#,
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+
+    let curr_status: bool = result[0].get("active");
+    assert!(!curr_status);
+
+    // put request
+    let body = ProfileStatusRequest {
+        name: "test_app".to_string(),
+        repository: "mathworld".to_string(),
+        version: "0.1.0".to_string(),
+        active: true,
+    };
+
+    let body = serde_json::to_string(&body).unwrap();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/profile/status")
+                .header(http::header::CONTENT_TYPE, "application/json")
+                .method("PUT")
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // get current active status
+    let result = sqlx::raw_sql(
+        r#"
+        SELECT * 
+        FROM scouter.drift_profile
+        WHERE name = 'test_app'
+        AND repository = 'mathworld'
+        "#,
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+
+    let new_status: bool = result[0].get("active");
+
+    assert!(new_status != curr_status);
+    assert!(new_status);
+
     test_utils::teardown().await.unwrap();
 }

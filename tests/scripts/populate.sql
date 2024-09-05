@@ -126,7 +126,7 @@ VALUES
         }
       }
       }',
-      true,
+      false,
       '0 0 0 * * *',
        timezone('utc', now() - interval '1 days'),
       timezone('utc', now() - interval '2 days')

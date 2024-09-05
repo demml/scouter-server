@@ -1,4 +1,6 @@
-use crate::api::handler::{get_drift, health_check, insert_drift, insert_drift_profile};
+use crate::api::handler::{
+    get_drift, health_check, insert_drift, insert_drift_profile, update_drift_profile_status,
+};
 use crate::api::metrics::track_metrics;
 use crate::sql::postgres::PostgresClient;
 use axum::http::{
@@ -7,7 +9,7 @@ use axum::http::{
 };
 use axum::middleware;
 use axum::{
-    routing::{get, post},
+    routing::{get, post, put},
     Router,
 };
 use std::sync::Arc;
@@ -27,6 +29,7 @@ pub fn create_router(app_state: Arc<AppState>) -> Router {
         .route("/healthcheck", get(health_check))
         .route("/drift", get(get_drift).post(insert_drift))
         .route("/profile", post(insert_drift_profile))
+        .route("/profile/status", put(update_drift_profile_status))
         .route_layer(middleware::from_fn(track_metrics))
         .with_state(app_state)
         .layer(cors)

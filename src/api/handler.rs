@@ -1,4 +1,4 @@
-use crate::api::schema::{DriftRecordRequest, ServiceDriftRequest};
+use crate::api::schema::{DriftRecordRequest, ProfileStatusRequest, ServiceDriftRequest};
 use crate::sql::postgres::TimeInterval;
 use crate::sql::schema::DriftRecord;
 use axum::{
@@ -116,6 +116,41 @@ pub async fn insert_drift_profile(
         }
         Err(e) => {
             error!("Failed to insert monitor profile: {:?}", e);
+            let json_response = json!({
+                "status": "error",
+                "message": format!("{:?}", e)
+            });
+            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
+        }
+    }
+}
+
+pub async fn update_drift_profile_status(
+    State(data): State<Arc<AppState>>,
+    Json(body): Json<ProfileStatusRequest>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    let query_result = &data
+        .db
+        .update_drift_profile_status(&body.name, &body.repository, &body.version, &body.active)
+        .await;
+
+    match query_result {
+        Ok(_) => {
+            let message = format!(
+                "Monitor profile status updated to {} for {} {} {}",
+                &body.active, &body.name, &body.repository, &body.version
+            );
+            let json_response = json!({
+                "status": "success",
+                "message": message
+            });
+            Ok(Json(json_response))
+        }
+        Err(e) => {
+            error!(
+                "Failed to update drift profile status for {} {} {} : {:?}",
+                &body.name, &body.repository, &body.version, e
+            );
             let json_response = json!({
                 "status": "error",
                 "message": format!("{:?}", e)

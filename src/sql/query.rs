@@ -11,6 +11,7 @@ const INSERT_DRIFT_PROFILE: &str = include_str!("scripts/insert_drift_profile.sq
 const GET_DRIFT_PROFILE: &str = include_str!("scripts/get_drift_profile.sql");
 const UPDATE_DRIFT_PROFILE_RUN_DATES: &str =
     include_str!("scripts/update_drift_profile_run_dates.sql");
+const UPDATE_DRIFT_PROFILE_STATUS: &str = include_str!("scripts/update_drift_profile_status.sql");
 pub trait ToMap {
     fn to_map(&self) -> BTreeMap<String, String>;
 }
@@ -31,6 +32,26 @@ impl ToMap for UpdateDriftProfileRunDatesParams {
         params.insert("repository".to_string(), self.repository.clone());
         params.insert("version".to_string(), self.version.clone());
         params.insert("next_run".to_string(), self.next_run.to_string());
+        params
+    }
+}
+
+pub struct UpdateDriftProfileStatusParams {
+    pub table: String,
+    pub name: String,
+    pub repository: String,
+    pub version: String,
+    pub active: bool,
+}
+
+impl ToMap for UpdateDriftProfileStatusParams {
+    fn to_map(&self) -> BTreeMap<String, String> {
+        let mut params = BTreeMap::new();
+        params.insert("table".to_string(), self.table.clone());
+        params.insert("name".to_string(), self.name.clone());
+        params.insert("repository".to_string(), self.repository.clone());
+        params.insert("version".to_string(), self.version.clone());
+        params.insert("active".to_string(), self.active.to_string());
         params
     }
 }
@@ -120,8 +141,10 @@ pub struct InsertDriftProfileParams {
     pub repository: String,
     pub version: String,
     pub profile: String,
+    pub active: bool,
     pub schedule: String,
     pub next_run: NaiveDateTime,
+    pub previous_run: NaiveDateTime,
 }
 
 impl ToMap for InsertDriftProfileParams {
@@ -132,8 +155,10 @@ impl ToMap for InsertDriftProfileParams {
         params.insert("repository".to_string(), self.repository.clone());
         params.insert("version".to_string(), self.version.clone());
         params.insert("profile".to_string(), self.profile.clone());
+        params.insert("active".to_string(), self.active.to_string());
         params.insert("schedule".to_string(), self.schedule.clone());
         params.insert("next_run".to_string(), self.next_run.to_string());
+        params.insert("previous_run".to_string(), self.previous_run.to_string());
 
         params
     }
@@ -173,6 +198,7 @@ pub enum Queries {
     GetFeatureValues,
     GetDriftProfile,
     UpdateDriftProfileRunDates,
+    UpdateDriftProfileStatus,
 }
 
 impl Queries {
@@ -186,6 +212,7 @@ impl Queries {
             Queries::InsertDriftProfile => SqlQuery::new(INSERT_DRIFT_PROFILE),
             Queries::GetDriftProfile => SqlQuery::new(GET_DRIFT_PROFILE),
             Queries::UpdateDriftProfileRunDates => SqlQuery::new(UPDATE_DRIFT_PROFILE_RUN_DATES),
+            Queries::UpdateDriftProfileStatus => SqlQuery::new(UPDATE_DRIFT_PROFILE_STATUS),
         }
     }
 }

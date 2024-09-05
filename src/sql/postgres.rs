@@ -1,6 +1,7 @@
 use crate::sql::query::{
     GetBinnedFeatureValuesParams, GetDriftProfileParams, GetFeatureValuesParams, GetFeaturesParams,
     InsertDriftProfileParams, InsertParams, Queries, UpdateDriftProfileRunDatesParams,
+    UpdateDriftProfileStatusParams,
 };
 use crate::sql::schema::{DriftRecord, FeatureResult, QueryResult};
 use anyhow::*;
@@ -154,11 +155,11 @@ impl PostgresClient {
             repository: drift_profile.config.repository.clone(),
             version: drift_profile.config.version.clone(),
             profile: serde_json::to_string(&drift_profile).unwrap(),
+            active: false,
             schedule: drift_profile.config.alert_config.schedule.clone(),
             next_run: next_run.naive_utc(),
+            previous_run: next_run.naive_utc(),
         };
-
-        println!("{:?}", query.format(&params).as_str());
 
         let query_result: std::prelude::v1::Result<sqlx::postgres::PgQueryResult, sqlx::Error> =
             sqlx::raw_sql(query.format(&params).as_str())
@@ -506,6 +507,36 @@ impl PostgresClient {
             Err(e) => {
                 error!("Failed to run query: {:?}", e);
                 Err(anyhow!("Failed to run query: {:?}", e))
+            }
+        }
+    }
+
+    pub async fn update_drift_profile_status(
+        &self,
+        name: &str,
+        repository: &str,
+        version: &str,
+        active: &bool,
+    ) -> Result<(), anyhow::Error> {
+        let query = Queries::UpdateDriftProfileStatus.get_query();
+
+        let params = UpdateDriftProfileStatusParams {
+            table: self.profile_table_name.to_string(),
+            name: name.to_string(),
+            repository: repository.to_string(),
+            version: version.to_string(),
+            active: *active,
+        };
+
+        let query_result = sqlx::raw_sql(query.format(&params).as_str())
+            .execute(&self.pool)
+            .await;
+
+        match query_result {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                error!("Failed to update drift profile status: {:?}", e);
+                Err(anyhow!("Failed to update drift profile status: {:?}", e))
             }
         }
     }

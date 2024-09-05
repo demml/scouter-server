@@ -68,7 +68,7 @@ impl HttpAlertWrapper for OpsGenieAlerter {
         &self.header_auth_value
     }
 
-    fn construct_alert_body(&self, alert_description: &str, name: &str, repository: &str) -> Value {
+    fn construct_alert_body(&self, alert_description: &str, repository: &str, name: &str) -> Value {
         json!(
                 {
                     "message": format!("Model drift detected for {}/{}", repository, name),
@@ -116,7 +116,7 @@ impl HttpAlertWrapper for SlackAlerter {
         &self.header_auth_value
     }
 
-    fn construct_alert_body(&self, alert_description: &str, name: &str, repository: &str) -> Value {
+    fn construct_alert_body(&self, alert_description: &str, repository: &str, name: &str) -> Value {
         json!({
             "channel": "bot-test",
             "blocks": [
@@ -345,7 +345,7 @@ mod tests {
         }
         let expected_alert_body = json!(
                 {
-                    "message": "Model drift detected for test_ml_model",
+                    "message": "Model drift detected for test_repo/test_ml_model",
                     "description": "Features have drifted",
                     "responders":[
                         {"name":"ds-team", "type":"team"}

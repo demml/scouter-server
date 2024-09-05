@@ -28,13 +28,14 @@ pub trait Dispatch {
     fn process_alerts(
         &self,
         feature_alerts: &FeatureAlerts,
-        service_name: &str,
+        repository: &str,
+        name: &str,
     ) -> impl futures::Future<Output = Result<()>>;
 }
 pub trait HttpAlertWrapper {
     fn api_url(&self) -> &str;
     fn header_auth_value(&self) -> &str;
-    fn construct_alert_body(&self, alert_description: &str, service_name: &str) -> Value;
+    fn construct_alert_body(&self, alert_description: &str, repository: &str, name: &str) -> Value;
 }
 
 #[derive(Debug)]
@@ -67,10 +68,10 @@ impl HttpAlertWrapper for OpsGenieAlerter {
         &self.header_auth_value
     }
 
-    fn construct_alert_body(&self, alert_description: &str, service_name: &str) -> Value {
+    fn construct_alert_body(&self, alert_description: &str, name: &str, repository: &str) -> Value {
         json!(
                 {
-                    "message": format!("Model drift detected for {}", service_name),
+                    "message": format!("Model drift detected for {}/{}", repository, name),
                     "description": alert_description,
                     "responders":[
                         {"name":"ds-team", "type":"team"}
@@ -115,7 +116,7 @@ impl HttpAlertWrapper for SlackAlerter {
         &self.header_auth_value
     }
 
-    fn construct_alert_body(&self, alert_description: &str, service_name: &str) -> Value {
+    fn construct_alert_body(&self, alert_description: &str, name: &str, repository: &str) -> Value {
         json!({
             "channel": "bot-test",
             "blocks": [
@@ -123,7 +124,7 @@ impl HttpAlertWrapper for SlackAlerter {
                     "type": "header",
                     "text": {
                         "type": "plain_text",
-                        "text": format!(":red_circle: Model drift detected for {} :red_circle:", service_name),
+                        "text": format!(":red_circle: Model drift detected for {}/{} :red_circle:", repository, name),
                         "emoji": true
                     }
                 },
@@ -190,14 +191,15 @@ impl<T: HttpAlertWrapper + DispatchHelpers> Dispatch for HttpAlertDispatcher<T> 
     async fn process_alerts(
         &self,
         feature_alerts: &FeatureAlerts,
-        service_name: &str,
+        repository: &str,
+        name: &str,
     ) -> Result<()> {
         let alert_description = self.alerter.construct_alert_description(feature_alerts);
 
         if !alert_description.is_empty() {
-            let alert_body = self
-                .alerter
-                .construct_alert_body(&alert_description, service_name);
+            let alert_body =
+                self.alerter
+                    .construct_alert_body(&alert_description, repository, name);
             self.send_alerts(alert_body)
                 .await
                 .with_context(|| "Error sending alerts")?;
@@ -213,14 +215,15 @@ impl Dispatch for ConsoleAlertDispatcher {
     async fn process_alerts(
         &self,
         feature_alerts: &FeatureAlerts,
-        service_name: &str,
+        repository: &str,
+        name: &str,
     ) -> Result<()> {
         let alert_description = self.construct_alert_description(feature_alerts);
 
         if !alert_description.is_empty() {
             println!(
-                "{} is experiencing drift. \n{}",
-                service_name, alert_description
+                "{}/{} is experiencing drift. \n{}",
+                repository, name, alert_description
             );
         }
         Ok(())
@@ -241,19 +244,20 @@ impl AlertDispatcher {
     pub async fn process_alerts(
         &self,
         feature_alerts: &FeatureAlerts,
-        service_name: &str,
+        repository: &str,
+        name: &str,
     ) -> Result<()> {
         match self {
             AlertDispatcher::Console(dispatcher) => dispatcher
-                .process_alerts(feature_alerts, service_name)
+                .process_alerts(feature_alerts, repository, name)
                 .await
                 .with_context(|| "Error processing alerts"),
             AlertDispatcher::OpsGenie(dispatcher) => dispatcher
-                .process_alerts(feature_alerts, service_name)
+                .process_alerts(feature_alerts, repository, name)
                 .await
                 .with_context(|| "Error processing alerts"),
             AlertDispatcher::Slack(dispatcher) => dispatcher
-                .process_alerts(feature_alerts, service_name)
+                .process_alerts(feature_alerts, repository, name)
                 .await
                 .with_context(|| "Error processing alerts"),
         }
@@ -354,7 +358,8 @@ mod tests {
                 }
         );
         let alerter = OpsGenieAlerter::default();
-        let alert_body = alerter.construct_alert_body("Features have drifted", "test_ml_model");
+        let alert_body =
+            alerter.construct_alert_body("Features have drifted", "test_repo", "test_ml_model");
         assert_eq!(alert_body, expected_alert_body);
         unsafe {
             env::remove_var("OPSGENIE_API_URL");
@@ -383,7 +388,7 @@ mod tests {
         let dispatcher =
             AlertDispatcher::OpsGenie(HttpAlertDispatcher::new(OpsGenieAlerter::default()));
         let _ = dispatcher
-            .process_alerts(&FeatureAlerts { features }, "test_ml_model")
+            .process_alerts(&FeatureAlerts { features }, "test_repo", "test_ml_model")
             .await;
 
         mock_get_path.assert();
@@ -399,7 +404,7 @@ mod tests {
         let features = test_features_hashmap();
         let dispatcher = AlertDispatcher::Console(ConsoleAlertDispatcher);
         let result = dispatcher
-            .process_alerts(&FeatureAlerts { features }, "test_ml_model")
+            .process_alerts(&FeatureAlerts { features }, "test_repo", "test_ml_model")
             .await;
 
         assert!(result.is_ok());
@@ -425,7 +430,7 @@ mod tests {
 
         let dispatcher = AlertDispatcher::Slack(HttpAlertDispatcher::new(SlackAlerter::default()));
         let _ = dispatcher
-            .process_alerts(&FeatureAlerts { features }, "test_ml_model")
+            .process_alerts(&FeatureAlerts { features }, "test_repo", "test_ml_model")
             .await;
 
         mock_get_path.assert();
@@ -453,7 +458,7 @@ mod tests {
                     "type": "header",
                     "text": {
                         "type": "plain_text",
-                        "text": ":red_circle: Model drift detected for test_ml_model :red_circle:",
+                        "text": ":red_circle: Model drift detected for test_repo/test_ml_model :red_circle:",
                         "emoji": true
                     }
                 },
@@ -472,7 +477,8 @@ mod tests {
             ]
         });
         let alerter = SlackAlerter::default();
-        let alert_body = alerter.construct_alert_body("*Features have drifted*", "test_ml_model");
+        let alert_body =
+            alerter.construct_alert_body("*Features have drifted*", "test_repo", "test_ml_model");
         assert_eq!(alert_body, expected_alert_body);
         unsafe {
             env::remove_var("SLACK_API_URL");

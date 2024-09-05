@@ -101,7 +101,7 @@ impl DriftExecutor {
                         "error converting postgres jsonb profile to struct type DriftProfile"
                     })?;
                 let next_run: NaiveDateTime = profile.get("next_run");
-                let cron: String = profile.get("cron");
+                let schedule: String = profile.get("schedule");
                 // Compute drift
                 let drift_array = self
                     .compute_drift(&drift_profile, &next_run)
@@ -122,7 +122,11 @@ impl DriftExecutor {
 
                 // Process alerts
                 self.alert_dispatcher
-                    .process_alerts(&alerts, &drift_profile.config.name)
+                    .process_alerts(
+                        &alerts,
+                        &drift_profile.config.repository,
+                        &drift_profile.config.name,
+                    )
                     .await?;
 
                 // Update run dates for profile
@@ -131,7 +135,7 @@ impl DriftExecutor {
                     &drift_profile.config.name,
                     &drift_profile.config.repository,
                     &drift_profile.config.version,
-                    &cron,
+                    &schedule,
                 )
                 .await?;
             } else {

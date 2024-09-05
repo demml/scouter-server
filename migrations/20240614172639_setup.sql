@@ -33,7 +33,6 @@ CREATE table IF NOT exists scouter.drift_profile (
   active boolean default true,
   schedule  varchar(256),
   next_run timestamp,
-  previous_run timestamp,
   PRIMARY KEY (name, repository, version)
 );
 

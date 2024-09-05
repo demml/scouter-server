@@ -1,4 +1,4 @@
-SELECT profile, next_run, schedule
+SELECT profile, previous_run, schedule
 FROM $table
 WHERE active
   AND next_run < CURRENT_TIMESTAMP

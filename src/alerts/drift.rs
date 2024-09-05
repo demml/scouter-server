@@ -43,13 +43,24 @@ impl DriftExecutor {
         Ok(records)
     }
 
+    /// Compute drift for a given drift profile
+    ///
+    /// # Arguments
+    ///
+    /// * `drift_profile` - Drift profile to compute drift for
+    /// * `limit_timestamp` - Limit timestamp for drift computation (this is the previous_run timestamp)
+    ///     
+    /// # Returns
+    ///
+    /// * `Result<Array2<f64>>` - Drift array
+    ///
     async fn compute_drift(
         &self,
         drift_profile: &DriftProfile,
-        next_run: &NaiveDateTime,
+        limit_timestamp: &NaiveDateTime,
     ) -> Result<Array2<f64>> {
         let drift_features = self
-            .get_drift_features(drift_profile, &next_run.to_string())
+            .get_drift_features(drift_profile, &limit_timestamp.to_string())
             .await
             .with_context(|| "error retrieving raw feature data to compute drift")?;
         let feature_keys: Vec<String> = drift_features.features.keys().cloned().collect();
@@ -100,11 +111,14 @@ impl DriftExecutor {
                     .with_context(|| {
                         "error converting postgres jsonb profile to struct type DriftProfile"
                     })?;
-                let next_run: NaiveDateTime = profile.get("next_run");
+
+                // switch back to previous run
+                let previous_run: NaiveDateTime = profile.get("previous_run");
                 let schedule: String = profile.get("schedule");
+
                 // Compute drift
                 let drift_array = self
-                    .compute_drift(&drift_profile, &next_run)
+                    .compute_drift(&drift_profile, &previous_run)
                     .await
                     .with_context(|| "error computing drift")?;
 
@@ -144,5 +158,30 @@ impl DriftExecutor {
             transaction.commit().await?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use crate::api::setup::create_db_pool;
+
+    use super::*;
+    use std::env;
+    use tokio;
+
+    async fn test_drift_executor() {
+        unsafe {
+            env::set_var(
+                "DATABASE_URL",
+                "postgresql://postgres:admin@localhost:5432/monitor?",
+            );
+        }
+
+        let pool = create_db_pool(None)
+            .await
+            .with_context(|| "Failed to create Postgres client")
+            .unwrap();
+        PostgresClient::new(pool).unwrap();
     }
 }

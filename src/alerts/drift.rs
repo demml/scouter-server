@@ -1,9 +1,6 @@
 use crate::sql::postgres::PostgresClient;
 use crate::sql::schema::QueryResult;
 use chrono::NaiveDateTime;
-use ndarray::parallel::prelude::IntoParallelIterator;
-use ndarray::parallel::prelude::ParallelIterator;
-use ndarray::Axis;
 use scouter::core::alert::generate_alerts;
 use scouter::core::monitor::Monitor;
 use scouter::utils::types::{AlertDispatchType, DriftProfile};
@@ -56,14 +53,11 @@ impl DriftExecutor {
     /// # Returns
     ///
     /// * `Result<Array2<f64>>` - Drift array
-    ///[4.689594982612174, 6.2047471198144635, -1.5767263077850746, -8.16680601215904, 1.5195064739309707]
-    ///[-3.870641050564756, 6.833269767364413, 3.8078954278417676, 7.357095951767576, -1.4228759105945255]
-    /// [4.3655988469677, 9.732665607262106, 2.189892945591879, 9.50804413164153, 4.123409288225851]
     pub async fn compute_drift(
         &self,
         drift_profile: &DriftProfile,
         limit_timestamp: &NaiveDateTime,
-    ) -> Result<Array2<f64>> {
+    ) -> Result<(Array2<f64>, Vec<String>)> {
         let drift_features = self
             .get_drift_features(drift_profile, &limit_timestamp.to_string())
             .await
@@ -86,12 +80,14 @@ impl DriftExecutor {
 
         let nd_feature_arr = Array2::from_shape_vec((num_rows, num_cols), feature_values)
             .with_context(|| "Shape error")?;
+
         let drift = Monitor::new().calculate_drift_from_sample(
             &feature_keys,
-            &nd_feature_arr.t().view(),
+            &nd_feature_arr.t().view(), // need to transpose because calculation is done at the row level across each feature
             drift_profile,
         )?;
-        Ok(drift)
+
+        Ok((drift, feature_keys))
     }
     fn map_dispatcher(dispatch_type: &AlertDispatchType) -> AlertDispatcher {
         match dispatch_type {
@@ -107,64 +103,64 @@ impl DriftExecutor {
     }
 
     pub async fn execute(&mut self) -> Result<()> {
-        loop {
-            let mut transaction: sqlx::Transaction<Postgres> = self.db_client.pool.begin().await?;
-            // Get drift profile
-            let profile = PostgresClient::get_drift_profile(&mut transaction)
+        let mut transaction: sqlx::Transaction<Postgres> = self.db_client.pool.begin().await?;
+
+        // Get drift profile
+        let profile = PostgresClient::get_drift_profile(&mut transaction)
+            .await
+            .with_context(|| "error retrieving drift profile(s) from db!")?;
+
+        if let Some(profile) = profile {
+            let drift_profile = serde_json::from_value::<DriftProfile>(profile.get("profile"))
+                .with_context(|| {
+                    "error converting postgres jsonb profile to struct type DriftProfile"
+                })?;
+
+            // switch back to previous run
+            let previous_run: NaiveDateTime = profile.get("previous_run");
+            let schedule: String = profile.get("schedule");
+
+            // Compute drift
+            let (drift_array, keys) = self
+                .compute_drift(&drift_profile, &previous_run)
                 .await
-                .with_context(|| "error retrieving drift profile(s) from db!")?;
+                .with_context(|| "error computing drift")?;
 
-            if let Some(profile) = profile {
-                let drift_profile = serde_json::from_value::<DriftProfile>(profile.get("profile"))
-                    .with_context(|| {
-                        "error converting postgres jsonb profile to struct type DriftProfile"
-                    })?;
+            // Get alerts
+            // keys are the feature names that match the order of the drift array columns
+            let alerts = generate_alerts(
+                &drift_array.view(),
+                keys,
+                drift_profile.config.alert_config.alert_rule,
+            )
+            .with_context(|| "error generating drift alerts")?;
 
-                // switch back to previous run
-                let previous_run: NaiveDateTime = profile.get("previous_run");
-                let schedule: String = profile.get("schedule");
+            // Check if non-default "Console" dispatcher type specified
+            self.alert_dispatcher =
+                Self::map_dispatcher(&drift_profile.config.alert_config.alert_dispatch_type);
 
-                // Compute drift
-                let drift_array = self
-                    .compute_drift(&drift_profile, &previous_run)
-                    .await
-                    .with_context(|| "error computing drift")?;
-
-                // Get alerts
-                let alerts = generate_alerts(
-                    &drift_array.view(),
-                    drift_profile.features.keys().cloned().collect(),
-                    drift_profile.config.alert_config.alert_rule,
-                )
-                .with_context(|| "error generating drift alerts")?;
-
-                // Check if non-default "Console" dispatcher type specified
-                self.alert_dispatcher =
-                    Self::map_dispatcher(&drift_profile.config.alert_config.alert_dispatch_type);
-
-                // Process alerts
-                self.alert_dispatcher
-                    .process_alerts(
-                        &alerts,
-                        &drift_profile.config.repository,
-                        &drift_profile.config.name,
-                    )
-                    .await?;
-
-                // Update run dates for profile
-                PostgresClient::update_drift_profile_run_dates(
-                    &mut transaction,
-                    &drift_profile.config.name,
+            // Process alerts
+            self.alert_dispatcher
+                .process_alerts(
+                    &alerts,
                     &drift_profile.config.repository,
-                    &drift_profile.config.version,
-                    &schedule,
+                    &drift_profile.config.name,
                 )
                 .await?;
-            } else {
-                break;
-            }
-            transaction.commit().await?;
+
+            // Update run dates for profile
+            PostgresClient::update_drift_profile_run_dates(
+                &mut transaction,
+                &drift_profile.config.name,
+                &drift_profile.config.repository,
+                &drift_profile.config.version,
+                &schedule,
+            )
+            .await?;
         }
+
+        transaction.commit().await?;
+
         Ok(())
     }
 }

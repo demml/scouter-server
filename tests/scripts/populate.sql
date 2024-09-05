@@ -4,7 +4,7 @@ VALUES
   (
     timezone('utc', now()),
     timezone('utc', now()),
-    'statworld',
+    'test_app',
     'statworld',
     '0.1.0',
     '{
@@ -69,7 +69,7 @@ VALUES
     (
       timezone('utc', now()),
       timezone('utc', now()),
-      'mathworld',
+      'test_app',
       'mathworld',
       '0.1.0',
       '{

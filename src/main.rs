@@ -17,7 +17,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use tracing::{error, info};
 
-const NUM_WORKERS: usize = 5;
+const NUM_WORKERS: usize = 3;
+const NUM_DISPATCHERS: usize = 3;
 
 async fn start_metrics_server() -> Result<(), anyhow::Error> {
     let app = metrics_app().with_context(|| "Failed to setup metrics app")?;
@@ -88,18 +89,21 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
     }
 
     // run drift background task
-    let alert_db_client =
-        PostgresClient::new(pool.clone()).with_context(|| "Failed to create Postgres client")?;
-    tokio::task::spawn(async move {
-        let mut drift_executor = DriftExecutor::new(alert_db_client);
-        let mut interval = tokio::time::interval(Duration::from_secs(4));
-        loop {
-            interval.tick().await;
-            if let Err(e) = drift_executor.execute().await {
-                error!("Drift Executor Error: {e}")
+    for i in 0..NUM_DISPATCHERS {
+        info!("Starting drift executor background task: {}", i);
+        let alert_db_client = PostgresClient::new(pool.clone())
+            .with_context(|| "Failed to create Postgres client")?;
+        tokio::task::spawn(async move {
+            let mut drift_executor = DriftExecutor::new(alert_db_client);
+            let mut interval = tokio::time::interval(Duration::from_secs(4));
+            loop {
+                interval.tick().await;
+                if let Err(e) = drift_executor.execute().await {
+                    error!("Drift Executor Error: {e}")
+                }
             }
-        }
-    });
+        });
+    }
 
     // start server
     let server_db_client =

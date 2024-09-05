@@ -9,7 +9,7 @@ use sqlx::{Postgres, Row};
 mod test_utils;
 
 #[tokio::test]
-async fn test_drift_executor() {
+async fn test_drift_executor_separate() {
     let pool = test_utils::setup_db(true).await.unwrap();
     let db_client = PostgresClient::new(pool.clone()).unwrap();
 
@@ -37,32 +37,24 @@ async fn test_drift_executor() {
 
     // switch back to previous run
     let previous_run: NaiveDateTime = profile.get("previous_run");
-    let schedule: String = profile.get("schedule");
 
-    let drift_array = drift_executor
+    let (drift_array, keys) = drift_executor
         .compute_drift(&drift_profile, &previous_run)
         .await
         .unwrap();
 
     assert_eq!(drift_array.shape(), [10, 3] as [usize; 2]);
 
-    println!("{:?}", drift_array);
-
-    let keys = drift_profile.features.keys();
-    println!("{:?}", keys);
-
     let alerts = generate_alerts(
         &drift_array.view(),
-        drift_profile.features.keys().cloned().collect(),
+        keys,
         drift_profile.config.alert_config.alert_rule,
     )
     .unwrap();
 
-    println!("{:?}", alerts);
-
     assert_eq!(
-        alerts.features.get("col_2").unwrap().alerts[0].zone,
-        "center"
+        alerts.features.get("col_3").unwrap().alerts[0].zone,
+        "Out of bounds"
     );
 
     ConsoleAlertDispatcher

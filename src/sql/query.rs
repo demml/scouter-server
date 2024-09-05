@@ -281,7 +281,7 @@ WHERE
 
         assert_eq!(
             formatted_sql,
-            "SELECT profile, next_run, schedule\nFROM schema.table\nWHERE active\n  AND next_run < CURRENT_TIMESTAMP\nLIMIT 1 FOR UPDATE SKIP LOCKED;"
+            "SELECT profile, previous_run, schedule\nFROM schema.table\nWHERE active\n  AND next_run < CURRENT_TIMESTAMP\nLIMIT 1 FOR UPDATE SKIP LOCKED;"
         );
     }
 
@@ -302,8 +302,9 @@ WHERE
         assert_eq!(
             formatted_sql,
             "UPDATE schema.table
-SET next_run = CURRENT_TIMESTAMP + interval '1 minute',
-    next_run     = '1970-01-01 00:00:00'
+SET previous_run = next_run,
+    next_run     = '1970-01-01 00:00:00',
+    updated_at   = timezone('utc', now())
 WHERE name = 'name'
   and repository = 'repository'
   and version = 'version';"

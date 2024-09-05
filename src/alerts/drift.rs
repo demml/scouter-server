@@ -7,11 +7,12 @@ use scouter::utils::types::{AlertDispatchType, DriftProfile};
 
 use anyhow::{Context, Result};
 
-use crate::alerts::dispatch::{AlertDispatcher, ConsoleAlertDispatcher, OpsGenieAlertDispatcher};
+use crate::alerts::dispatch::{
+    AlertDispatcher, ConsoleAlertDispatcher, HttpAlertDispatcher, OpsGenieAlerter, SlackAlerter,
+};
 use ndarray::Array2;
 use sqlx::{Postgres, Row};
 
-#[derive(Debug)]
 pub struct DriftExecutor {
     db_client: PostgresClient,
     alert_dispatcher: AlertDispatcher,
@@ -77,9 +78,11 @@ impl DriftExecutor {
         match dispatch_type {
             AlertDispatchType::Console => AlertDispatcher::Console(ConsoleAlertDispatcher),
             AlertDispatchType::OpsGenie => {
-                AlertDispatcher::OpsGenie(OpsGenieAlertDispatcher::default())
+                AlertDispatcher::OpsGenie(HttpAlertDispatcher::new(OpsGenieAlerter::default()))
             }
-            AlertDispatchType::Slack => panic!("Unsupported dispatcher type: Slack"),
+            AlertDispatchType::Slack => {
+                AlertDispatcher::Slack(HttpAlertDispatcher::new(SlackAlerter::default()))
+            }
             AlertDispatchType::Email => panic!("Unsupported dispatcher type: Email"),
         }
     }
@@ -98,7 +101,7 @@ impl DriftExecutor {
                         "error converting postgres jsonb profile to struct type DriftProfile"
                     })?;
                 let next_run: NaiveDateTime = profile.get("next_run");
-                let cron: String = profile.get("cron");
+                let schedule: String = profile.get("schedule");
                 // Compute drift
                 let drift_array = self
                     .compute_drift(&drift_profile, &next_run)
@@ -119,7 +122,11 @@ impl DriftExecutor {
 
                 // Process alerts
                 self.alert_dispatcher
-                    .process_alerts(&alerts, &drift_profile.config.name)
+                    .process_alerts(
+                        &alerts,
+                        &drift_profile.config.repository,
+                        &drift_profile.config.name,
+                    )
                     .await?;
 
                 // Update run dates for profile
@@ -128,7 +135,7 @@ impl DriftExecutor {
                     &drift_profile.config.name,
                     &drift_profile.config.repository,
                     &drift_profile.config.version,
-                    &cron,
+                    &schedule,
                 )
                 .await?;
             } else {

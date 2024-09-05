@@ -1,3 +1,3 @@
-INSERT INTO $table (name, repository, version, profile, cron, next_run) 
-VALUES ('$name', '$repository', '$version', '$profile', '$cron', '$next_run')
+INSERT INTO $table (name, repository, version, profile, schedule, next_run)
+VALUES ('$name', '$repository', '$version', '$profile', '$schedule', '$next_run')
 ON CONFLICT DO NOTHING;

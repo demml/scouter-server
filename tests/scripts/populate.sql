@@ -1,5 +1,5 @@
 -- Insert initial data into scouter.drift_profile
-INSERT INTO scouter.drift_profile (created_at, updated_at, name, repository, version, profile, active, schedule, previous_run, next_run)
+INSERT INTO scouter.drift_profile (created_at, updated_at, name, repository, version, profile, active, schedule, next_run, previous_run)
 VALUES
   (
     timezone('utc', now()),
@@ -46,15 +46,15 @@ VALUES
       "config": {
         "sample_size": 25,
         "sample": true,
-        "name": "statworld",
+        "name": "test_app",
         "repository": "statworld",
         "version": "0.1.0",
         "alert_config": {
-            "alert_dispatch_type": "Slack",
+            "alert_dispatch_type": "Console",
             "schedule": "0 0 0 * * *",
             "alert_rule": {
                   "process": {
-                    "rule": "8 16 4 8 2 4 1 1"
+                    "rule": "16 16 4 8 2 4 1 1"
                   },
                   "percentage": null
             }
@@ -63,8 +63,8 @@ VALUES
     }',
     true,
     '0 0 0 * * *',
-    timezone('utc', now() - interval '2 days'),
-    timezone('utc', now() - interval '1 days')
+    timezone('utc', now() - interval '1 days'),
+    timezone('utc', now() - interval '2 days')
   ),
     (
       timezone('utc', now()),
@@ -111,11 +111,11 @@ VALUES
       "config": {
         "sample_size": 25,
         "sample": true,
-        "name": "mathworld",
+        "name": "test_app",
         "repository": "mathworld",
         "version": "0.1.0",
         "alert_config": {
-            "alert_dispatch_type": "Slack",
+            "alert_dispatch_type": "Console",
             "schedule": "0 0 0 * * *",
             "alert_rule": {
                   "process": {
@@ -128,74 +128,74 @@ VALUES
       }',
       true,
       '0 0 0 * * *',
-      timezone('utc', now() - interval '2 days'),
-      timezone('utc', now() - interval '1 days')
+       timezone('utc', now() - interval '1 days'),
+      timezone('utc', now() - interval '2 days')
     );
 
 INSERT INTO scouter.drift (created_at, name, repository, feature, value, version)
 VALUES
-  (timezone('utc', now() - interval '1 days'), 'statworld', 'statworld', 'col_1', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '1 days'), 'statworld', 'statworld', 'col_2', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '1 days'), 'statworld', 'statworld', 'col_3', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '1 days'), 'statworld', 'statworld', 'col_1', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '1 days'), 'statworld', 'statworld', 'col_2', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '1 days'), 'statworld', 'statworld', 'col_3', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '1 days'), 'statworld', 'statworld', 'col_1', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '1 days'), 'statworld', 'statworld', 'col_2', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '1 days'), 'statworld', 'statworld', 'col_3', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '1 days'), 'statworld', 'statworld', 'col_1', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '1 days'), 'statworld', 'statworld', 'col_2', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '1 days'), 'statworld', 'statworld', 'col_3', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '1 days'), 'statworld', 'statworld', 'col_1', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '1 days'), 'statworld', 'statworld', 'col_2', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '1 days'), 'statworld', 'statworld', 'col_3', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '2 days'), 'statworld', 'statworld', 'col_1', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '2 days'), 'statworld', 'statworld', 'col_2', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '2 days'), 'statworld', 'statworld', 'col_3', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '2 days'), 'statworld', 'statworld', 'col_1', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '2 days'), 'statworld', 'statworld', 'col_2', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '2 days'), 'statworld', 'statworld', 'col_3', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '2 days'), 'statworld', 'statworld', 'col_1', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '2 days'), 'statworld', 'statworld', 'col_2', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '2 days'), 'statworld', 'statworld', 'col_3', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '2 days'), 'statworld', 'statworld', 'col_1', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '2 days'), 'statworld', 'statworld', 'col_2', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '2 days'), 'statworld', 'statworld', 'col_3', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '2 days'), 'statworld', 'statworld', 'col_1', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '2 days'), 'statworld', 'statworld', 'col_2', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '2 days'), 'statworld', 'statworld', 'col_3', random() * 20 - 10, '0.1.0');
+  (timezone('utc', now()), 'test_app', 'statworld', 'col_1', random() - 4, '0.1.0'),
+  (timezone('utc', now()), 'test_app', 'statworld', 'col_2', random() - 4, '0.1.0'),
+  (timezone('utc', now()), 'test_app', 'statworld', 'col_3', random() + 2, '0.1.0'),
+  (timezone('utc', now()), 'test_app', 'statworld', 'col_1', random() - 4, '0.1.0'),
+  (timezone('utc', now()), 'test_app', 'statworld', 'col_2', random() - 4, '0.1.0'),
+  (timezone('utc', now()), 'test_app', 'statworld', 'col_3', random() + 2, '0.1.0'),
+  (timezone('utc', now()), 'test_app', 'statworld', 'col_1', random() - 4, '0.1.0'),
+  (timezone('utc', now()), 'test_app', 'statworld', 'col_2', random() - 4, '0.1.0'),
+  (timezone('utc', now()), 'test_app', 'statworld', 'col_3', random() + 2, '0.1.0'),
+  (timezone('utc', now()), 'test_app', 'statworld', 'col_1', random() - 4, '0.1.0'),
+  (timezone('utc', now()), 'test_app', 'statworld', 'col_2', random() - 4, '0.1.0'),
+  (timezone('utc', now()), 'test_app', 'statworld', 'col_3', random() + 2, '0.1.0'),
+  (timezone('utc', now()), 'test_app', 'statworld', 'col_1', random() - 4, '0.1.0'),
+  (timezone('utc', now()), 'test_app', 'statworld', 'col_2', random() - 4, '0.1.0'),
+  (timezone('utc', now()), 'test_app', 'statworld', 'col_3', random() + 2, '0.1.0'),
+  (timezone('utc', now()), 'test_app', 'statworld', 'col_1', random() - 4, '0.1.0'),
+  (timezone('utc', now()), 'test_app', 'statworld', 'col_2', random() - 4, '0.1.0'),
+  (timezone('utc', now()), 'test_app', 'statworld', 'col_3', random() + 2, '0.1.0'),
+  (timezone('utc', now()), 'test_app', 'statworld', 'col_1', random() - 4, '0.1.0'),
+  (timezone('utc', now()), 'test_app', 'statworld', 'col_2', random() - 4, '0.1.0'),
+  (timezone('utc', now()), 'test_app', 'statworld', 'col_3', random() + 2, '0.1.0'),
+  (timezone('utc', now()), 'test_app', 'statworld', 'col_1', random() - 4, '0.1.0'),
+  (timezone('utc', now()), 'test_app', 'statworld', 'col_2', random() - 4, '0.1.0'),
+  (timezone('utc', now()), 'test_app', 'statworld', 'col_3', random() + 2, '0.1.0'),
+  (timezone('utc', now()), 'test_app', 'statworld', 'col_1', random() - 4, '0.1.0'),
+  (timezone('utc', now()), 'test_app', 'statworld', 'col_2', random() - 4, '0.1.0'),
+  (timezone('utc', now()), 'test_app', 'statworld', 'col_3', random() + 2, '0.1.0'),
+  (timezone('utc', now()), 'test_app', 'statworld', 'col_1', random() - 4, '0.1.0'),
+  (timezone('utc', now()), 'test_app', 'statworld', 'col_2', random() - 4, '0.1.0'),
+  (timezone('utc', now()), 'test_app', 'statworld', 'col_3', random() + 2, '0.1.0');
 
 
 
 INSERT INTO scouter.drift (created_at, name, repository, feature, value, version)
 VALUES
-  (timezone('utc', now() - interval '1 days'), 'mathworld', 'mathworld', 'col_3', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '1 days'), 'mathworld', 'mathworld', 'col_1', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '1 days'), 'mathworld', 'mathworld', 'col_2', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '1 days'), 'mathworld', 'mathworld', 'col_1', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '1 days'), 'mathworld', 'mathworld', 'col_2', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '1 days'), 'mathworld', 'mathworld', 'col_3', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '1 days'), 'mathworld', 'mathworld', 'col_1', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '1 days'), 'mathworld', 'mathworld', 'col_2', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '1 days'), 'mathworld', 'mathworld', 'col_3', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '1 days'), 'mathworld', 'mathworld', 'col_1', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '1 days'), 'mathworld', 'mathworld', 'col_2', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '1 days'), 'mathworld', 'mathworld', 'col_3', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '1 days'), 'mathworld', 'mathworld', 'col_1', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '1 days'), 'mathworld', 'mathworld', 'col_2', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '1 days'), 'mathworld', 'mathworld', 'col_3', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '2 days'), 'mathworld', 'mathworld', 'col_1', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '2 days'), 'mathworld', 'mathworld', 'col_2', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '2 days'), 'mathworld', 'mathworld', 'col_3', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '2 days'), 'mathworld', 'mathworld', 'col_1', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '2 days'), 'mathworld', 'mathworld', 'col_2', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '2 days'), 'mathworld', 'mathworld', 'col_3', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '2 days'), 'mathworld', 'mathworld', 'col_1', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '2 days'), 'mathworld', 'mathworld', 'col_2', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '2 days'), 'mathworld', 'mathworld', 'col_3', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '2 days'), 'mathworld', 'mathworld', 'col_1', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '2 days'), 'mathworld', 'mathworld', 'col_2', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '2 days'), 'mathworld', 'mathworld', 'col_3', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '2 days'), 'mathworld', 'mathworld', 'col_1', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '2 days'), 'mathworld', 'mathworld', 'col_2', random() * 20 - 10, '0.1.0'),
-  (timezone('utc', now() - interval '2 days'), 'mathworld', 'mathworld', 'col_3', random() * 20 - 10, '0.1.0');
+  (timezone('utc', now() - interval '1 days'), 'test_app', 'mathworld', 'col_3', random() * 20 - 10, '0.1.0'),
+  (timezone('utc', now() - interval '1 days'), 'test_app', 'mathworld', 'col_1', random() * 20 - 10, '0.1.0'),
+  (timezone('utc', now() - interval '1 days'), 'test_app', 'mathworld', 'col_2', random() * 20 - 10, '0.1.0'),
+  (timezone('utc', now() - interval '1 days'), 'test_app', 'mathworld', 'col_1', random() * 20 - 10, '0.1.0'),
+  (timezone('utc', now() - interval '1 days'), 'test_app', 'mathworld', 'col_2', random() * 20 - 10, '0.1.0'),
+  (timezone('utc', now() - interval '1 days'), 'test_app', 'mathworld', 'col_3', random() * 20 - 10, '0.1.0'),
+  (timezone('utc', now() - interval '1 days'), 'test_app', 'mathworld', 'col_1', random() * 20 - 10, '0.1.0'),
+  (timezone('utc', now() - interval '1 days'), 'test_app', 'mathworld', 'col_2', random() * 20 - 10, '0.1.0'),
+  (timezone('utc', now() - interval '1 days'), 'test_app', 'mathworld', 'col_3', random() * 20 - 10, '0.1.0'),
+  (timezone('utc', now() - interval '1 days'), 'test_app', 'mathworld', 'col_1', random() * 20 - 10, '0.1.0'),
+  (timezone('utc', now() - interval '1 days'), 'test_app', 'mathworld', 'col_2', random() * 20 - 10, '0.1.0'),
+  (timezone('utc', now() - interval '1 days'), 'test_app', 'mathworld', 'col_3', random() * 20 - 10, '0.1.0'),
+  (timezone('utc', now() - interval '1 days'), 'test_app', 'mathworld', 'col_1', random() * 20 - 10, '0.1.0'),
+  (timezone('utc', now() - interval '1 days'), 'test_app', 'mathworld', 'col_2', random() * 20 - 10, '0.1.0'),
+  (timezone('utc', now() - interval '1 days'), 'test_app', 'mathworld', 'col_3', random() * 20 - 10, '0.1.0'),
+  (timezone('utc', now() - interval '2 days'), 'test_app', 'mathworld', 'col_1', random() * 20 - 10, '0.1.0'),
+  (timezone('utc', now() - interval '2 days'), 'test_app', 'mathworld', 'col_2', random() * 20 - 10, '0.1.0'),
+  (timezone('utc', now() - interval '2 days'), 'test_app', 'mathworld', 'col_3', random() * 20 - 10, '0.1.0'),
+  (timezone('utc', now() - interval '2 days'), 'test_app', 'mathworld', 'col_1', random() * 20 - 10, '0.1.0'),
+  (timezone('utc', now() - interval '2 days'), 'test_app', 'mathworld', 'col_2', random() * 20 - 10, '0.1.0'),
+  (timezone('utc', now() - interval '2 days'), 'test_app', 'mathworld', 'col_3', random() * 20 - 10, '0.1.0'),
+  (timezone('utc', now() - interval '2 days'), 'test_app', 'mathworld', 'col_1', random() * 20 - 10, '0.1.0'),
+  (timezone('utc', now() - interval '2 days'), 'test_app', 'mathworld', 'col_2', random() * 20 - 10, '0.1.0'),
+  (timezone('utc', now() - interval '2 days'), 'test_app', 'mathworld', 'col_3', random() * 20 - 10, '0.1.0'),
+  (timezone('utc', now() - interval '2 days'), 'test_app', 'mathworld', 'col_1', random() * 20 - 10, '0.1.0'),
+  (timezone('utc', now() - interval '2 days'), 'test_app', 'mathworld', 'col_2', random() * 20 - 10, '0.1.0'),
+  (timezone('utc', now() - interval '2 days'), 'test_app', 'mathworld', 'col_3', random() * 20 - 10, '0.1.0'),
+  (timezone('utc', now() - interval '2 days'), 'test_app', 'mathworld', 'col_1', random() * 20 - 10, '0.1.0'),
+  (timezone('utc', now() - interval '2 days'), 'test_app', 'mathworld', 'col_2', random() * 20 - 10, '0.1.0'),
+  (timezone('utc', now() - interval '2 days'), 'test_app', 'mathworld', 'col_3', random() * 20 - 10, '0.1.0');

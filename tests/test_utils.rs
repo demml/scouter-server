@@ -69,13 +69,15 @@ pub async fn populate_topic(topic_name: &str) {
 
 pub async fn setup_db(clean_db: bool) -> Result<Pool<Postgres>, Error> {
     // set the postgres database url
-    env::set_var(
-        "DATABASE_URL",
-        "postgresql://postgres:admin@localhost:5432/monitor?",
-    );
+    unsafe {
+        env::set_var(
+            "DATABASE_URL",
+            "postgresql://postgres:admin@localhost:5432/monitor?",
+        );
+        env::set_var("MAX_CONNECTIONS", "10");
+    }
 
     // set the max connections for the postgres pool
-    env::set_var("MAX_CONNECTIONS", "10");
     let pool = create_db_pool(None).await.expect("error");
 
     // run migrations
@@ -88,8 +90,10 @@ pub async fn setup_db(clean_db: bool) -> Result<Pool<Postgres>, Error> {
         sqlx::raw_sql(
             r#"
             DELETE 
-            FROM scouter.drift  
-            WHERE name = 'test_app'
+            FROM scouter.drift;
+
+            DELETE 
+            FROM scouter.drift_profile;
             "#,
         )
         .fetch_all(&pool)
@@ -120,8 +124,10 @@ pub async fn teardown() -> Result<(), Error> {
     sqlx::raw_sql(
         r#"
             DELETE 
-            FROM scouter.drift  
-            WHERE name = 'test_app'
+            FROM scouter.drift;
+
+            DELETE 
+            FROM scouter.drift_profile;
             "#,
     )
     .fetch_all(&pool)

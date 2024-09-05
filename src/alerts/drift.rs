@@ -1,6 +1,9 @@
 use crate::sql::postgres::PostgresClient;
 use crate::sql::schema::QueryResult;
 use chrono::NaiveDateTime;
+use ndarray::parallel::prelude::IntoParallelIterator;
+use ndarray::parallel::prelude::ParallelIterator;
+use ndarray::Axis;
 use scouter::core::alert::generate_alerts;
 use scouter::core::monitor::Monitor;
 use scouter::utils::types::{AlertDispatchType, DriftProfile};
@@ -53,8 +56,10 @@ impl DriftExecutor {
     /// # Returns
     ///
     /// * `Result<Array2<f64>>` - Drift array
-    ///
-    async fn compute_drift(
+    ///[4.689594982612174, 6.2047471198144635, -1.5767263077850746, -8.16680601215904, 1.5195064739309707]
+    ///[-3.870641050564756, 6.833269767364413, 3.8078954278417676, 7.357095951767576, -1.4228759105945255]
+    /// [4.3655988469677, 9.732665607262106, 2.189892945591879, 9.50804413164153, 4.123409288225851]
+    pub async fn compute_drift(
         &self,
         drift_profile: &DriftProfile,
         limit_timestamp: &NaiveDateTime,
@@ -63,24 +68,27 @@ impl DriftExecutor {
             .get_drift_features(drift_profile, &limit_timestamp.to_string())
             .await
             .with_context(|| "error retrieving raw feature data to compute drift")?;
+
         let feature_keys: Vec<String> = drift_features.features.keys().cloned().collect();
-        let feature_values: Vec<f64> = drift_features
+        let feature_values = drift_features
             .features
             .values()
             .cloned()
             .flat_map(|feature| feature.values.clone())
-            .collect();
+            .collect::<Vec<_>>();
+
         let num_rows = drift_features.features.len();
         let num_cols = if num_rows > 0 {
             feature_values.len() / num_rows
         } else {
             0
         };
+
         let nd_feature_arr = Array2::from_shape_vec((num_rows, num_cols), feature_values)
             .with_context(|| "Shape error")?;
         let drift = Monitor::new().calculate_drift_from_sample(
             &feature_keys,
-            &nd_feature_arr.view(),
+            &nd_feature_arr.t().view(),
             drift_profile,
         )?;
         Ok(drift)
@@ -158,30 +166,5 @@ impl DriftExecutor {
             transaction.commit().await?;
         }
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-
-    use crate::api::setup::create_db_pool;
-
-    use super::*;
-    use std::env;
-    use tokio;
-
-    async fn test_drift_executor() {
-        unsafe {
-            env::set_var(
-                "DATABASE_URL",
-                "postgresql://postgres:admin@localhost:5432/monitor?",
-            );
-        }
-
-        let pool = create_db_pool(None)
-            .await
-            .with_context(|| "Failed to create Postgres client")
-            .unwrap();
-        PostgresClient::new(pool).unwrap();
     }
 }

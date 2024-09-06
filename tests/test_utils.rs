@@ -14,10 +14,9 @@ use sqlx::Postgres;
 use std::env;
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::info;
 
 #[allow(dead_code)]
-pub async fn populate_topic(topic_name: &str) {
+pub async fn populate_topic(topic_name: &str) -> Result<(), Error> {
     // Produce some messages
 
     let kafka_brokers = env::var("KAFKA_BROKERS").unwrap_or_else(|_| "localhost:9092".to_owned());
@@ -30,41 +29,38 @@ pub async fn populate_topic(topic_name: &str) {
         .create()
         .expect("Producer creation error");
 
-    let _ = (0..5)
-        .map(|i| async move {
-            // The send operation on the topic returns a future, which will be
-            // completed once the result or failure from Kafka is received.
-            let feature_names = vec!["feature0", "feature1", "feature2"];
+    for i in 0..15 {
+        // The send operation on the topic returns a future, which will be
+        // completed once the result or failure from Kafka is received.
+        let feature_names = vec!["feature0", "feature1", "feature2"];
 
-            for feature_name in feature_names {
-                let record = DriftRecord {
-                    created_at: chrono::Utc::now().naive_utc(),
-                    name: "test_app".to_string(),
-                    repository: "test".to_string(),
-                    feature: feature_name.to_string(),
-                    value: i as f64,
-                    version: "1.0.0".to_string(),
-                };
+        for feature_name in feature_names {
+            let record = DriftRecord {
+                created_at: chrono::Utc::now().naive_utc(),
+                name: "test_app".to_string(),
+                repository: "test".to_string(),
+                feature: feature_name.to_string(),
+                value: i as f64,
+                version: "1.0.0".to_string(),
+            };
 
-                let record_string = serde_json::to_string(&record).unwrap();
+            let record_string = serde_json::to_string(&record).unwrap();
 
-                let _ = producer
-                    .send(
-                        FutureRecord::to(topic_name)
-                            .payload(&record_string)
-                            .key("Key"),
-                        Duration::from_secs(0),
-                    )
-                    .await;
+            let produce_future = producer.send(
+                FutureRecord::to(topic_name)
+                    .payload(&record_string)
+                    .key("Key"),
+                Duration::from_secs(0),
+            );
+
+            match produce_future.await {
+                Ok(delivery) => println!("Sent: {:?}", delivery),
+                Err((e, _)) => println!("Error: {:?}", e),
             }
-
-            // This will be executed when the result is received.
-            info!("Delivery status for message {} received", i);
-            i
-        })
-        .collect::<Vec<_>>();
-
-    producer.flush(Duration::from_secs(1)).unwrap()
+        }
+    }
+    producer.flush(Duration::from_secs(1)).unwrap();
+    Ok(())
 }
 
 pub async fn setup_db(clean_db: bool) -> Result<Pool<Postgres>, Error> {
@@ -75,6 +71,7 @@ pub async fn setup_db(clean_db: bool) -> Result<Pool<Postgres>, Error> {
             "postgresql://postgres:admin@localhost:5432/monitor?",
         );
         env::set_var("MAX_CONNECTIONS", "10");
+        env::set_var("KAFKA_BROKERS", "localhost:9092");
     }
 
     // set the max connections for the postgres pool

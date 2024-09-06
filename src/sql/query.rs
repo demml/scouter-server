@@ -412,8 +412,7 @@ ORDER BY
             "SELECT
 created_at,
 feature,
-value,
-version
+value
 FROM schema.table
 WHERE
     created_at > '2024-01-01 00:00:00'

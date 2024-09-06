@@ -367,7 +367,7 @@ mod tests {
         }
         let expected_alert_body = json!(
                 {
-                    "message": "Model drift detected for test_repo/test_ml_model",
+                    "message": "Model drift detected for test_repo/test_ml_model/1.0.0",
                     "description": "Features have drifted",
                     "responders":[
                         {"name":"ds-team", "type":"team"}
@@ -499,7 +499,7 @@ mod tests {
                     "type": "header",
                     "text": {
                         "type": "plain_text",
-                        "text": ":red_circle: Model drift detected for test_repo/test_ml_model :red_circle:",
+                        "text": ":red_circle: Model drift detected for test_repo/test_ml_model/1.0.0 :red_circle:",
                         "emoji": true
                     }
                 },

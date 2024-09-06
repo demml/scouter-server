@@ -88,6 +88,7 @@ pub async fn stream_from_kafka_topic(
     message_handler: &MessageHandler,
     consumer: &StreamConsumer,
 ) -> Result<(), anyhow::Error> {
+    println!("Polling kafka topic");
     let mut stream = consumer.stream();
     let message = stream.next().await;
 

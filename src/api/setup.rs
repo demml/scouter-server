@@ -13,6 +13,7 @@ pub async fn setup_logging() -> Result<(), anyhow::Error> {
 
     tracing_subscriber::fmt()
         .json()
+        .with_ansi(true)
         .with_target(false)
         .flatten_event(true)
         .with_thread_ids(true)

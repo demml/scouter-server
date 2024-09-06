@@ -5,20 +5,19 @@ use crate::sql::query::{
 };
 use crate::sql::schema::{DriftRecord, FeatureResult, QueryResult};
 use anyhow::*;
+use chrono::Utc;
+use cron::Schedule;
 use futures::future::join_all;
 use include_dir::{include_dir, Dir};
+use scouter::utils::types::DriftProfile;
 use sqlx::{
     postgres::{PgQueryResult, PgRow},
     Pool, Postgres, QueryBuilder, Row, Transaction,
 };
-
-use chrono::Utc;
-use cron::Schedule;
-use scouter::utils::types::DriftProfile;
 use std::collections::BTreeMap;
 use std::result::Result::Ok;
 use std::str::FromStr;
-use tracing::error;
+use tracing::{error, warn};
 
 static _MIGRATIONS: Dir = include_dir!("migrations");
 
@@ -473,15 +472,26 @@ impl PostgresClient {
             })
             .collect::<Vec<_>>();
 
+        // check if all feature values have the same length
+        // log a warning if they don't
+        if !feature_sizes.iter().all(|size| *size == feature_sizes[0]) {
+            let msg = format!(
+                "Feature values have different lengths for drift profile: {}/{}/{}",
+                name, repository, version
+            );
+
+            warn!(
+                "{}, Timestamp: {:?}, feature sizes: {:?}",
+                msg, limit_timestamp, feature_sizes
+            );
+        }
+
         // Get smallest non-zero feature size
         let min_feature_size = feature_sizes
             .iter()
             .filter(|size| **size > 0)
             .min()
             .unwrap_or(&0);
-
-        println!("feature sizes: {:?}", feature_sizes);
-        println!("min_feature_size: {:?}", min_feature_size);
 
         for data in query_results {
             match data {
@@ -501,8 +511,6 @@ impl PostgresClient {
                             values.push(row.get("value"));
                         }
                     });
-
-                    println!("feature: {:?} size: {:?}", feature_name, values.len());
 
                     query_result
                         .features

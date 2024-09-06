@@ -60,7 +60,6 @@ pub async fn populate_topic(topic_name: &str) -> Result<(), Error> {
         }
     }
     producer.flush(Duration::from_secs(1)).unwrap();
-    println!("Flushed producer");
     Ok(())
 }
 
@@ -72,7 +71,6 @@ pub async fn setup_db(clean_db: bool) -> Result<Pool<Postgres>, Error> {
             "postgresql://postgres:admin@localhost:5432/monitor?",
         );
         env::set_var("MAX_CONNECTIONS", "10");
-        env::set_var("KAFKA_BROKERS", "localhost:9092");
     }
 
     // set the max connections for the postgres pool

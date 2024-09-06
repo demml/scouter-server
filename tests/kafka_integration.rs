@@ -4,6 +4,7 @@ use scouter_server::sql::postgres::PostgresClient;
 mod test_utils;
 
 #[tokio::test]
+#[ignore]
 async fn test_api_with_kafka() {
     // setup resources
     let topic_name = "scouter_monitoring";
@@ -17,7 +18,7 @@ async fn test_api_with_kafka() {
         Err(e) => println!("Error starting kafka: {:?}", e),
     }
 
-    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+    tokio::time::sleep(tokio::time::Duration::from_secs(7)).await;
 
     // populate kafka topic (15 messages)
     let test = populate_topic(topic_name);

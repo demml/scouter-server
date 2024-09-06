@@ -104,9 +104,6 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
                 }
             }
         });
-
-        // set delay between starting drift executors
-        sleep(Duration::from_secs(1)).await;
     }
 
     // start server

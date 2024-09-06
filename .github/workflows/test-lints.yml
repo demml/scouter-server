@@ -57,6 +57,7 @@ jobs:
         run: docker compose -f "docker-compose.yml" down
 
   test-kafka:
+    needs: test-os
     name: test kafka
 
     strategy:

@@ -1,23 +1,23 @@
 use crate::sql::query::{
     GetBinnedFeatureValuesParams, GetDriftProfileParams, GetFeatureValuesParams, GetFeaturesParams,
     InsertDriftProfileParams, InsertParams, Queries, UpdateDriftProfileRunDatesParams,
+    UpdateDriftProfileStatusParams,
 };
 use crate::sql::schema::{DriftRecord, FeatureResult, QueryResult};
 use anyhow::*;
+use chrono::Utc;
+use cron::Schedule;
 use futures::future::join_all;
 use include_dir::{include_dir, Dir};
+use scouter::utils::types::DriftProfile;
 use sqlx::{
     postgres::{PgQueryResult, PgRow},
     Pool, Postgres, QueryBuilder, Row, Transaction,
 };
-
-use chrono::Utc;
-use cron::Schedule;
-use scouter::utils::types::DriftProfile;
 use std::collections::BTreeMap;
 use std::result::Result::Ok;
 use std::str::FromStr;
-use tracing::error;
+use tracing::{error, warn};
 
 static _MIGRATIONS: Dir = include_dir!("migrations");
 
@@ -154,11 +154,11 @@ impl PostgresClient {
             repository: drift_profile.config.repository.clone(),
             version: drift_profile.config.version.clone(),
             profile: serde_json::to_string(&drift_profile).unwrap(),
+            active: false,
             schedule: drift_profile.config.alert_config.schedule.clone(),
             next_run: next_run.naive_utc(),
+            previous_run: next_run.naive_utc(),
         };
-
-        println!("{:?}", query.format(&params).as_str());
 
         let query_result: std::prelude::v1::Result<sqlx::postgres::PgQueryResult, sqlx::Error> =
             sqlx::raw_sql(query.format(&params).as_str())
@@ -177,7 +177,7 @@ impl PostgresClient {
     pub async fn get_drift_profile(
         transaction: &mut Transaction<'_, Postgres>,
     ) -> Result<Option<PgRow>, Error> {
-        let query = Queries::GetDriftProfile.get_query();
+        let query = Queries::GetDriftTask.get_query();
 
         let params = GetDriftProfileParams {
             table: "scouter.drift_profile".to_string(),
@@ -464,6 +464,35 @@ impl PostgresClient {
             features: BTreeMap::new(),
         };
 
+        let feature_sizes = query_results
+            .iter()
+            .map(|result| match result {
+                Ok(result) => result.len(),
+                Err(_) => 0,
+            })
+            .collect::<Vec<_>>();
+
+        // check if all feature values have the same length
+        // log a warning if they don't
+        if !feature_sizes.iter().all(|size| *size == feature_sizes[0]) {
+            let msg = format!(
+                "Feature values have different lengths for drift profile: {}/{}/{}",
+                name, repository, version
+            );
+
+            warn!(
+                "{}, Timestamp: {:?}, feature sizes: {:?}",
+                msg, limit_timestamp, feature_sizes
+            );
+        }
+
+        // Get smallest non-zero feature size
+        let min_feature_size = feature_sizes
+            .iter()
+            .filter(|size| **size > 0)
+            .min()
+            .unwrap_or(&0);
+
         for data in query_results {
             match data {
                 Ok(data) => {
@@ -476,10 +505,12 @@ impl PostgresClient {
                     let mut created_at = Vec::new();
                     let mut values = Vec::new();
 
-                    for row in data {
-                        created_at.push(row.get("created_at"));
-                        values.push(row.get("value"));
-                    }
+                    data.iter().enumerate().for_each(|(i, row)| {
+                        if i < *min_feature_size {
+                            created_at.push(row.get("created_at"));
+                            values.push(row.get("value"));
+                        }
+                    });
 
                     query_result
                         .features
@@ -506,6 +537,36 @@ impl PostgresClient {
             Err(e) => {
                 error!("Failed to run query: {:?}", e);
                 Err(anyhow!("Failed to run query: {:?}", e))
+            }
+        }
+    }
+
+    pub async fn update_drift_profile_status(
+        &self,
+        name: &str,
+        repository: &str,
+        version: &str,
+        active: &bool,
+    ) -> Result<(), anyhow::Error> {
+        let query = Queries::UpdateDriftProfileStatus.get_query();
+
+        let params = UpdateDriftProfileStatusParams {
+            table: self.profile_table_name.to_string(),
+            name: name.to_string(),
+            repository: repository.to_string(),
+            version: version.to_string(),
+            active: *active,
+        };
+
+        let query_result = sqlx::raw_sql(query.format(&params).as_str())
+            .execute(&self.pool)
+            .await;
+
+        match query_result {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                error!("Failed to update drift profile status: {:?}", e);
+                Err(anyhow!("Failed to update drift profile status: {:?}", e))
             }
         }
     }

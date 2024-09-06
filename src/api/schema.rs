@@ -20,3 +20,11 @@ pub struct DriftRecordRequest {
     pub value: f64,
     pub version: String,
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ProfileStatusRequest {
+    pub name: String,
+    pub repository: String,
+    pub version: String,
+    pub active: bool,
+}

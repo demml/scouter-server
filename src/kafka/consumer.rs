@@ -90,7 +90,6 @@ pub async fn stream_from_kafka_topic(
 ) -> Result<(), anyhow::Error> {
     let mut stream = consumer.stream();
     let message = stream.next().await;
-
     match message {
         Some(Ok(msg)) => {
             let payload = msg.payload().unwrap();

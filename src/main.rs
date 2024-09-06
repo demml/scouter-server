@@ -7,17 +7,12 @@ use crate::alerts::drift::DriftExecutor;
 use crate::api::metrics::metrics_app;
 use crate::api::route::AppState;
 use crate::api::setup::{create_db_pool, setup_logging};
-use crate::kafka::consumer::start_kafka_background_poll;
+use crate::kafka::startup::startup_kafka;
 use crate::sql::postgres::PostgresClient;
 use anyhow::Context;
 use api::route::create_router;
-use futures::stream::FuturesUnordered;
-use futures::StreamExt;
 use std::sync::Arc;
-use std::time::Duration;
 use tracing::{error, info};
-
-const NUM_WORKERS: usize = 5;
 
 async fn start_metrics_server() -> Result<(), anyhow::Error> {
     let app = metrics_app().with_context(|| "Failed to setup metrics app")?;
@@ -47,59 +42,30 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
     // run migrations
     sqlx::migrate!().run(&pool).await?;
 
-    // setup background task if kafka is enabled
+    // setup background kafka task if kafka is enabled
     if std::env::var("KAFKA_BROKERS").is_ok() {
-        info!("Starting Kafka consumer");
-        let brokers = std::env::var("KAFKA_BROKERS").unwrap();
-        let topics = vec![std::env::var("KAFKA_TOPIC").unwrap_or("scouter_monitoring".to_string())];
-        let group_id = std::env::var("KAFKA_GROUP").unwrap_or("scouter".to_string());
-        let username: Option<String> = std::env::var("KAFKA_USERNAME").ok();
-        let password: Option<String> = std::env::var("KAFKA_PASSWORD").ok();
-        let security_protocol: Option<String> = Some(
-            std::env::var("KAFKA_SECURITY_PROTOCOL")
-                .ok()
-                .unwrap_or_else(|| "SASL_SSL".to_string()),
-        );
-        let sasl_mechanism: Option<String> = Some(
-            std::env::var("KAFKA_SASL_MECHANISM")
-                .ok()
-                .unwrap_or_else(|| "PLAIN".to_string()),
-        );
-
-        let _background = (0..NUM_WORKERS)
-            .map(|_| {
-                let kafka_db_client = PostgresClient::new(pool.clone())
-                    .with_context(|| "Failed to create Postgres client")
-                    .unwrap();
-                let message_handler = kafka::consumer::MessageHandler::Postgres(kafka_db_client);
-                tokio::spawn(start_kafka_background_poll(
-                    message_handler,
-                    group_id.clone(),
-                    brokers.clone(),
-                    topics.clone(),
-                    username.clone(),
-                    password.clone(),
-                    security_protocol.clone(),
-                    sasl_mechanism.clone(),
-                ))
-            })
-            .collect::<FuturesUnordered<_>>()
-            .for_each(|_| async {});
+        startup_kafka(pool.clone()).await?;
     }
 
     // run drift background task
-    let alert_db_client =
-        PostgresClient::new(pool.clone()).with_context(|| "Failed to create Postgres client")?;
-    tokio::task::spawn(async move {
-        let mut drift_executor = DriftExecutor::new(alert_db_client);
-        let mut interval = tokio::time::interval(Duration::from_secs(4));
-        loop {
-            interval.tick().await;
-            if let Err(e) = drift_executor.execute().await {
-                error!("Drift Executor Error: {e}")
+    let num_scheduler_workers = std::env::var("NUM_SCOUTER_SCHEDULER_WORKERS")
+        .unwrap_or_else(|_| "3".to_string())
+        .parse::<usize>()
+        .with_context(|| "Failed to parse NUM_SCHEDULER_WORKERS")?;
+
+    for i in 0..num_scheduler_workers {
+        info!("Starting drift poller background task: {}", i);
+        let alert_db_client = PostgresClient::new(pool.clone())
+            .with_context(|| "Failed to create Postgres client")?;
+        tokio::task::spawn(async move {
+            let mut drift_executor = DriftExecutor::new(alert_db_client);
+            loop {
+                if let Err(e) = drift_executor.poll_for_tasks().await {
+                    error!("Alert poller error: {:?}", e);
+                }
             }
-        }
-    });
+        });
+    }
 
     // start server
     let server_db_client =

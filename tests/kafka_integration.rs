@@ -1,10 +1,9 @@
 use crate::test_utils::*;
+use scouter_server::kafka::startup::startup_kafka;
 use scouter_server::sql::postgres::PostgresClient;
-use sqlx::Row;
 mod test_utils;
-use scouter_server::sql::schema::DriftRecord;
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 #[ignore]
 async fn test_api_with_kafka() {
     // setup resources
@@ -12,8 +11,21 @@ async fn test_api_with_kafka() {
     let pool = test_utils::setup_db(true).await.unwrap();
     let db_client = PostgresClient::new(pool.clone()).unwrap();
 
+    let startup = startup_kafka(pool.clone());
+
+    match startup.await {
+        Ok(_) => println!("Successfully started kafka"),
+        Err(e) => println!("Error starting kafka: {:?}", e),
+    }
+
+    tokio::time::sleep(tokio::time::Duration::from_secs(7)).await;
+
     // populate kafka topic (15 messages)
-    populate_topic(topic_name).await;
+    let test = populate_topic(topic_name);
+    match test.await {
+        Ok(_) => println!("Successfully populated kafka topic"),
+        Err(e) => println!("Error populating kafka topic: {:?}", e),
+    }
 
     // sleep for 5 seconds to allow kafka to process messages
     tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
@@ -21,8 +33,8 @@ async fn test_api_with_kafka() {
     let result = db_client
         .raw_query(
             r#"
-                    SELECT * 
-                    FROM scouter.drift  
+                    SELECT *
+                    FROM scouter.drift
                     WHERE name = 'test_app'
                     LIMIT 10
                     "#,
@@ -32,19 +44,5 @@ async fn test_api_with_kafka() {
 
     let count = result.len();
 
-    // iterate over the result and create DriftRecord
-    for row in result {
-        let record = DriftRecord {
-            created_at: row.get("created_at"),
-            name: row.get("name"),
-            repository: row.get("repository"),
-            feature: row.get("feature"),
-            value: row.get("value"),
-            version: row.get("version"),
-        };
-
-        println!("{:?}", record);
-    }
-
-    assert_eq!(count, 1);
+    assert_eq!(count, 10);
 }

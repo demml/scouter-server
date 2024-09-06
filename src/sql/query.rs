@@ -8,9 +8,10 @@ const GET_FEATURES: &str = include_str!("scripts/unique_features.sql");
 const GET_BINNED_FEATURE_VALUES: &str = include_str!("scripts/binned_feature_values.sql");
 const GET_FEATURE_VALUES: &str = include_str!("scripts/feature_values.sql");
 const INSERT_DRIFT_PROFILE: &str = include_str!("scripts/insert_drift_profile.sql");
-const GET_DRIFT_PROFILE: &str = include_str!("scripts/get_drift_profile.sql");
+const GET_DRIFT_TASK: &str = include_str!("scripts/poll_for_drift_task.sql");
 const UPDATE_DRIFT_PROFILE_RUN_DATES: &str =
     include_str!("scripts/update_drift_profile_run_dates.sql");
+const UPDATE_DRIFT_PROFILE_STATUS: &str = include_str!("scripts/update_drift_profile_status.sql");
 pub trait ToMap {
     fn to_map(&self) -> BTreeMap<String, String>;
 }
@@ -31,6 +32,26 @@ impl ToMap for UpdateDriftProfileRunDatesParams {
         params.insert("repository".to_string(), self.repository.clone());
         params.insert("version".to_string(), self.version.clone());
         params.insert("next_run".to_string(), self.next_run.to_string());
+        params
+    }
+}
+
+pub struct UpdateDriftProfileStatusParams {
+    pub table: String,
+    pub name: String,
+    pub repository: String,
+    pub version: String,
+    pub active: bool,
+}
+
+impl ToMap for UpdateDriftProfileStatusParams {
+    fn to_map(&self) -> BTreeMap<String, String> {
+        let mut params = BTreeMap::new();
+        params.insert("table".to_string(), self.table.clone());
+        params.insert("name".to_string(), self.name.clone());
+        params.insert("repository".to_string(), self.repository.clone());
+        params.insert("version".to_string(), self.version.clone());
+        params.insert("active".to_string(), self.active.to_string());
         params
     }
 }
@@ -120,8 +141,10 @@ pub struct InsertDriftProfileParams {
     pub repository: String,
     pub version: String,
     pub profile: String,
+    pub active: bool,
     pub schedule: String,
     pub next_run: NaiveDateTime,
+    pub previous_run: NaiveDateTime,
 }
 
 impl ToMap for InsertDriftProfileParams {
@@ -132,8 +155,10 @@ impl ToMap for InsertDriftProfileParams {
         params.insert("repository".to_string(), self.repository.clone());
         params.insert("version".to_string(), self.version.clone());
         params.insert("profile".to_string(), self.profile.clone());
+        params.insert("active".to_string(), self.active.to_string());
         params.insert("schedule".to_string(), self.schedule.clone());
         params.insert("next_run".to_string(), self.next_run.to_string());
+        params.insert("previous_run".to_string(), self.previous_run.to_string());
 
         params
     }
@@ -171,8 +196,9 @@ pub enum Queries {
     InsertDriftProfile,
     GetBinnedFeatureValues,
     GetFeatureValues,
-    GetDriftProfile,
+    GetDriftTask,
     UpdateDriftProfileRunDates,
+    UpdateDriftProfileStatus,
 }
 
 impl Queries {
@@ -184,8 +210,9 @@ impl Queries {
             Queries::GetBinnedFeatureValues => SqlQuery::new(GET_BINNED_FEATURE_VALUES),
             Queries::GetFeatureValues => SqlQuery::new(GET_FEATURE_VALUES),
             Queries::InsertDriftProfile => SqlQuery::new(INSERT_DRIFT_PROFILE),
-            Queries::GetDriftProfile => SqlQuery::new(GET_DRIFT_PROFILE),
+            Queries::GetDriftTask => SqlQuery::new(GET_DRIFT_TASK),
             Queries::UpdateDriftProfileRunDates => SqlQuery::new(UPDATE_DRIFT_PROFILE_RUN_DATES),
+            Queries::UpdateDriftProfileStatus => SqlQuery::new(UPDATE_DRIFT_PROFILE_STATUS),
         }
     }
 }
@@ -271,7 +298,7 @@ WHERE
 
     #[test]
     fn test_get_drift_profile_query() {
-        let query = Queries::GetDriftProfile.get_query();
+        let query = Queries::GetDriftTask.get_query();
 
         let params = GetDriftProfileParams {
             table: "schema.table".to_string(),
@@ -281,7 +308,7 @@ WHERE
 
         assert_eq!(
             formatted_sql,
-            "SELECT profile, next_run, schedule\nFROM schema.table\nWHERE active\n  AND next_run < CURRENT_TIMESTAMP\nLIMIT 1 FOR UPDATE SKIP LOCKED;"
+            "SELECT name, repository, version, profile, previous_run, schedule\nFROM schema.table\nWHERE active\n  AND next_run < CURRENT_TIMESTAMP\nLIMIT 1 FOR UPDATE SKIP LOCKED;"
         );
     }
 
@@ -302,8 +329,9 @@ WHERE
         assert_eq!(
             formatted_sql,
             "UPDATE schema.table
-SET next_run = CURRENT_TIMESTAMP + interval '1 minute',
-    next_run     = '1970-01-01 00:00:00'
+SET previous_run = next_run,
+    next_run     = '1970-01-01 00:00:00',
+    updated_at   = timezone('utc', now())
 WHERE name = 'name'
   and repository = 'repository'
   and version = 'version';"
@@ -384,8 +412,7 @@ ORDER BY
             "SELECT
 created_at,
 feature,
-value,
-version
+value
 FROM schema.table
 WHERE
     created_at > '2024-01-01 00:00:00'

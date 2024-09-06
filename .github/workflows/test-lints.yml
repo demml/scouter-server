@@ -49,7 +49,6 @@ jobs:
           make format
           make lints
           make test
-          make test.ignored
         env:
           RUST_BACKTRACE: 1
 

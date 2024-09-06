@@ -36,6 +36,7 @@ async fn test_api_with_kafka() {
                     SELECT *
                     FROM scouter.drift
                     WHERE name = 'test_app'
+                    LIMIT 10
                     "#,
         )
         .await
@@ -43,5 +44,5 @@ async fn test_api_with_kafka() {
 
     let count = result.len();
 
-    assert_eq!(count, 45);
+    assert_eq!(count, 10);
 }

@@ -15,7 +15,6 @@ use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::time::sleep;
 use tracing::{error, info};
 
 const NUM_WORKERS: usize = 3;

@@ -178,7 +178,7 @@ impl PostgresClient {
     pub async fn get_drift_profile(
         transaction: &mut Transaction<'_, Postgres>,
     ) -> Result<Option<PgRow>, Error> {
-        let query = Queries::GetDriftProfile.get_query();
+        let query = Queries::GetDriftTask.get_query();
 
         let params = GetDriftProfileParams {
             table: "scouter.drift_profile".to_string(),

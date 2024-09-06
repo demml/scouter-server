@@ -29,17 +29,14 @@ impl DriftExecutor {
 
     async fn get_drift_features(
         &self,
-        profile: &DriftProfile,
+        name: &str,
+        repository: &str,
+        version: &str,
         limit_time_stamp: &str,
     ) -> Result<QueryResult> {
         let records = self
             .db_client
-            .get_drift_records(
-                profile.config.name.as_str(),
-                profile.config.repository.as_str(),
-                profile.config.version.as_str(),
-                limit_time_stamp,
-            )
+            .get_drift_records(name, repository, version, limit_time_stamp)
             .await?;
         Ok(records)
     }
@@ -58,9 +55,12 @@ impl DriftExecutor {
         &self,
         drift_profile: &DriftProfile,
         limit_timestamp: &NaiveDateTime,
+        name: &str,
+        repository: &str,
+        version: &str,
     ) -> Result<(Array2<f64>, Vec<String>)> {
         let drift_features = self
-            .get_drift_features(drift_profile, &limit_timestamp.to_string())
+            .get_drift_features(name, repository, version, &limit_timestamp.to_string())
             .await
             .with_context(|| "error retrieving raw feature data to compute drift")?;
 
@@ -118,16 +118,18 @@ impl DriftExecutor {
         &mut self,
         drift_profile: DriftProfile,
         previous_run: NaiveDateTime,
+        name: &str,
+        repository: &str,
+        version: &str,
     ) -> Result<(), anyhow::Error> {
         info!(
             "Processing drift task for profile: {}/{}/{}",
-            drift_profile.config.repository,
-            drift_profile.config.name,
-            drift_profile.config.version
+            repository, name, version
         );
+
         // Compute drift
         let (drift_array, keys) = self
-            .compute_drift(&drift_profile, &previous_run)
+            .compute_drift(&drift_profile, &previous_run, name, repository, version)
             .await
             .with_context(|| "error computing drift")?;
 
@@ -152,11 +154,7 @@ impl DriftExecutor {
 
         // Process alerts
         self.alert_dispatcher
-            .process_alerts(
-                &alerts,
-                &drift_profile.config.repository,
-                &drift_profile.config.name,
-            )
+            .process_alerts(&alerts, repository, name, version)
             .await
             .with_context(|| "error processing alerts")?;
 
@@ -178,6 +176,12 @@ impl DriftExecutor {
             .with_context(|| "error retrieving drift profile(s) from db!")?;
 
         if let Some(task) = task {
+            // parse task args
+            let name: String = task.get("name");
+            let repository: String = task.get("repository");
+            let version: String = task.get("version");
+            let schedule: String = task.get("schedule");
+
             let drift_profile = serde_json::from_value::<DriftProfile>(task.get("profile"))
                 .with_context(|| {
                     "error converting postgres jsonb profile to struct type DriftProfile"
@@ -185,7 +189,13 @@ impl DriftExecutor {
 
             // Process task
             let result = self
-                .process_task(drift_profile, task.get("previous_run"))
+                .process_task(
+                    drift_profile,
+                    task.get("previous_run"),
+                    &name,
+                    &repository,
+                    &version,
+                )
                 .await;
 
             match result {
@@ -200,10 +210,10 @@ impl DriftExecutor {
             // Update run dates for profile
             PostgresClient::update_drift_profile_run_dates(
                 &mut transaction,
-                task.get("name"),
-                task.get("repository"),
-                task.get("version"),
-                task.get("schedule"),
+                &name,
+                &repository,
+                &version,
+                &schedule,
             )
             .await?;
         } else {

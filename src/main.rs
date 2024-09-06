@@ -7,12 +7,10 @@ use crate::alerts::drift::DriftExecutor;
 use crate::api::metrics::metrics_app;
 use crate::api::route::AppState;
 use crate::api::setup::{create_db_pool, setup_logging};
-use crate::kafka::consumer::start_kafka_background_poll;
+use crate::kafka::startup::startup_kafka;
 use crate::sql::postgres::PostgresClient;
 use anyhow::Context;
 use api::route::create_router;
-use futures::stream::FuturesUnordered;
-use futures::StreamExt;
 use std::sync::Arc;
 use tracing::{error, info};
 
@@ -44,49 +42,9 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
     // run migrations
     sqlx::migrate!().run(&pool).await?;
 
-    // setup background task if kafka is enabled
+    // setup background kafka task if kafka is enabled
     if std::env::var("KAFKA_BROKERS").is_ok() {
-        info!("Starting Kafka consumer");
-        let brokers = std::env::var("KAFKA_BROKERS").unwrap();
-        let topics = vec![std::env::var("KAFKA_TOPIC").unwrap_or("scouter_monitoring".to_string())];
-        let group_id = std::env::var("KAFKA_GROUP").unwrap_or("scouter".to_string());
-        let username: Option<String> = std::env::var("KAFKA_USERNAME").ok();
-        let password: Option<String> = std::env::var("KAFKA_PASSWORD").ok();
-        let security_protocol: Option<String> = Some(
-            std::env::var("KAFKA_SECURITY_PROTOCOL")
-                .ok()
-                .unwrap_or_else(|| "SASL_SSL".to_string()),
-        );
-        let sasl_mechanism: Option<String> = Some(
-            std::env::var("KAFKA_SASL_MECHANISM")
-                .ok()
-                .unwrap_or_else(|| "PLAIN".to_string()),
-        );
-
-        let num_kafka_workers = std::env::var("NUM_SCOUTER_KAFKA_WORKERS")
-            .unwrap_or_else(|_| "3".to_string())
-            .parse::<usize>()
-            .with_context(|| "Failed to parse NUM_KAFKA_WORKERS")?;
-
-        let _background = (0..num_kafka_workers)
-            .map(|_| {
-                let kafka_db_client = PostgresClient::new(pool.clone())
-                    .with_context(|| "Failed to create Postgres client")
-                    .unwrap();
-                let message_handler = kafka::consumer::MessageHandler::Postgres(kafka_db_client);
-                tokio::spawn(start_kafka_background_poll(
-                    message_handler,
-                    group_id.clone(),
-                    brokers.clone(),
-                    topics.clone(),
-                    username.clone(),
-                    password.clone(),
-                    security_protocol.clone(),
-                    sasl_mechanism.clone(),
-                ))
-            })
-            .collect::<FuturesUnordered<_>>()
-            .for_each(|_| async {});
+        startup_kafka(pool.clone()).await?;
     }
 
     // run drift background task

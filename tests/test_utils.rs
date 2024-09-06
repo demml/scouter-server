@@ -50,7 +50,7 @@ pub async fn populate_topic(topic_name: &str) -> Result<(), Error> {
                 FutureRecord::to(topic_name)
                     .payload(&record_string)
                     .key("Key"),
-                Duration::from_secs(0),
+                Duration::from_secs(1),
             );
 
             match produce_future.await {
@@ -60,6 +60,7 @@ pub async fn populate_topic(topic_name: &str) -> Result<(), Error> {
         }
     }
     producer.flush(Duration::from_secs(1)).unwrap();
+    println!("Flushed producer");
     Ok(())
 }
 

@@ -37,9 +37,12 @@ async fn test_drift_executor_separate() {
 
     // switch back to previous run
     let previous_run: NaiveDateTime = profile.get("previous_run");
+    let name: String = profile.get("name");
+    let repository: String = profile.get("repository");
+    let version: String = profile.get("version");
 
     let (drift_array, keys) = drift_executor
-        .compute_drift(&drift_profile, &previous_run)
+        .compute_drift(&drift_profile, &previous_run, &name, &repository, &version)
         .await
         .unwrap();
 
@@ -58,11 +61,7 @@ async fn test_drift_executor_separate() {
     );
 
     ConsoleAlertDispatcher
-        .process_alerts(
-            &alerts,
-            &drift_profile.config.repository,
-            &drift_profile.config.name,
-        )
+        .process_alerts(&alerts, &name, &repository, &version)
         .await
         .unwrap();
 

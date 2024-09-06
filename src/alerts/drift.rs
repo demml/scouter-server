@@ -72,6 +72,23 @@ impl DriftExecutor {
             .flat_map(|feature| feature.values.clone())
             .collect::<Vec<_>>();
 
+        // assert all drift features have the same number of values
+
+        let all_same_len = drift_features.features.iter().all(|(_, feature)| {
+            feature.values.len()
+                == drift_features
+                    .features
+                    .values()
+                    .next()
+                    .unwrap()
+                    .values
+                    .len()
+        });
+
+        if !all_same_len {
+            return Err(anyhow::anyhow!("Feature values have different lengths"));
+        }
+
         let num_rows = drift_features.features.len();
         let num_cols = if num_rows > 0 {
             feature_values.len() / num_rows
@@ -231,11 +248,5 @@ impl DriftExecutor {
         }
 
         Ok(())
-    }
-
-    pub async fn run_alert_poller(&mut self) -> Result<()> {
-        loop {
-            self.poll_for_tasks().await?;
-        }
     }
 }

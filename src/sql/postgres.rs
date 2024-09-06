@@ -465,6 +465,24 @@ impl PostgresClient {
             features: BTreeMap::new(),
         };
 
+        let feature_sizes = query_results
+            .iter()
+            .map(|result| match result {
+                Ok(result) => result.len(),
+                Err(_) => 0,
+            })
+            .collect::<Vec<_>>();
+
+        // Get smallest non-zero feature size
+        let min_feature_size = feature_sizes
+            .iter()
+            .filter(|size| **size > 0)
+            .min()
+            .unwrap_or(&0);
+
+        println!("feature sizes: {:?}", feature_sizes);
+        println!("min_feature_size: {:?}", min_feature_size);
+
         for data in query_results {
             match data {
                 Ok(data) => {
@@ -477,10 +495,14 @@ impl PostgresClient {
                     let mut created_at = Vec::new();
                     let mut values = Vec::new();
 
-                    for row in data {
-                        created_at.push(row.get("created_at"));
-                        values.push(row.get("value"));
-                    }
+                    data.iter().enumerate().for_each(|(i, row)| {
+                        if i < *min_feature_size {
+                            created_at.push(row.get("created_at"));
+                            values.push(row.get("value"));
+                        }
+                    });
+
+                    println!("feature: {:?} size: {:?}", feature_name, values.len());
 
                     query_result
                         .features

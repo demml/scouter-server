@@ -1,8 +1,7 @@
 SELECT
 created_at,
 feature,
-value,
-version
+value
 FROM $table
 WHERE
     created_at > '$limit_timestamp'

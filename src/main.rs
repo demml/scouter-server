@@ -14,11 +14,7 @@ use api::route::create_router;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use std::sync::Arc;
-use std::time::Duration;
 use tracing::{error, info};
-
-const NUM_WORKERS: usize = 3;
-const NUM_DISPATCHERS: usize = 3;
 
 async fn start_metrics_server() -> Result<(), anyhow::Error> {
     let app = metrics_app().with_context(|| "Failed to setup metrics app")?;
@@ -67,7 +63,12 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
                 .unwrap_or_else(|| "PLAIN".to_string()),
         );
 
-        let _background = (0..NUM_WORKERS)
+        let num_kafka_workers = std::env::var("NUM_SCOUTER_KAFKA_WORKERS")
+            .unwrap_or_else(|_| "3".to_string())
+            .parse::<usize>()
+            .with_context(|| "Failed to parse NUM_KAFKA_WORKERS")?;
+
+        let _background = (0..num_kafka_workers)
             .map(|_| {
                 let kafka_db_client = PostgresClient::new(pool.clone())
                     .with_context(|| "Failed to create Postgres client")
@@ -89,17 +90,20 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
     }
 
     // run drift background task
-    for i in 0..NUM_DISPATCHERS {
-        info!("Starting drift executor background task: {}", i);
+    let num_scheduler_workers = std::env::var("NUM_SCOUTER_SCHEDULER_WORKERS")
+        .unwrap_or_else(|_| "3".to_string())
+        .parse::<usize>()
+        .with_context(|| "Failed to parse NUM_SCHEDULER_WORKERS")?;
+
+    for i in 0..num_scheduler_workers {
+        info!("Starting drift poller background task: {}", i);
         let alert_db_client = PostgresClient::new(pool.clone())
             .with_context(|| "Failed to create Postgres client")?;
         tokio::task::spawn(async move {
             let mut drift_executor = DriftExecutor::new(alert_db_client);
-            let mut interval = tokio::time::interval(Duration::from_secs(4));
             loop {
-                interval.tick().await;
-                if let Err(e) = drift_executor.run_alert_poller().await {
-                    error!("Drift Executor Error: {e}")
+                if let Err(e) = drift_executor.poll_for_tasks().await {
+                    error!("Alert poller error: {:?}", e);
                 }
             }
         });

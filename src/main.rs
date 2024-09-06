@@ -15,6 +15,7 @@ use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::time::sleep;
 use tracing::{error, info};
 
 const NUM_WORKERS: usize = 3;
@@ -98,11 +99,14 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
             let mut interval = tokio::time::interval(Duration::from_secs(4));
             loop {
                 interval.tick().await;
-                if let Err(e) = drift_executor.execute().await {
+                if let Err(e) = drift_executor.run_alert_poller().await {
                     error!("Drift Executor Error: {e}")
                 }
             }
         });
+
+        // set delay between starting drift executors
+        sleep(Duration::from_secs(1)).await;
     }
 
     // start server

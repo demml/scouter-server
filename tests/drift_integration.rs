@@ -94,7 +94,7 @@ async fn test_drift_executor() {
     .unwrap();
 
     let curr_next_run: NaiveDateTime = result[0].get("next_run");
-    drift_executor.execute().await.unwrap();
+    drift_executor.poll_for_tasks().await.unwrap();
 
     let result = sqlx::raw_sql(
         r#"

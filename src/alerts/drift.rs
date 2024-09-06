@@ -1,11 +1,12 @@
 use crate::sql::postgres::PostgresClient;
 use crate::sql::schema::QueryResult;
+use anyhow::{Context, Result};
 use chrono::NaiveDateTime;
 use scouter::core::alert::generate_alerts;
 use scouter::core::monitor::Monitor;
 use scouter::utils::types::{AlertDispatchType, DriftProfile};
-
-use anyhow::{Context, Result};
+use tracing::error;
+use tracing::info;
 
 use crate::alerts::dispatch::{
     AlertDispatcher, ConsoleAlertDispatcher, HttpAlertDispatcher, OpsGenieAlerter, SlackAlerter,
@@ -102,65 +103,129 @@ impl DriftExecutor {
         }
     }
 
-    pub async fn execute(&mut self) -> Result<()> {
+    /// Process a single drift computation task
+    ///
+    /// # Arguments
+    ///
+    /// * `drift_profile` - Drift profile to compute drift for
+    /// * `previous_run` - Previous run timestamp
+    /// * `schedule` - Schedule for drift computation
+    /// * `transaction` - Postgres transaction
+    ///
+    /// # Returns
+    ///
+    pub async fn process_task<'a>(
+        &mut self,
+        drift_profile: DriftProfile,
+        previous_run: NaiveDateTime,
+    ) -> Result<(), anyhow::Error> {
+        info!(
+            "Processing drift task for profile: {}/{}/{}",
+            drift_profile.config.repository,
+            drift_profile.config.name,
+            drift_profile.config.version
+        );
+        // Compute drift
+        let (drift_array, keys) = self
+            .compute_drift(&drift_profile, &previous_run)
+            .await
+            .with_context(|| "error computing drift")?;
+
+        // if drift array is empty, return early
+        if drift_array.is_empty() {
+            info!("No features to process returning early");
+            return Ok(());
+        }
+
+        // Get alerts
+        // keys are the feature names that match the order of the drift array columns
+        let alerts = generate_alerts(
+            &drift_array.view(),
+            keys,
+            drift_profile.config.alert_config.alert_rule,
+        )
+        .with_context(|| "error generating drift alerts")?;
+
+        // Check if non-default "Console" dispatcher type specified
+        self.alert_dispatcher =
+            Self::map_dispatcher(&drift_profile.config.alert_config.alert_dispatch_type);
+
+        // Process alerts
+        self.alert_dispatcher
+            .process_alerts(
+                &alerts,
+                &drift_profile.config.repository,
+                &drift_profile.config.name,
+            )
+            .await
+            .with_context(|| "error processing alerts")?;
+
+        Ok(())
+    }
+
+    /// Execute single drift computation and alerting
+    ///
+    /// # Returns
+    ///
+    /// * `Result<()>` - Result of drift computation and alerting
+    pub async fn poll_for_tasks(&mut self) -> Result<()> {
+        let mut sleep: bool = false;
         let mut transaction: sqlx::Transaction<Postgres> = self.db_client.pool.begin().await?;
 
         // Get drift profile
-        let profile = PostgresClient::get_drift_profile(&mut transaction)
+        let task = PostgresClient::get_drift_profile(&mut transaction)
             .await
             .with_context(|| "error retrieving drift profile(s) from db!")?;
 
-        if let Some(profile) = profile {
-            let drift_profile = serde_json::from_value::<DriftProfile>(profile.get("profile"))
+        if let Some(task) = task {
+            let drift_profile = serde_json::from_value::<DriftProfile>(task.get("profile"))
                 .with_context(|| {
                     "error converting postgres jsonb profile to struct type DriftProfile"
                 })?;
 
-            // switch back to previous run
-            let previous_run: NaiveDateTime = profile.get("previous_run");
-            let schedule: String = profile.get("schedule");
+            // Process task
+            let result = self
+                .process_task(drift_profile, task.get("previous_run"))
+                .await;
 
-            // Compute drift
-            let (drift_array, keys) = self
-                .compute_drift(&drift_profile, &previous_run)
-                .await
-                .with_context(|| "error computing drift")?;
-
-            // Get alerts
-            // keys are the feature names that match the order of the drift array columns
-            let alerts = generate_alerts(
-                &drift_array.view(),
-                keys,
-                drift_profile.config.alert_config.alert_rule,
-            )
-            .with_context(|| "error generating drift alerts")?;
-
-            // Check if non-default "Console" dispatcher type specified
-            self.alert_dispatcher =
-                Self::map_dispatcher(&drift_profile.config.alert_config.alert_dispatch_type);
-
-            // Process alerts
-            self.alert_dispatcher
-                .process_alerts(
-                    &alerts,
-                    &drift_profile.config.repository,
-                    &drift_profile.config.name,
-                )
-                .await?;
+            match result {
+                Ok(_) => {
+                    info!("Drift task processed successfully");
+                }
+                Err(e) => {
+                    error!("Error processing drift task: {:?}", e);
+                }
+            }
 
             // Update run dates for profile
             PostgresClient::update_drift_profile_run_dates(
                 &mut transaction,
-                &drift_profile.config.name,
-                &drift_profile.config.repository,
-                &drift_profile.config.version,
-                &schedule,
+                task.get("name"),
+                task.get("repository"),
+                task.get("version"),
+                task.get("schedule"),
             )
             .await?;
+        } else {
+            sleep = true;
         }
 
+        // close transaction
         transaction.commit().await?;
 
+        // sleep if no records found (no need to keep polling db)
+        if sleep {
+            // Sleep for a minute
+            info!("No triggered schedules found in db. Sleeping for 10 seconds");
+            tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+        }
+
         Ok(())
+    }
+
+    pub async fn run_alert_poller(&mut self) -> Result<()> {
+        loop {
+            self.poll_for_tasks().await?;
+        }
     }
 }

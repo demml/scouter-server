@@ -308,7 +308,7 @@ WHERE
 
         assert_eq!(
             formatted_sql,
-            "SELECT profile, previous_run, schedule\nFROM schema.table\nWHERE active\n  AND next_run < CURRENT_TIMESTAMP\nLIMIT 1 FOR UPDATE SKIP LOCKED;"
+            "SELECT name, repository, version, profile, previous_run, schedule\nFROM schema.table\nWHERE active\n  AND next_run < CURRENT_TIMESTAMP\nLIMIT 1 FOR UPDATE SKIP LOCKED;"
         );
     }
 

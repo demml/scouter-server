@@ -73,7 +73,7 @@ BEGIN
             timezone('utc', now() - interval '2 days')
         );
 
-        FOR j IN 1..1000 LOOP
+        FOR j IN 1..10000 LOOP
           INSERT INTO scouter.drift (created_at, name, repository, feature, value, version)
             VALUES
             (timezone('utc', now()), 'test_app' || i, 'opsml', 'col_1', random() - 4, '0.1.0'),
@@ -85,4 +85,4 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Call the function to insert 1000 records
-SELECT insert_sample_data(1000);
+SELECT insert_sample_data(10);

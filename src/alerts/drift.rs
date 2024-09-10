@@ -152,6 +152,8 @@ impl DriftExecutor {
         .with_context(|| "error generating drift alerts")?;
 
         // Get dispatcher, will default to console if env vars are not found for 3rd party service
+        // TODO: Add ability to pass hashmap of kwargs to dispatcher (from drift profile)
+        // This would be for things like opsgenie team, feature priority, slack channel, etc.
         self.alert_dispatcher =
             AlertDispatcher::new(&drift_profile.config.alert_config.alert_dispatch_type);
 

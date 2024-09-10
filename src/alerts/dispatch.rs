@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use colored::Colorize;
 use scouter::utils::types::{AlertDispatchType, FeatureAlerts};
-use serde_json::{json, Value};
-use std::{env, ops};
+use serde_json::{json, map, Value};
+use std::{collections::HashMap, env};
 use tracing::{error, info};
 
 const OPSGENIE_API_URL: &str = "https://api.opsgenie.com/v2/alerts";
@@ -15,19 +15,16 @@ trait DispatchHelpers {
                 continue;
             }
             if i == 0 {
-                alert_description.push_str("Features that have drifted: \n");
+                alert_description.push_str("Drift has been detected for the following features:\n");
             }
 
-            let feature_name = format!("{:indent$}{}: \n", "", &feature_alert.feature, indent = 4)
-                .truecolor(245, 77, 85);
+            let feature_name = format!("{:indent$}{}: \n", "", &feature_alert.feature, indent = 4);
 
             // can't use push_str when adding colorized strings
             alert_description = format!("{}{}", alert_description, feature_name);
             feature_alert.alerts.iter().for_each(|alert| {
-                let kind = format!("{:indent$}Kind: {}\n", "", &alert.kind, indent = 8)
-                    .truecolor(249, 179, 93);
-                let zone = format!("{:indent$}Zone: {}\n", "", &alert.zone, indent = 8)
-                    .truecolor(249, 179, 93);
+                let kind = format!("{:indent$}Kind: {}\n", "", &alert.kind, indent = 8);
+                let zone = format!("{:indent$}Zone: {}\n", "", &alert.zone, indent = 8);
                 alert_description = format!("{}{}{}", alert_description, kind, zone);
             });
         }
@@ -59,13 +56,19 @@ pub trait HttpAlertWrapper {
 pub struct OpsGenieAlerter {
     header_auth_value: String,
     api_url: String,
+    team_name: Option<String>,
 }
 
 impl OpsGenieAlerter {
-    pub fn new(opsgenie_api_key: String, opsgenie_api_url: String) -> Self {
+    pub fn new(
+        opsgenie_api_key: String,
+        opsgenie_api_url: String,
+        opsgenie_team: Option<String>,
+    ) -> Self {
         Self {
             header_auth_value: format!("GenieKey {}", opsgenie_api_key),
             api_url: opsgenie_api_url,
+            team_name: opsgenie_team,
         }
     }
 }
@@ -86,20 +89,32 @@ impl HttpAlertWrapper for OpsGenieAlerter {
         name: &str,
         version: &str,
     ) -> Value {
-        json!(
-                {
-                    "message": format!("Model drift detected for {}/{}/{}", repository, name, version),
-                    "description": alert_description,
-                    "responders":[
-                        {"name":"ds-team", "type":"team"}
-                    ],
-                    "visibleTo":[
-                        {"name":"ds-team", "type":"team"}
-                    ],
-                    "tags": ["Model Drift"],
-                    "priority": "P1"
-                }
-        )
+        let mut mapping: HashMap<&str, Value> = HashMap::new();
+        mapping.insert(
+            "message",
+            format!(
+                "Model drift detected for {}/{}/{}",
+                repository, name, version
+            )
+            .into(),
+        );
+        mapping.insert("description", alert_description.to_string().into());
+
+        if self.team_name.is_some() {
+            mapping.insert(
+                "responders",
+                json!([{"name": self.team_name.as_ref().unwrap(), "type": "team"}]),
+            );
+            mapping.insert(
+                "visibleTo",
+                json!([{"name": self.team_name.as_ref().unwrap(), "type": "team"}]),
+            );
+        }
+
+        mapping.insert("tags", json!(["Model Drift", "Scouter"]));
+        mapping.insert("priority", "P1".into());
+
+        json!(mapping)
     }
 }
 impl DispatchHelpers for OpsGenieAlerter {}
@@ -267,7 +282,33 @@ impl Dispatch for ConsoleAlertDispatcher {
     }
 }
 
-impl DispatchHelpers for ConsoleAlertDispatcher {}
+impl DispatchHelpers for ConsoleAlertDispatcher {
+    fn construct_alert_description(&self, feature_alerts: &FeatureAlerts) -> String {
+        let mut alert_description = String::new();
+        for (i, (_, feature_alert)) in feature_alerts.features.iter().enumerate() {
+            if feature_alert.alerts.is_empty() {
+                continue;
+            }
+            if i == 0 {
+                alert_description.push_str("Features that have drifted: \n");
+            }
+
+            let feature_name = format!("{:indent$}{}: \n", "", &feature_alert.feature, indent = 4)
+                .truecolor(245, 77, 85);
+
+            // can't use push_str when adding colorized strings
+            alert_description = format!("{}{}", alert_description, feature_name);
+            feature_alert.alerts.iter().for_each(|alert| {
+                let kind = format!("{:indent$}Kind: {}\n", "", &alert.kind, indent = 8)
+                    .truecolor(249, 179, 93);
+                let zone = format!("{:indent$}Zone: {}\n", "", &alert.zone, indent = 8)
+                    .truecolor(249, 179, 93);
+                alert_description = format!("{}{}{}", alert_description, kind, zone);
+            });
+        }
+        alert_description
+    }
+}
 
 #[derive(Debug)]
 pub enum AlertDispatcher {
@@ -309,10 +350,14 @@ impl AlertDispatcher {
                 let opsgenie_api_url =
                     env::var("OPSGENIE_API_URL").unwrap_or(OPSGENIE_API_URL.to_string());
 
+                // move this to drift profile in scouter (see todo)
+                let opsgenie_team = env::var("OPSGENIE_TEAM").ok();
+
                 if let Ok(opsgenie_api_key) = env::var("OPSGENIE_API_KEY") {
                     AlertDispatcher::OpsGenie(HttpAlertDispatcher::new(OpsGenieAlerter::new(
                         opsgenie_api_key,
                         opsgenie_api_url,
+                        opsgenie_team,
                     )))
                 } else {
                     AlertDispatcher::Console(ConsoleAlertDispatcher)
@@ -362,7 +407,7 @@ mod tests {
                 feature: "test_feature_2".to_string(),
                 alerts: vec![Alert {
                     zone: AlertZone::Zone1.to_str(),
-                    kind: AlertType::OutOfBounds.to_str(),
+                    kind: AlertType::Consecutive.to_str(),
                 }],
                 indices: Default::default(),
             },
@@ -379,11 +424,27 @@ mod tests {
         let alerter = OpsGenieAlerter::new(
             env::var("OPSGENIE_API_KEY").unwrap(),
             env::var("OPSGENIE_API_URL").unwrap(),
+            None,
         );
         let alert_description = alerter.construct_alert_description(&FeatureAlerts { features });
-        let expected_alert_description = "Features that have drifted: \n\u{1b}[38;2;245;77;85m    test_feature_1: \n\u{1b}[0m\u{1b}[38;2;249;179;93m        Kind: Out of bounds\n\u{1b}[0m\u{1b}[38;2;249;179;93m        Zone: Out of bounds\n\u{1b}[0m\u{1b}[38;2;245;77;85m    test_feature_2: \n\u{1b}[0m\u{1b}[38;2;249;179;93m        Kind: Out of bounds\n\u{1b}[0m\u{1b}[38;2;249;179;93m        Zone: Zone 1\n\u{1b}[0m".to_string();
-        assert_eq!(alert_description.len(), expected_alert_description.len());
-
+        let expected_alert_description = "Drift has been detected for the following features:\n    test_feature_2: \n        Kind: Consecutive\n        Zone: Zone 1\n    test_feature_1: \n        Kind: Out of bounds\n        Zone: Out of bounds\n".to_string();
+        assert_eq!(&alert_description.len(), &expected_alert_description.len());
+        //assert_eq!(
+        //    &alert_description.contains(
+        //        "test_feature_1 alerts: \nalert kind Out of bounds -- alert zone: Out of bounds"
+        //    ),
+        //    &expected_alert_description.contains(
+        //        "test_feature_1 alerts: \nalert kind Out of bounds -- alert zone: Out of bounds"
+        //    )
+        //);
+        //assert_eq!(
+        //    &alert_description.contains(
+        //        "test_feature_2 alerts: \nalert kind Out of bounds -- alert zone: Zone 1"
+        //    ),
+        //    &expected_alert_description.contains(
+        //        "test_feature_2 alerts: \nalert kind Out of bounds -- alert zone: Zone 1"
+        // )
+        //);
         unsafe {
             env::remove_var("OPSGENIE_API_URL");
             env::remove_var("OPSGENIE_API_KEY");
@@ -400,6 +461,7 @@ mod tests {
         let alerter = OpsGenieAlerter::new(
             env::var("OPSGENIE_API_KEY").unwrap(),
             env::var("OPSGENIE_API_URL").unwrap(),
+            None,
         );
         let alert_description = alerter.construct_alert_description(&FeatureAlerts { features });
         let expected_alert_description = "".to_string();
@@ -420,6 +482,7 @@ mod tests {
         unsafe {
             env::set_var("OPSGENIE_API_URL", url);
             env::set_var("OPSGENIE_API_KEY", "api_key");
+            env::set_var("OPSGENIE_TEAM", "ds-team");
         }
         let expected_alert_body = json!(
                 {
@@ -431,13 +494,14 @@ mod tests {
                     "visibleTo":[
                         {"name":"ds-team", "type":"team"}
                     ],
-                    "tags": ["Model Drift"],
+                    "tags": ["Model Drift", "Scouter"],
                     "priority": "P1"
                 }
         );
         let alerter = OpsGenieAlerter::new(
             env::var("OPSGENIE_API_KEY").unwrap(),
             env::var("OPSGENIE_API_URL").unwrap(),
+            env::var("OPSGENIE_TEAM").ok(),
         );
         let alert_body = alerter.construct_alert_body(
             "Features have drifted",
@@ -449,13 +513,14 @@ mod tests {
         unsafe {
             env::remove_var("OPSGENIE_API_URL");
             env::remove_var("OPSGENIE_API_KEY");
+            env::remove_var("OPSGENIE_TEAM");
         }
     }
 
     #[tokio::test]
     async fn test_send_opsgenie_alerts() {
         let mut download_server = mockito::Server::new_async().await;
-        let url = download_server.url();
+        let url = format!("{}/alerts", download_server.url());
 
         // set env variables
         unsafe {
@@ -473,6 +538,7 @@ mod tests {
         let dispatcher = AlertDispatcher::OpsGenie(HttpAlertDispatcher::new(OpsGenieAlerter::new(
             env::var("OPSGENIE_API_KEY").unwrap(),
             env::var("OPSGENIE_API_URL").unwrap(),
+            None,
         )));
         let _ = dispatcher
             .process_alerts(

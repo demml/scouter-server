@@ -360,24 +360,9 @@ mod tests {
             env::var("OPSGENIE_API_URL").unwrap(),
         );
         let alert_description = alerter.construct_alert_description(&FeatureAlerts { features });
-        let expected_alert_description = "Features that have drifted \ntest_feature_1 alerts: \nalert kind Out of bounds -- alert zone: Out of bounds \ntest_feature_2 alerts: \nalert kind Out of bounds -- alert zone: Zone 1 \n".to_string();
-        assert_eq!(&alert_description.len(), &expected_alert_description.len());
-        assert_eq!(
-            &alert_description.contains(
-                "test_feature_1 alerts: \nalert kind Out of bounds -- alert zone: Out of bounds"
-            ),
-            &expected_alert_description.contains(
-                "test_feature_1 alerts: \nalert kind Out of bounds -- alert zone: Out of bounds"
-            )
-        );
-        assert_eq!(
-            &alert_description.contains(
-                "test_feature_2 alerts: \nalert kind Out of bounds -- alert zone: Zone 1"
-            ),
-            &expected_alert_description.contains(
-                "test_feature_2 alerts: \nalert kind Out of bounds -- alert zone: Zone 1"
-            )
-        );
+        let expected_alert_description = "Features that have drifted: \n\u{1b}[38;2;245;77;85m    test_feature_1: \n\u{1b}[0m\u{1b}[38;2;249;179;93m        Kind: Out of bounds\n\u{1b}[0m\u{1b}[38;2;249;179;93m        Zone: Out of bounds\n\u{1b}[0m\u{1b}[38;2;245;77;85m    test_feature_2: \n\u{1b}[0m\u{1b}[38;2;249;179;93m        Kind: Out of bounds\n\u{1b}[0m\u{1b}[38;2;249;179;93m        Zone: Zone 1\n\u{1b}[0m".to_string();
+        assert_eq!(alert_description.len(), expected_alert_description.len());
+
         unsafe {
             env::remove_var("OPSGENIE_API_URL");
             env::remove_var("OPSGENIE_API_KEY");

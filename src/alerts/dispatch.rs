@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use colored::Colorize;
 use scouter::utils::types::{AlertDispatchType, FeatureAlerts};
 use serde_json::{json, Value};
 use std::env;
@@ -11,14 +12,20 @@ trait DispatchHelpers {
                 continue;
             }
             if i == 0 {
-                alert_description.push_str("Features that have drifted \n");
+                alert_description.push_str("Features that have drifted: \n");
             }
-            alert_description.push_str(&format!("{} alerts: \n", &feature_alert.feature));
+
+            let feature_name = format!("{:indent$}{}: \n", "", &feature_alert.feature, indent = 4)
+                .truecolor(245, 77, 85);
+
+            // can't use push_str when adding colorized strings
+            alert_description = format!("{}{}", alert_description, feature_name);
             feature_alert.alerts.iter().for_each(|alert| {
-                alert_description.push_str(&format!(
-                    "alert kind {} -- alert zone: {} \n",
-                    &alert.kind, &alert.zone
-                ))
+                let kind = format!("{:indent$}Kind: {}\n", "", &alert.kind, indent = 8)
+                    .truecolor(249, 179, 93);
+                let zone = format!("{:indent$}Zone: {}\n", "", &alert.zone, indent = 8)
+                    .truecolor(249, 179, 93);
+                alert_description = format!("{}{}{}", alert_description, kind, zone);
             });
         }
         alert_description
@@ -229,11 +236,14 @@ impl Dispatch for ConsoleAlertDispatcher {
     ) -> Result<()> {
         let alert_description = self.construct_alert_description(feature_alerts);
 
-        println!(
-            "{}/{}/{} is experiencing drift. \n{}",
-            repository, name, version, alert_description
-        );
+        if !alert_description.is_empty() {
+            let msg1 = "Drift detected for".truecolor(245, 77, 85);
+            let msg2 = format!("{}/{}/{}!", repository, name, version).truecolor(249, 179, 93);
+            let mut body = format!("\n{} {} \n", msg1, msg2);
+            body.push_str(&alert_description);
 
+            println!("{}", body);
+        }
         Ok(())
     }
 }

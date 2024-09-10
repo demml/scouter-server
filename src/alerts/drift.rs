@@ -4,13 +4,11 @@ use anyhow::{Context, Result};
 use chrono::NaiveDateTime;
 use scouter::core::alert::generate_alerts;
 use scouter::core::monitor::Monitor;
-use scouter::utils::types::{AlertDispatchType, DriftProfile};
+use scouter::utils::types::DriftProfile;
 use tracing::error;
 use tracing::info;
 
-use crate::alerts::dispatch::{
-    AlertDispatcher, ConsoleAlertDispatcher, HttpAlertDispatcher, OpsGenieAlerter, SlackAlerter,
-};
+use crate::alerts::dispatch::{AlertDispatcher, ConsoleAlertDispatcher};
 use ndarray::Array2;
 use sqlx::{Postgres, Row};
 
@@ -107,18 +105,6 @@ impl DriftExecutor {
 
         Ok((drift, feature_keys))
     }
-    fn map_dispatcher(dispatch_type: &AlertDispatchType) -> AlertDispatcher {
-        match dispatch_type {
-            AlertDispatchType::Console => AlertDispatcher::Console(ConsoleAlertDispatcher),
-            AlertDispatchType::OpsGenie => {
-                AlertDispatcher::OpsGenie(HttpAlertDispatcher::new(OpsGenieAlerter::default()))
-            }
-            AlertDispatchType::Slack => {
-                AlertDispatcher::Slack(HttpAlertDispatcher::new(SlackAlerter::default()))
-            }
-            AlertDispatchType::Email => panic!("Unsupported dispatcher type: Email"),
-        }
-    }
 
     /// Process a single drift computation task
     ///
@@ -165,11 +151,10 @@ impl DriftExecutor {
         )
         .with_context(|| "error generating drift alerts")?;
 
-        // Check if non-default "Console" dispatcher type specified
+        // Get dispatcher, will default to console if env vars are not found for 3rd party service
         self.alert_dispatcher =
-            Self::map_dispatcher(&drift_profile.config.alert_config.alert_dispatch_type);
+            AlertDispatcher::new(&drift_profile.config.alert_config.alert_dispatch_type);
 
-        // Process alerts
         self.alert_dispatcher
             .process_alerts(&alerts, repository, name, version)
             .await

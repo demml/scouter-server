@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use colored::Colorize;
 use scouter::utils::types::{AlertDispatchType, FeatureAlerts};
-use serde_json::{json, map, Value};
+use serde_json::{json, Value};
 use std::{collections::HashMap, env};
 use tracing::{error, info};
 

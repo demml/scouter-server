@@ -2,7 +2,10 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use scouter::utils::types::{AlertDispatchType, FeatureAlerts};
 use serde_json::{json, Value};
-use std::env;
+use std::{env, ops};
+use tracing::{error, info};
+
+const OPSGENIE_API_URL: &str = "https://api.opsgenie.com/v2/alerts";
 
 trait DispatchHelpers {
     fn construct_alert_description(&self, feature_alerts: &FeatureAlerts) -> String {
@@ -62,7 +65,7 @@ impl OpsGenieAlerter {
     pub fn new(opsgenie_api_key: String, opsgenie_api_url: String) -> Self {
         Self {
             header_auth_value: format!("GenieKey {}", opsgenie_api_key),
-            api_url: format!("{}/alerts", opsgenie_api_url),
+            api_url: opsgenie_api_url,
         }
     }
 }
@@ -190,14 +193,30 @@ impl<T: HttpAlertWrapper> HttpAlertDispatcher<T> {
     }
 
     async fn send_alerts(&self, body: Value) -> Result<()> {
-        self.http_client
+        let response = self
+            .http_client
             .post(self.alerter.api_url())
             .header("Authorization", self.alerter.header_auth_value())
             .json(&body)
             .send()
             .await
             .with_context(|| "Error posting alert to web client")?;
-        Ok(())
+
+        if response.status().is_success() {
+            let text = response
+                .text()
+                .await
+                .unwrap_or("Failed to parse response".to_string());
+            info!("Alert sent successfully {}", text);
+            Ok(())
+        } else {
+            let text = response
+                .text()
+                .await
+                .unwrap_or("Failed to parse response".to_string());
+            error!("Failed to send alert: {}. Continuing", text);
+            Ok(())
+        }
     }
 }
 
@@ -286,9 +305,11 @@ impl AlertDispatcher {
         match dispatch_type {
             AlertDispatchType::Console => AlertDispatcher::Console(ConsoleAlertDispatcher),
             AlertDispatchType::OpsGenie => {
-                if let (Ok(opsgenie_api_key), Ok(opsgenie_api_url)) =
-                    (env::var("OPSGENIE_API_KEY"), env::var("OPSGENIE_API_URL"))
-                {
+                // set default opsgenie api v2 url
+                let opsgenie_api_url =
+                    env::var("OPSGENIE_API_URL").unwrap_or(OPSGENIE_API_URL.to_string());
+
+                if let Ok(opsgenie_api_key) = env::var("OPSGENIE_API_KEY") {
                     AlertDispatcher::OpsGenie(HttpAlertDispatcher::new(OpsGenieAlerter::new(
                         opsgenie_api_key,
                         opsgenie_api_url,

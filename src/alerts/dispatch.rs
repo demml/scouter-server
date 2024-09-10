@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use colored::Colorize;
-use scouter::utils::types::FeatureAlerts;
+use scouter::utils::types::{AlertDispatchType, FeatureAlerts};
 use serde_json::{json, Value};
 use std::env;
 
@@ -58,17 +58,11 @@ pub struct OpsGenieAlerter {
     api_url: String,
 }
 
-impl Default for OpsGenieAlerter {
-    fn default() -> Self {
+impl OpsGenieAlerter {
+    pub fn new(opsgenie_api_key: String, opsgenie_api_url: String) -> Self {
         Self {
-            header_auth_value: format!(
-                "GenieKey {}",
-                env::var("OPSGENIE_API_KEY").unwrap_or("api_key".to_string())
-            ),
-            api_url: format!(
-                "{}/alerts",
-                env::var("OPSGENIE_API_URL").unwrap_or("api_url".to_string())
-            ),
+            header_auth_value: format!("GenieKey {}", opsgenie_api_key),
+            api_url: format!("{}/alerts", opsgenie_api_url),
         }
     }
 }
@@ -112,17 +106,11 @@ pub struct SlackAlerter {
     api_url: String,
 }
 
-impl Default for SlackAlerter {
-    fn default() -> Self {
+impl SlackAlerter {
+    pub fn new(slack_bot_token: String, slack_api_url: String) -> Self {
         Self {
-            header_auth_value: format!(
-                "Bearer {}",
-                env::var("SLACK_BOT_TOKEN").unwrap_or("slack_token".to_string())
-            ),
-            api_url: format!(
-                "{}/chat.postMessage",
-                env::var("SLACK_API_URL").unwrap_or("slack_api_url".to_string())
-            ),
+            header_auth_value: format!("Bearer {}", slack_bot_token),
+            api_url: format!("{}/chat.postMessage", slack_api_url),
         }
     }
 }
@@ -223,14 +211,14 @@ impl<T: HttpAlertWrapper + DispatchHelpers> Dispatch for HttpAlertDispatcher<T> 
     ) -> Result<()> {
         let alert_description = self.alerter.construct_alert_description(feature_alerts);
 
-        if !alert_description.is_empty() {
-            let alert_body =
-                self.alerter
-                    .construct_alert_body(&alert_description, repository, name, version);
-            self.send_alerts(alert_body)
-                .await
-                .with_context(|| "Error sending alerts")?;
-        }
+        let alert_body =
+            self.alerter
+                .construct_alert_body(&alert_description, repository, name, version);
+
+        self.send_alerts(alert_body)
+            .await
+            .with_context(|| "Error sending alerts")?;
+
         Ok(())
     }
 }
@@ -293,6 +281,37 @@ impl AlertDispatcher {
                 .with_context(|| "Error processing alerts"),
         }
     }
+
+    pub fn new(dispatch_type: &AlertDispatchType) -> Self {
+        match dispatch_type {
+            AlertDispatchType::Console => AlertDispatcher::Console(ConsoleAlertDispatcher),
+            AlertDispatchType::OpsGenie => {
+                if let (Ok(opsgenie_api_key), Ok(opsgenie_api_url)) =
+                    (env::var("OPSGENIE_API_KEY"), env::var("OPSGENIE_API_URL"))
+                {
+                    AlertDispatcher::OpsGenie(HttpAlertDispatcher::new(OpsGenieAlerter::new(
+                        opsgenie_api_key,
+                        opsgenie_api_url,
+                    )))
+                } else {
+                    AlertDispatcher::Console(ConsoleAlertDispatcher)
+                }
+            }
+            AlertDispatchType::Slack => {
+                if let (Ok(slack_bot_token), Ok(slack_api_url)) =
+                    (env::var("SLACK_BOT_TOKEN"), env::var("SLACK_API_URL"))
+                {
+                    AlertDispatcher::Slack(HttpAlertDispatcher::new(SlackAlerter::new(
+                        slack_bot_token,
+                        slack_api_url,
+                    )))
+                } else {
+                    AlertDispatcher::Console(ConsoleAlertDispatcher)
+                }
+            }
+            AlertDispatchType::Email => panic!("Unsupported dispatcher type: Email"),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -331,8 +350,15 @@ mod tests {
     }
     #[test]
     fn test_construct_opsgenie_alert_description() {
+        unsafe {
+            env::set_var("OPSGENIE_API_URL", "api_url");
+            env::set_var("OPSGENIE_API_KEY", "api_key");
+        }
         let features = test_features_hashmap();
-        let alerter = OpsGenieAlerter::default();
+        let alerter = OpsGenieAlerter::new(
+            env::var("OPSGENIE_API_KEY").unwrap(),
+            env::var("OPSGENIE_API_URL").unwrap(),
+        );
         let alert_description = alerter.construct_alert_description(&FeatureAlerts { features });
         let expected_alert_description = "Features that have drifted \ntest_feature_1 alerts: \nalert kind Out of bounds -- alert zone: Out of bounds \ntest_feature_2 alerts: \nalert kind Out of bounds -- alert zone: Zone 1 \n".to_string();
         assert_eq!(&alert_description.len(), &expected_alert_description.len());
@@ -352,15 +378,30 @@ mod tests {
                 "test_feature_2 alerts: \nalert kind Out of bounds -- alert zone: Zone 1"
             )
         );
+        unsafe {
+            env::remove_var("OPSGENIE_API_URL");
+            env::remove_var("OPSGENIE_API_KEY");
+        }
     }
 
     #[test]
     fn test_construct_opsgenie_alert_description_empty() {
+        unsafe {
+            env::set_var("OPSGENIE_API_URL", "api_url");
+            env::set_var("OPSGENIE_API_KEY", "api_key");
+        }
         let features: HashMap<String, FeatureAlert> = HashMap::new();
-        let alerter = OpsGenieAlerter::default();
+        let alerter = OpsGenieAlerter::new(
+            env::var("OPSGENIE_API_KEY").unwrap(),
+            env::var("OPSGENIE_API_URL").unwrap(),
+        );
         let alert_description = alerter.construct_alert_description(&FeatureAlerts { features });
         let expected_alert_description = "".to_string();
         assert_eq!(alert_description, expected_alert_description);
+        unsafe {
+            env::remove_var("OPSGENIE_API_URL");
+            env::remove_var("OPSGENIE_API_KEY");
+        }
     }
 
     #[tokio::test]
@@ -388,7 +429,10 @@ mod tests {
                     "priority": "P1"
                 }
         );
-        let alerter = OpsGenieAlerter::default();
+        let alerter = OpsGenieAlerter::new(
+            env::var("OPSGENIE_API_KEY").unwrap(),
+            env::var("OPSGENIE_API_URL").unwrap(),
+        );
         let alert_body = alerter.construct_alert_body(
             "Features have drifted",
             "test_repo",
@@ -420,8 +464,10 @@ mod tests {
 
         let features = test_features_hashmap();
 
-        let dispatcher =
-            AlertDispatcher::OpsGenie(HttpAlertDispatcher::new(OpsGenieAlerter::default()));
+        let dispatcher = AlertDispatcher::OpsGenie(HttpAlertDispatcher::new(OpsGenieAlerter::new(
+            env::var("OPSGENIE_API_KEY").unwrap(),
+            env::var("OPSGENIE_API_URL").unwrap(),
+        )));
         let _ = dispatcher
             .process_alerts(
                 &FeatureAlerts { features },
@@ -473,7 +519,10 @@ mod tests {
 
         let features = test_features_hashmap();
 
-        let dispatcher = AlertDispatcher::Slack(HttpAlertDispatcher::new(SlackAlerter::default()));
+        let dispatcher = AlertDispatcher::Slack(HttpAlertDispatcher::new(SlackAlerter::new(
+            env::var("SLACK_BOT_TOKEN").unwrap(),
+            env::var("SLACK_API_URL").unwrap(),
+        )));
         let _ = dispatcher
             .process_alerts(
                 &FeatureAlerts { features },
@@ -526,7 +575,10 @@ mod tests {
                 }
             ]
         });
-        let alerter = SlackAlerter::default();
+        let alerter = SlackAlerter::new(
+            env::var("SLACK_BOT_TOKEN").unwrap(),
+            env::var("SLACK_API_URL").unwrap(),
+        );
         let alert_body = alerter.construct_alert_body(
             "*Features have drifted*",
             "test_repo",
@@ -534,6 +586,41 @@ mod tests {
             "1.0.0",
         );
         assert_eq!(alert_body, expected_alert_body);
+        unsafe {
+            env::remove_var("SLACK_API_URL");
+            env::remove_var("SLACK_BOT_TOKEN");
+        }
+    }
+
+    #[test]
+    fn test_console_dispatcher_returned_when_env_vars_not_set() {
+        unsafe {
+            env::remove_var("SLACK_API_URL");
+            env::remove_var("SLACK_BOT_TOKEN");
+        }
+        let dispatch_type = AlertDispatchType::Slack;
+        let dispatcher = AlertDispatcher::new(&dispatch_type);
+
+        assert!(
+            matches!(dispatcher, AlertDispatcher::Console(_)),
+            "Expected Console Dispatcher"
+        );
+    }
+
+    #[test]
+    fn test_slack_dispatcher_returned_when_env_vars_set() {
+        unsafe {
+            env::set_var("SLACK_API_URL", "url");
+            env::set_var("SLACK_BOT_TOKEN", "bot_token");
+        }
+        let dispatch_type = AlertDispatchType::Slack;
+        let dispatcher = AlertDispatcher::new(&dispatch_type);
+
+        assert!(
+            matches!(dispatcher, AlertDispatcher::Slack(_)),
+            "Expected Slack Dispatcher"
+        );
+
         unsafe {
             env::remove_var("SLACK_API_URL");
             env::remove_var("SLACK_BOT_TOKEN");

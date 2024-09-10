@@ -4,7 +4,7 @@ CREATE TABLE IF NOT exists scouter.alerts (
   name varchar(256),
   repository varchar(256),
   version varchar(256),
-  alert JSONB,
+  alert jsonb,
   UNIQUE (created_at,name,repository,version)
 )
 PARTITION BY RANGE (created_at);

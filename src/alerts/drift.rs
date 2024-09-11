@@ -140,14 +140,17 @@ impl DriftExecutor {
 
         // Get alerts
         // keys are the feature names that match the order of the drift array columns
-        let alert_rule = drift_profile.config.alert_config.alert_rule.clone();
-        let alerts = generate_alerts(&drift_array.view(), keys, alert_rule)
-            .with_context(|| "error generating drift alerts")?;
+        let alerts = generate_alerts(
+            &drift_array.view(),
+            keys,
+            &drift_profile.config.alert_config.alert_rule,
+        )
+        .with_context(|| "error generating drift alerts")?;
 
         // Get dispatcher, will default to console if env vars are not found for 3rd party service
         // TODO: Add ability to pass hashmap of kwargs to dispatcher (from drift profile)
         // This would be for things like opsgenie team, feature priority, slack channel, etc.
-        let alert_dispatcher = AlertDispatcher::new(&drift_profile);
+        let alert_dispatcher = AlertDispatcher::new(&drift_profile.config);
 
         alert_dispatcher
             .process_alerts(&alerts)

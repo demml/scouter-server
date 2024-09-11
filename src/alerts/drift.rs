@@ -8,21 +8,17 @@ use scouter::utils::types::DriftProfile;
 use tracing::error;
 use tracing::info;
 
-use crate::alerts::dispatch::{AlertDispatcher, ConsoleAlertDispatcher};
+use crate::alerts::dispatch::AlertDispatcher;
 use ndarray::Array2;
 use sqlx::{Postgres, Row};
 
 pub struct DriftExecutor {
     db_client: PostgresClient,
-    alert_dispatcher: AlertDispatcher,
 }
 
 impl DriftExecutor {
     pub fn new(db_client: PostgresClient) -> Self {
-        Self {
-            db_client,
-            alert_dispatcher: AlertDispatcher::Console(ConsoleAlertDispatcher),
-        }
+        Self { db_client }
     }
 
     async fn get_drift_features(
@@ -144,19 +140,17 @@ impl DriftExecutor {
 
         // Get alerts
         // keys are the feature names that match the order of the drift array columns
-        let alerts = generate_alerts(
-            &drift_array.view(),
-            keys,
-            drift_profile.config.alert_config.alert_rule,
-        )
-        .with_context(|| "error generating drift alerts")?;
+        let alert_rule = drift_profile.config.alert_config.alert_rule.clone();
+        let alerts = generate_alerts(&drift_array.view(), keys, alert_rule)
+            .with_context(|| "error generating drift alerts")?;
 
         // Get dispatcher, will default to console if env vars are not found for 3rd party service
-        self.alert_dispatcher =
-            AlertDispatcher::new(&drift_profile.config.alert_config.alert_dispatch_type);
+        // TODO: Add ability to pass hashmap of kwargs to dispatcher (from drift profile)
+        // This would be for things like opsgenie team, feature priority, slack channel, etc.
+        let alert_dispatcher = AlertDispatcher::new(&drift_profile.config);
 
-        self.alert_dispatcher
-            .process_alerts(&alerts, repository, name, version)
+        alert_dispatcher
+            .process_alerts(&alerts)
             .await
             .with_context(|| "error processing alerts")?;
 

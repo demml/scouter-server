@@ -48,22 +48,16 @@ async fn test_drift_executor_separate() {
 
     assert_eq!(drift_array.shape(), [10, 3] as [usize; 2]);
 
-    let alerts = generate_alerts(
-        &drift_array.view(),
-        keys,
-        drift_profile.config.alert_config.alert_rule,
-    )
-    .unwrap();
+    let alert_rule = drift_profile.config.alert_config.alert_rule.clone();
+    let alerts = generate_alerts(&drift_array.view(), keys, alert_rule).unwrap();
 
     assert_eq!(
         alerts.features.get("col_3").unwrap().alerts[0].zone,
         "Out of bounds"
     );
 
-    ConsoleAlertDispatcher
-        .process_alerts(&alerts, &name, &repository, &version)
-        .await
-        .unwrap();
+    let dispatcher = ConsoleAlertDispatcher::new(&name, &repository, &version);
+    dispatcher.process_alerts(&alerts).await.unwrap();
 
     transaction.commit().await.unwrap();
     test_utils::teardown().await.unwrap();

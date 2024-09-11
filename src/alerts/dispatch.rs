@@ -1,12 +1,332 @@
 use anyhow::{Context, Result};
 use colored::Colorize;
+use scouter::utils::types::DriftConfig;
 use scouter::utils::types::{AlertDispatchType, FeatureAlerts};
 use serde_json::{json, Value};
-use std::env;
+use std::{collections::HashMap, env};
+use tracing::error;
+
+const OPSGENIE_API_URL: &str = "https://api.opsgenie.com/v2/alerts";
 
 trait DispatchHelpers {
     fn construct_alert_description(&self, feature_alerts: &FeatureAlerts) -> String {
         let mut alert_description = String::new();
+        for (i, (_, feature_alert)) in feature_alerts.features.iter().enumerate() {
+            if feature_alert.alerts.is_empty() {
+                continue;
+            }
+            if i == 0 {
+                alert_description.push_str("Drift has been detected for the following features:\n");
+            }
+
+            let feature_name = format!("{:indent$}{}: \n", "", &feature_alert.feature, indent = 4);
+
+            // can't use push_str when adding colorized strings
+            alert_description = format!("{}{}", alert_description, feature_name);
+            feature_alert.alerts.iter().for_each(|alert| {
+                let kind = format!("{:indent$}Kind: {}\n", "", &alert.kind, indent = 8);
+                let zone = format!("{:indent$}Zone: {}\n", "", &alert.zone, indent = 8);
+                alert_description = format!("{}{}{}", alert_description, kind, zone);
+            });
+        }
+        alert_description
+    }
+}
+pub trait Dispatch {
+    fn process_alerts(
+        &self,
+        feature_alerts: &FeatureAlerts,
+    ) -> impl futures::Future<Output = Result<()>>;
+}
+pub trait HttpAlertWrapper {
+    fn api_url(&self) -> &str;
+    fn header_auth_value(&self) -> &str;
+    fn construct_alert_body(&self, alert_description: &str) -> Value;
+}
+
+#[derive(Debug)]
+pub struct OpsGenieAlerter {
+    header_auth_value: String,
+    api_url: String,
+    team_name: Option<String>,
+    name: String,
+    repository: String,
+    version: String,
+}
+
+impl OpsGenieAlerter {
+    /// Create a new OpsGenieAlerter
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Name of the model
+    /// * `repository` - Repository of the model
+    /// * `version` - Version of the model
+    ///
+    pub fn new(name: &str, repository: &str, version: &str) -> Result<Self> {
+        let api_key = env::var("OPSGENIE_API_KEY").with_context(|| "OPSGENIE_API_KEY not set");
+        let api_url = env::var("OPSGENIE_API_URL").unwrap_or(OPSGENIE_API_URL.to_string());
+        let team = env::var("OPSGENIE_TEAM").ok();
+
+        match api_key {
+            Err(e) => {
+                error!("Failed to create OpsGenieAlerter: {:?}", e);
+                Err(anyhow::Error::msg("Failed to create OpsGenieAlerter"))
+            }
+            Ok(api_key) => Ok(Self {
+                header_auth_value: format!("GenieKey {}", api_key),
+                api_url,
+                team_name: team,
+                name: name.to_string(),
+                repository: repository.to_string(),
+                version: version.to_string(),
+            }),
+        }
+    }
+}
+
+impl HttpAlertWrapper for OpsGenieAlerter {
+    fn api_url(&self) -> &str {
+        &self.api_url
+    }
+
+    fn header_auth_value(&self) -> &str {
+        &self.header_auth_value
+    }
+
+    fn construct_alert_body(&self, alert_description: &str) -> Value {
+        let mut mapping: HashMap<&str, Value> = HashMap::new();
+        mapping.insert(
+            "message",
+            format!(
+                "Model drift detected for {}/{}/{}",
+                self.repository, self.name, self.version
+            )
+            .into(),
+        );
+        mapping.insert("description", alert_description.to_string().into());
+
+        if self.team_name.is_some() {
+            mapping.insert(
+                "responders",
+                json!([{"name": self.team_name.as_ref().unwrap(), "type": "team"}]),
+            );
+            mapping.insert(
+                "visibleTo",
+                json!([{"name": self.team_name.as_ref().unwrap(), "type": "team"}]),
+            );
+        }
+
+        mapping.insert("tags", json!(["Model Drift", "Scouter"]));
+        mapping.insert("priority", "P1".into());
+
+        json!(mapping)
+    }
+}
+impl DispatchHelpers for OpsGenieAlerter {}
+
+#[derive(Debug)]
+pub struct SlackAlerter {
+    header_auth_value: String,
+    api_url: String,
+    name: String,
+    repository: String,
+    version: String,
+}
+
+impl SlackAlerter {
+    /// Create a new SlackAlerter
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Name of the model
+    /// * `repository` - Repository of the model
+    /// * `version` - Version of the model
+    ///
+    pub fn new(name: &str, repository: &str, version: &str) -> Result<Self> {
+        let app_token = env::var("SLACK_APP_TOKEN").with_context(|| "SLACK_APP_TOKEN not set");
+        let api_url = env::var("SLACK_API_URL").with_context(|| "SLACK_API_URL not set");
+
+        match (app_token, api_url) {
+            (Err(e), _) => {
+                error!("Failed to create SlackAlerter: {:?}", e);
+                Err(anyhow::Error::msg("Failed to create SlackAlerter"))
+            }
+            (_, Err(e)) => {
+                error!("Failed to create SlackAlerter: {:?}", e);
+                Err(anyhow::Error::msg("Failed to create SlackAlerter"))
+            }
+            (Ok(app_token), Ok(api_url)) => Ok(Self {
+                header_auth_value: format!("Bearer {}", app_token),
+                api_url: format!("{}/chat.postMessage", api_url),
+                name: name.to_string(),
+                repository: repository.to_string(),
+                version: version.to_string(),
+            }),
+        }
+    }
+}
+
+impl HttpAlertWrapper for SlackAlerter {
+    fn api_url(&self) -> &str {
+        &self.api_url
+    }
+
+    fn header_auth_value(&self) -> &str {
+        &self.header_auth_value
+    }
+
+    fn construct_alert_body(&self, alert_description: &str) -> Value {
+        json!({
+            "channel": "scouter-bot",
+            "blocks": [
+                {
+                    "type": "header",
+                    "text": {
+                      "type": "plain_text",
+                      "text": ":rotating_light: Drift Detected :rotating_light:",
+                      "emoji": true
+                    }
+                },
+                {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": format!("*Name*: {} *Repository*: {} *Version*: {}", self.name, self.repository, self.version),
+                    }
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": alert_description
+                    },
+
+                }
+            ]
+        })
+    }
+}
+
+impl DispatchHelpers for SlackAlerter {
+    fn construct_alert_description(&self, feature_alerts: &FeatureAlerts) -> String {
+        let mut alert_description = String::new();
+        for (i, (_, feature_alert)) in feature_alerts.features.iter().enumerate() {
+            if feature_alert.alerts.is_empty() {
+                continue;
+            }
+            if i == 0 {
+                alert_description.push_str("Drift has been detected for the following features:\n");
+            }
+
+            let feature_name = format!("{}: \n", &feature_alert.feature);
+
+            // can't use push_str when adding colorized strings
+            alert_description = format!("{}{}", alert_description, feature_name);
+            feature_alert.alerts.iter().for_each(|alert| {
+                let alert = format!(
+                    "{:indent$}{} error in {}\n",
+                    "",
+                    &alert.kind,
+                    &alert.zone,
+                    indent = 4,
+                );
+                alert_description = format!("{}{}", alert_description, alert);
+            });
+        }
+        alert_description
+    }
+}
+
+#[derive(Debug)]
+pub struct HttpAlertDispatcher<T: HttpAlertWrapper> {
+    http_client: reqwest::Client,
+    alerter: T,
+}
+
+impl<T: HttpAlertWrapper> HttpAlertDispatcher<T> {
+    pub fn new(alerter: T) -> Self {
+        Self {
+            http_client: reqwest::Client::new(),
+            alerter,
+        }
+    }
+
+    async fn send_alerts(&self, body: Value) -> Result<()> {
+        let response = self
+            .http_client
+            .post(self.alerter.api_url())
+            .header("Authorization", self.alerter.header_auth_value())
+            .json(&body)
+            .send()
+            .await
+            .with_context(|| "Error posting alert to web client")?;
+
+        if response.status().is_success() {
+            Ok(())
+        } else {
+            let text = response
+                .text()
+                .await
+                .unwrap_or("Failed to parse response".to_string());
+            error!("Failed to send alert: {}. Continuing", text);
+            Ok(())
+        }
+    }
+}
+
+impl<T: HttpAlertWrapper + DispatchHelpers> Dispatch for HttpAlertDispatcher<T> {
+    async fn process_alerts(&self, feature_alerts: &FeatureAlerts) -> Result<()> {
+        let alert_description = self.alerter.construct_alert_description(feature_alerts);
+
+        let alert_body = self.alerter.construct_alert_body(&alert_description);
+
+        self.send_alerts(alert_body)
+            .await
+            .with_context(|| "Error sending alerts")?;
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct ConsoleAlertDispatcher {
+    name: String,
+    repository: String,
+    version: String,
+}
+
+impl ConsoleAlertDispatcher {
+    pub fn new(name: &str, repository: &str, version: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            repository: repository.to_string(),
+            version: version.to_string(),
+        }
+    }
+}
+
+impl Dispatch for ConsoleAlertDispatcher {
+    async fn process_alerts(&self, feature_alerts: &FeatureAlerts) -> Result<()> {
+        let alert_description = self.construct_alert_description(feature_alerts);
+
+        if !alert_description.is_empty() {
+            let msg1 = "Drift detected for".truecolor(245, 77, 85);
+            let msg2 = format!("{}/{}/{}!", self.repository, self.name, self.version)
+                .truecolor(249, 179, 93);
+            let mut body = format!("\n{} {} \n", msg1, msg2);
+            body.push_str(&alert_description);
+
+            println!("{}", body);
+        }
+        Ok(())
+    }
+}
+
+impl DispatchHelpers for ConsoleAlertDispatcher {
+    fn construct_alert_description(&self, feature_alerts: &FeatureAlerts) -> String {
+        let mut alert_description = String::new();
+
         for (i, (_, feature_alert)) in feature_alerts.features.iter().enumerate() {
             if feature_alert.alerts.is_empty() {
                 continue;
@@ -31,224 +351,6 @@ trait DispatchHelpers {
         alert_description
     }
 }
-pub trait Dispatch {
-    fn process_alerts(
-        &self,
-        feature_alerts: &FeatureAlerts,
-        repository: &str,
-        name: &str,
-        version: &str,
-    ) -> impl futures::Future<Output = Result<()>>;
-}
-pub trait HttpAlertWrapper {
-    fn api_url(&self) -> &str;
-    fn header_auth_value(&self) -> &str;
-    fn construct_alert_body(
-        &self,
-        alert_description: &str,
-        repository: &str,
-        name: &str,
-        version: &str,
-    ) -> Value;
-}
-
-#[derive(Debug)]
-pub struct OpsGenieAlerter {
-    header_auth_value: String,
-    api_url: String,
-}
-
-impl OpsGenieAlerter {
-    pub fn new(opsgenie_api_key: String, opsgenie_api_url: String) -> Self {
-        Self {
-            header_auth_value: format!("GenieKey {}", opsgenie_api_key),
-            api_url: format!("{}/alerts", opsgenie_api_url),
-        }
-    }
-}
-
-impl HttpAlertWrapper for OpsGenieAlerter {
-    fn api_url(&self) -> &str {
-        &self.api_url
-    }
-
-    fn header_auth_value(&self) -> &str {
-        &self.header_auth_value
-    }
-
-    fn construct_alert_body(
-        &self,
-        alert_description: &str,
-        repository: &str,
-        name: &str,
-        version: &str,
-    ) -> Value {
-        json!(
-                {
-                    "message": format!("Model drift detected for {}/{}/{}", repository, name, version),
-                    "description": alert_description,
-                    "responders":[
-                        {"name":"ds-team", "type":"team"}
-                    ],
-                    "visibleTo":[
-                        {"name":"ds-team", "type":"team"}
-                    ],
-                    "tags": ["Model Drift"],
-                    "priority": "P1"
-                }
-        )
-    }
-}
-impl DispatchHelpers for OpsGenieAlerter {}
-#[derive(Debug)]
-pub struct SlackAlerter {
-    header_auth_value: String,
-    api_url: String,
-}
-
-impl SlackAlerter {
-    pub fn new(slack_bot_token: String, slack_api_url: String) -> Self {
-        Self {
-            header_auth_value: format!("Bearer {}", slack_bot_token),
-            api_url: format!("{}/chat.postMessage", slack_api_url),
-        }
-    }
-}
-
-impl HttpAlertWrapper for SlackAlerter {
-    fn api_url(&self) -> &str {
-        &self.api_url
-    }
-
-    fn header_auth_value(&self) -> &str {
-        &self.header_auth_value
-    }
-
-    fn construct_alert_body(
-        &self,
-        alert_description: &str,
-        repository: &str,
-        name: &str,
-        version: &str,
-    ) -> Value {
-        json!({
-            "channel": "bot-test",
-            "blocks": [
-                {
-                    "type": "header",
-                    "text": {
-                        "type": "plain_text",
-                        "text": format!(":red_circle: Model drift detected for {}/{}/{} :red_circle:", repository, name, version),
-                        "emoji": true
-                    }
-                },
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": alert_description
-                    },
-                    "accessory": {
-                        "type": "image",
-                        "image_url": "https://www.shutterstock.com/shutterstock/photos/2196561307/display_1500/stock-vector--d-vector-yellow-warning-sign-with-exclamation-mark-concept-eps-vector-2196561307.jpg",
-                        "alt_text": "Alert Symbol"
-                    }
-                }
-            ]
-        })
-    }
-}
-
-impl DispatchHelpers for SlackAlerter {
-    fn construct_alert_description(&self, feature_alerts: &FeatureAlerts) -> String {
-        let mut alert_description = String::new();
-        for (_, feature_alert) in feature_alerts.features.iter() {
-            if feature_alert.alerts.is_empty() {
-                continue;
-            }
-            alert_description.push_str(&format!("*{}* \n", &feature_alert.feature));
-            feature_alert.alerts.iter().for_each(|alert| {
-                alert_description.push_str(&format!("{} in {} \n", &alert.kind, &alert.zone))
-            });
-        }
-        alert_description
-    }
-}
-
-#[derive(Debug)]
-pub struct HttpAlertDispatcher<T: HttpAlertWrapper> {
-    http_client: reqwest::Client,
-    alerter: T,
-}
-
-impl<T: HttpAlertWrapper> HttpAlertDispatcher<T> {
-    pub fn new(alerter: T) -> Self {
-        Self {
-            http_client: reqwest::Client::new(),
-            alerter,
-        }
-    }
-
-    async fn send_alerts(&self, body: Value) -> Result<()> {
-        self.http_client
-            .post(self.alerter.api_url())
-            .header("Authorization", self.alerter.header_auth_value())
-            .json(&body)
-            .send()
-            .await
-            .with_context(|| "Error posting alert to web client")?;
-        Ok(())
-    }
-}
-
-impl<T: HttpAlertWrapper + DispatchHelpers> Dispatch for HttpAlertDispatcher<T> {
-    async fn process_alerts(
-        &self,
-        feature_alerts: &FeatureAlerts,
-        repository: &str,
-        name: &str,
-        version: &str,
-    ) -> Result<()> {
-        let alert_description = self.alerter.construct_alert_description(feature_alerts);
-
-        let alert_body =
-            self.alerter
-                .construct_alert_body(&alert_description, repository, name, version);
-
-        self.send_alerts(alert_body)
-            .await
-            .with_context(|| "Error sending alerts")?;
-
-        Ok(())
-    }
-}
-
-#[derive(Debug)]
-pub struct ConsoleAlertDispatcher;
-
-impl Dispatch for ConsoleAlertDispatcher {
-    async fn process_alerts(
-        &self,
-        feature_alerts: &FeatureAlerts,
-        repository: &str,
-        name: &str,
-        version: &str,
-    ) -> Result<()> {
-        let alert_description = self.construct_alert_description(feature_alerts);
-
-        if !alert_description.is_empty() {
-            let msg1 = "Drift detected for".truecolor(245, 77, 85);
-            let msg2 = format!("{}/{}/{}!", repository, name, version).truecolor(249, 179, 93);
-            let mut body = format!("\n{} {} \n", msg1, msg2);
-            body.push_str(&alert_description);
-
-            println!("{}", body);
-        }
-        Ok(())
-    }
-}
-
-impl DispatchHelpers for ConsoleAlertDispatcher {}
 
 #[derive(Debug)]
 pub enum AlertDispatcher {
@@ -259,57 +361,67 @@ pub enum AlertDispatcher {
 
 impl AlertDispatcher {
     // process alerts can be called asynchronously
-    pub async fn process_alerts(
-        &self,
-        feature_alerts: &FeatureAlerts,
-        repository: &str,
-        name: &str,
-        version: &str,
-    ) -> Result<()> {
+    pub async fn process_alerts(&self, feature_alerts: &FeatureAlerts) -> Result<()> {
         match self {
             AlertDispatcher::Console(dispatcher) => dispatcher
-                .process_alerts(feature_alerts, repository, name, version)
+                .process_alerts(feature_alerts)
                 .await
                 .with_context(|| "Error processing alerts"),
             AlertDispatcher::OpsGenie(dispatcher) => dispatcher
-                .process_alerts(feature_alerts, repository, name, version)
+                .process_alerts(feature_alerts)
                 .await
                 .with_context(|| "Error processing alerts"),
             AlertDispatcher::Slack(dispatcher) => dispatcher
-                .process_alerts(feature_alerts, repository, name, version)
+                .process_alerts(feature_alerts)
                 .await
                 .with_context(|| "Error processing alerts"),
         }
     }
 
-    pub fn new(dispatch_type: &AlertDispatchType) -> Self {
-        match dispatch_type {
-            AlertDispatchType::Console => AlertDispatcher::Console(ConsoleAlertDispatcher),
-            AlertDispatchType::OpsGenie => {
-                if let (Ok(opsgenie_api_key), Ok(opsgenie_api_url)) =
-                    (env::var("OPSGENIE_API_KEY"), env::var("OPSGENIE_API_URL"))
-                {
-                    AlertDispatcher::OpsGenie(HttpAlertDispatcher::new(OpsGenieAlerter::new(
-                        opsgenie_api_key,
-                        opsgenie_api_url,
-                    )))
-                } else {
-                    AlertDispatcher::Console(ConsoleAlertDispatcher)
+    pub fn new(config: &DriftConfig) -> Self {
+        let name = config.name.clone();
+        let repository = config.repository.clone();
+        let version = config.version.clone();
+        let dispatch_type = &config.alert_config.alert_dispatch_type;
+
+        let alerter = if let AlertDispatchType::OpsGenie = dispatch_type {
+            let _alerter = OpsGenieAlerter::new(&name, &repository, &version);
+            match _alerter {
+                Ok(_alerter) => Ok(AlertDispatcher::OpsGenie(HttpAlertDispatcher::new(
+                    _alerter,
+                ))),
+                Err(e) => {
+                    error!("Failed to create OpsGenieAlerter: {:?}", e);
+                    Err(anyhow::Error::msg("Failed to create OpsGenieAlerter"))
                 }
             }
-            AlertDispatchType::Slack => {
-                if let (Ok(slack_bot_token), Ok(slack_api_url)) =
-                    (env::var("SLACK_BOT_TOKEN"), env::var("SLACK_API_URL"))
-                {
-                    AlertDispatcher::Slack(HttpAlertDispatcher::new(SlackAlerter::new(
-                        slack_bot_token,
-                        slack_api_url,
-                    )))
-                } else {
-                    AlertDispatcher::Console(ConsoleAlertDispatcher)
+        } else if let AlertDispatchType::Slack = dispatch_type {
+            let _alerter = SlackAlerter::new(&name, &repository, &version);
+
+            match _alerter {
+                Ok(_alerter) => Ok(AlertDispatcher::Slack(HttpAlertDispatcher::new(_alerter))),
+                Err(e) => {
+                    error!("Failed to create SlackAlerter: {:?}", e);
+                    Err(anyhow::Error::msg("Failed to create SlackAlerter"))
                 }
             }
-            AlertDispatchType::Email => panic!("Unsupported dispatcher type: Email"),
+        } else {
+            Ok(AlertDispatcher::Console(ConsoleAlertDispatcher::new(
+                &name,
+                &repository,
+                &version,
+            )))
+        };
+
+        match alerter {
+            Ok(alerter) => alerter,
+            Err(e) => {
+                error!(
+                    "Failed to create AlertDispatcher: {:?}, Defaulting to Console",
+                    e
+                );
+                AlertDispatcher::Console(ConsoleAlertDispatcher::new(&name, &repository, &version))
+            }
         }
     }
 }
@@ -317,7 +429,9 @@ impl AlertDispatcher {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use scouter::utils::types::{Alert, AlertType, AlertZone, FeatureAlert};
+    use scouter::utils::types::{
+        Alert, AlertDispatchType, AlertType, AlertZone, DriftConfig, FeatureAlert,
+    };
     use std::collections::HashMap;
     use std::env;
 
@@ -341,7 +455,7 @@ mod tests {
                 feature: "test_feature_2".to_string(),
                 alerts: vec![Alert {
                     zone: AlertZone::Zone1.to_str(),
-                    kind: AlertType::OutOfBounds.to_str(),
+                    kind: AlertType::Consecutive.to_str(),
                 }],
                 indices: Default::default(),
             },
@@ -355,29 +469,11 @@ mod tests {
             env::set_var("OPSGENIE_API_KEY", "api_key");
         }
         let features = test_features_hashmap();
-        let alerter = OpsGenieAlerter::new(
-            env::var("OPSGENIE_API_KEY").unwrap(),
-            env::var("OPSGENIE_API_URL").unwrap(),
-        );
+        let alerter = OpsGenieAlerter::new("name", "repository", "1.0.0").unwrap();
         let alert_description = alerter.construct_alert_description(&FeatureAlerts { features });
-        let expected_alert_description = "Features that have drifted \ntest_feature_1 alerts: \nalert kind Out of bounds -- alert zone: Out of bounds \ntest_feature_2 alerts: \nalert kind Out of bounds -- alert zone: Zone 1 \n".to_string();
+        let expected_alert_description = "Drift has been detected for the following features:\n    test_feature_2: \n        Kind: Consecutive\n        Zone: Zone 1\n    test_feature_1: \n        Kind: Out of bounds\n        Zone: Out of bounds\n".to_string();
         assert_eq!(&alert_description.len(), &expected_alert_description.len());
-        assert_eq!(
-            &alert_description.contains(
-                "test_feature_1 alerts: \nalert kind Out of bounds -- alert zone: Out of bounds"
-            ),
-            &expected_alert_description.contains(
-                "test_feature_1 alerts: \nalert kind Out of bounds -- alert zone: Out of bounds"
-            )
-        );
-        assert_eq!(
-            &alert_description.contains(
-                "test_feature_2 alerts: \nalert kind Out of bounds -- alert zone: Zone 1"
-            ),
-            &expected_alert_description.contains(
-                "test_feature_2 alerts: \nalert kind Out of bounds -- alert zone: Zone 1"
-            )
-        );
+
         unsafe {
             env::remove_var("OPSGENIE_API_URL");
             env::remove_var("OPSGENIE_API_KEY");
@@ -391,10 +487,7 @@ mod tests {
             env::set_var("OPSGENIE_API_KEY", "api_key");
         }
         let features: HashMap<String, FeatureAlert> = HashMap::new();
-        let alerter = OpsGenieAlerter::new(
-            env::var("OPSGENIE_API_KEY").unwrap(),
-            env::var("OPSGENIE_API_URL").unwrap(),
-        );
+        let alerter = OpsGenieAlerter::new("name", "repository", "1.0.0").unwrap();
         let alert_description = alerter.construct_alert_description(&FeatureAlerts { features });
         let expected_alert_description = "".to_string();
         assert_eq!(alert_description, expected_alert_description);
@@ -414,6 +507,7 @@ mod tests {
         unsafe {
             env::set_var("OPSGENIE_API_URL", url);
             env::set_var("OPSGENIE_API_KEY", "api_key");
+            env::set_var("OPSGENIE_TEAM", "ds-team");
         }
         let expected_alert_body = json!(
                 {
@@ -425,31 +519,24 @@ mod tests {
                     "visibleTo":[
                         {"name":"ds-team", "type":"team"}
                     ],
-                    "tags": ["Model Drift"],
+                    "tags": ["Model Drift", "Scouter"],
                     "priority": "P1"
                 }
         );
-        let alerter = OpsGenieAlerter::new(
-            env::var("OPSGENIE_API_KEY").unwrap(),
-            env::var("OPSGENIE_API_URL").unwrap(),
-        );
-        let alert_body = alerter.construct_alert_body(
-            "Features have drifted",
-            "test_repo",
-            "test_ml_model",
-            "1.0.0",
-        );
+        let alerter = OpsGenieAlerter::new("test_ml_model", "test_repo", "1.0.0").unwrap();
+        let alert_body = alerter.construct_alert_body("Features have drifted");
         assert_eq!(alert_body, expected_alert_body);
         unsafe {
             env::remove_var("OPSGENIE_API_URL");
             env::remove_var("OPSGENIE_API_KEY");
+            env::remove_var("OPSGENIE_TEAM");
         }
     }
 
     #[tokio::test]
     async fn test_send_opsgenie_alerts() {
         let mut download_server = mockito::Server::new_async().await;
-        let url = download_server.url();
+        let url = format!("{}/alerts", download_server.url());
 
         // set env variables
         unsafe {
@@ -464,18 +551,10 @@ mod tests {
 
         let features = test_features_hashmap();
 
-        let dispatcher = AlertDispatcher::OpsGenie(HttpAlertDispatcher::new(OpsGenieAlerter::new(
-            env::var("OPSGENIE_API_KEY").unwrap(),
-            env::var("OPSGENIE_API_URL").unwrap(),
-        )));
-        let _ = dispatcher
-            .process_alerts(
-                &FeatureAlerts { features },
-                "test_repo",
-                "test_ml_model",
-                "1.0.0",
-            )
-            .await;
+        let dispatcher = AlertDispatcher::OpsGenie(HttpAlertDispatcher::new(
+            OpsGenieAlerter::new("name", "repository", "1.0.0").unwrap(),
+        ));
+        let _ = dispatcher.process_alerts(&FeatureAlerts { features }).await;
 
         mock_get_path.assert();
 
@@ -488,15 +567,9 @@ mod tests {
     #[tokio::test]
     async fn test_send_console_alerts() {
         let features = test_features_hashmap();
-        let dispatcher = AlertDispatcher::Console(ConsoleAlertDispatcher);
-        let result = dispatcher
-            .process_alerts(
-                &FeatureAlerts { features },
-                "test_repo",
-                "test_ml_model",
-                "1.0.0",
-            )
-            .await;
+        let dispatcher =
+            AlertDispatcher::Console(ConsoleAlertDispatcher::new("name", "repository", "1.0.0"));
+        let result = dispatcher.process_alerts(&FeatureAlerts { features }).await;
 
         assert!(result.is_ok());
     }
@@ -509,7 +582,7 @@ mod tests {
         // set env variables
         unsafe {
             env::set_var("SLACK_API_URL", url);
-            env::set_var("SLACK_BOT_TOKEN", "bot_token");
+            env::set_var("SLACK_APP_TOKEN", "bot_token");
         }
 
         let mock_get_path = download_server
@@ -519,24 +592,16 @@ mod tests {
 
         let features = test_features_hashmap();
 
-        let dispatcher = AlertDispatcher::Slack(HttpAlertDispatcher::new(SlackAlerter::new(
-            env::var("SLACK_BOT_TOKEN").unwrap(),
-            env::var("SLACK_API_URL").unwrap(),
-        )));
-        let _ = dispatcher
-            .process_alerts(
-                &FeatureAlerts { features },
-                "test_repo",
-                "test_ml_model",
-                "1.0.0",
-            )
-            .await;
+        let dispatcher = AlertDispatcher::Slack(HttpAlertDispatcher::new(
+            SlackAlerter::new("name", "repository", "1.0.0").unwrap(),
+        ));
+        let _ = dispatcher.process_alerts(&FeatureAlerts { features }).await;
 
         mock_get_path.assert();
 
         unsafe {
             env::remove_var("SLACK_API_URL");
-            env::remove_var("SLACK_BOT_TOKEN");
+            env::remove_var("SLACK_APP_TOKEN");
         }
     }
 
@@ -548,17 +613,24 @@ mod tests {
 
         unsafe {
             env::set_var("SLACK_API_URL", url);
-            env::set_var("SLACK_BOT_TOKEN", "bot_token");
+            env::set_var("SLACK_APP_TOKEN", "bot_token");
         }
         let expected_alert_body = json!({
-            "channel": "bot-test",
+            "channel": "scouter-bot",
             "blocks": [
                 {
                     "type": "header",
                     "text": {
                         "type": "plain_text",
-                        "text": ":red_circle: Model drift detected for test_repo/test_ml_model/1.0.0 :red_circle:",
+                        "text": ":rotating_light: Drift Detected :rotating_light:",
                         "emoji": true
+                    }
+                },
+                {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Name*: name *Repository*: repository *Version*: 1.0.0",
                     }
                 },
                 {
@@ -567,40 +639,58 @@ mod tests {
                         "type": "mrkdwn",
                         "text": "*Features have drifted*"
                     },
-                    "accessory": {
-                        "type": "image",
-                        "image_url": "https://www.shutterstock.com/shutterstock/photos/2196561307/display_1500/stock-vector--d-vector-yellow-warning-sign-with-exclamation-mark-concept-eps-vector-2196561307.jpg",
-                        "alt_text": "Alert Symbol"
-                    }
                 }
             ]
         });
-        let alerter = SlackAlerter::new(
-            env::var("SLACK_BOT_TOKEN").unwrap(),
-            env::var("SLACK_API_URL").unwrap(),
-        );
-        let alert_body = alerter.construct_alert_body(
-            "*Features have drifted*",
-            "test_repo",
-            "test_ml_model",
-            "1.0.0",
-        );
+        let alerter = SlackAlerter::new("name", "repository", "1.0.0").unwrap();
+        let alert_body = alerter.construct_alert_body("*Features have drifted*");
         assert_eq!(alert_body, expected_alert_body);
         unsafe {
             env::remove_var("SLACK_API_URL");
-            env::remove_var("SLACK_BOT_TOKEN");
+            env::remove_var("SLACK_APP_TOKEN");
         }
     }
 
     #[test]
-    fn test_console_dispatcher_returned_when_env_vars_not_set() {
+    fn test_console_dispatcher_returned_when_env_vars_not_set_opsgenie() {
+        unsafe {
+            env::remove_var("OPSGENIE_API_KEY");
+        }
+        let config = DriftConfig::new(
+            "name".to_string(),
+            "repository".to_string(),
+            Some("1.0.0".to_string()),
+            None,
+            None,
+            None,
+            None,
+            Some(AlertDispatchType::OpsGenie),
+        );
+        let dispatcher = AlertDispatcher::new(&config);
+        assert!(
+            matches!(dispatcher, AlertDispatcher::Console(_)),
+            "Expected Console Dispatcher"
+        );
+    }
+
+    #[test]
+    fn test_console_dispatcher_returned_when_env_vars_not_set_slack() {
         unsafe {
             env::remove_var("SLACK_API_URL");
-            env::remove_var("SLACK_BOT_TOKEN");
+            env::remove_var("SLACK_APP_TOKEN");
         }
-        let dispatch_type = AlertDispatchType::Slack;
-        let dispatcher = AlertDispatcher::new(&dispatch_type);
+        let config = DriftConfig::new(
+            "name".to_string(),
+            "repository".to_string(),
+            Some("1.0.0".to_string()),
+            None,
+            None,
+            None,
+            None,
+            Some(AlertDispatchType::Slack),
+        );
 
+        let dispatcher = AlertDispatcher::new(&config);
         assert!(
             matches!(dispatcher, AlertDispatcher::Console(_)),
             "Expected Console Dispatcher"
@@ -611,10 +701,20 @@ mod tests {
     fn test_slack_dispatcher_returned_when_env_vars_set() {
         unsafe {
             env::set_var("SLACK_API_URL", "url");
-            env::set_var("SLACK_BOT_TOKEN", "bot_token");
+            env::set_var("SLACK_APP_TOKEN", "bot_token");
         }
-        let dispatch_type = AlertDispatchType::Slack;
-        let dispatcher = AlertDispatcher::new(&dispatch_type);
+        let config = DriftConfig::new(
+            "name".to_string(),
+            "repository".to_string(),
+            Some("1.0.0".to_string()),
+            None,
+            None,
+            None,
+            None,
+            Some(AlertDispatchType::Slack),
+        );
+
+        let dispatcher = AlertDispatcher::new(&config);
 
         assert!(
             matches!(dispatcher, AlertDispatcher::Slack(_)),
@@ -623,7 +723,7 @@ mod tests {
 
         unsafe {
             env::remove_var("SLACK_API_URL");
-            env::remove_var("SLACK_BOT_TOKEN");
+            env::remove_var("SLACK_APP_TOKEN");
         }
     }
 }

@@ -71,7 +71,7 @@ impl OpsGenieAlerter {
         match api_key {
             Err(e) => {
                 error!("Failed to create OpsGenieAlerter: {:?}", e);
-                return Err(anyhow::Error::msg("Failed to create OpsGenieAlerter"));
+                Err(anyhow::Error::msg("Failed to create OpsGenieAlerter"))
             }
             Ok(api_key) => Ok(Self {
                 header_auth_value: format!("GenieKey {}", api_key),
@@ -150,11 +150,11 @@ impl SlackAlerter {
         match (app_token, api_url) {
             (Err(e), _) => {
                 error!("Failed to create SlackAlerter: {:?}", e);
-                return Err(anyhow::Error::msg("Failed to create SlackAlerter"));
+                Err(anyhow::Error::msg("Failed to create SlackAlerter"))
             }
             (_, Err(e)) => {
                 error!("Failed to create SlackAlerter: {:?}", e);
-                return Err(anyhow::Error::msg("Failed to create SlackAlerter"));
+                Err(anyhow::Error::msg("Failed to create SlackAlerter"))
             }
             (Ok(app_token), Ok(api_url)) => Ok(Self {
                 header_auth_value: format!("Bearer {}", app_token),

@@ -125,9 +125,9 @@ pub struct SlackAlerter {
 }
 
 impl SlackAlerter {
-    pub fn new(slack_bot_token: String, slack_api_url: String) -> Self {
+    pub fn new(slack_app_token: String, slack_api_url: String) -> Self {
         Self {
-            header_auth_value: format!("Bearer {}", slack_bot_token),
+            header_auth_value: format!("Bearer {}", slack_app_token),
             api_url: format!("{}/chat.postMessage", slack_api_url),
         }
     }
@@ -150,14 +150,21 @@ impl HttpAlertWrapper for SlackAlerter {
         version: &str,
     ) -> Value {
         json!({
-            "channel": "bot-test",
+            "channel": "scouter-bot",
             "blocks": [
                 {
                     "type": "header",
                     "text": {
-                        "type": "plain_text",
-                        "text": format!(":red_circle: Model drift detected for {}/{}/{} :red_circle:", repository, name, version),
-                        "emoji": true
+                      "type": "plain_text",
+                      "text": ":rotating_light: Drift Detected :rotating_light:",
+                      "emoji": true
+                    }
+                },
+                {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": format!("*Name*: {} *Repository*: {} *Version*: {}", name, repository, version),
                     }
                 },
                 {
@@ -166,11 +173,7 @@ impl HttpAlertWrapper for SlackAlerter {
                         "type": "mrkdwn",
                         "text": alert_description
                     },
-                    "accessory": {
-                        "type": "image",
-                        "image_url": "https://www.shutterstock.com/shutterstock/photos/2196561307/display_1500/stock-vector--d-vector-yellow-warning-sign-with-exclamation-mark-concept-eps-vector-2196561307.jpg",
-                        "alt_text": "Alert Symbol"
-                    }
+
                 }
             ]
         })
@@ -180,13 +183,27 @@ impl HttpAlertWrapper for SlackAlerter {
 impl DispatchHelpers for SlackAlerter {
     fn construct_alert_description(&self, feature_alerts: &FeatureAlerts) -> String {
         let mut alert_description = String::new();
-        for (_, feature_alert) in feature_alerts.features.iter() {
+        for (i, (_, feature_alert)) in feature_alerts.features.iter().enumerate() {
             if feature_alert.alerts.is_empty() {
                 continue;
             }
-            alert_description.push_str(&format!("*{}* \n", &feature_alert.feature));
+            if i == 0 {
+                alert_description.push_str("Drift has been detected for the following features:\n");
+            }
+
+            let feature_name = format!("{}: \n", &feature_alert.feature);
+
+            // can't use push_str when adding colorized strings
+            alert_description = format!("{}{}", alert_description, feature_name);
             feature_alert.alerts.iter().for_each(|alert| {
-                alert_description.push_str(&format!("{} in {} \n", &alert.kind, &alert.zone))
+                let alert = format!(
+                    "{:indent$}{} error in {}\n",
+                    "",
+                    &alert.kind,
+                    &alert.zone,
+                    indent = 4,
+                );
+                alert_description = format!("{}{}", alert_description, alert);
             });
         }
         alert_description
@@ -218,11 +235,6 @@ impl<T: HttpAlertWrapper> HttpAlertDispatcher<T> {
             .with_context(|| "Error posting alert to web client")?;
 
         if response.status().is_success() {
-            let text = response
-                .text()
-                .await
-                .unwrap_or("Failed to parse response".to_string());
-            info!("Alert sent successfully {}", text);
             Ok(())
         } else {
             let text = response
@@ -285,6 +297,7 @@ impl Dispatch for ConsoleAlertDispatcher {
 impl DispatchHelpers for ConsoleAlertDispatcher {
     fn construct_alert_description(&self, feature_alerts: &FeatureAlerts) -> String {
         let mut alert_description = String::new();
+
         for (i, (_, feature_alert)) in feature_alerts.features.iter().enumerate() {
             if feature_alert.alerts.is_empty() {
                 continue;
@@ -353,6 +366,7 @@ impl AlertDispatcher {
                 // move this to drift profile in scouter (see todo)
                 let opsgenie_team = env::var("OPSGENIE_TEAM").ok();
 
+                // TODO: replace this in next PR
                 if let Ok(opsgenie_api_key) = env::var("OPSGENIE_API_KEY") {
                     AlertDispatcher::OpsGenie(HttpAlertDispatcher::new(OpsGenieAlerter::new(
                         opsgenie_api_key,
@@ -364,11 +378,11 @@ impl AlertDispatcher {
                 }
             }
             AlertDispatchType::Slack => {
-                if let (Ok(slack_bot_token), Ok(slack_api_url)) =
-                    (env::var("SLACK_BOT_TOKEN"), env::var("SLACK_API_URL"))
+                if let (Ok(slack_app_token), Ok(slack_api_url)) =
+                    (env::var("SLACK_APP_TOKEN"), env::var("SLACK_API_URL"))
                 {
                     AlertDispatcher::Slack(HttpAlertDispatcher::new(SlackAlerter::new(
-                        slack_bot_token,
+                        slack_app_token,
                         slack_api_url,
                     )))
                 } else {
@@ -581,7 +595,7 @@ mod tests {
         // set env variables
         unsafe {
             env::set_var("SLACK_API_URL", url);
-            env::set_var("SLACK_BOT_TOKEN", "bot_token");
+            env::set_var("SLACK_APP_TOKEN", "bot_token");
         }
 
         let mock_get_path = download_server
@@ -592,7 +606,7 @@ mod tests {
         let features = test_features_hashmap();
 
         let dispatcher = AlertDispatcher::Slack(HttpAlertDispatcher::new(SlackAlerter::new(
-            env::var("SLACK_BOT_TOKEN").unwrap(),
+            env::var("SLACK_APP_TOKEN").unwrap(),
             env::var("SLACK_API_URL").unwrap(),
         )));
         let _ = dispatcher
@@ -608,7 +622,7 @@ mod tests {
 
         unsafe {
             env::remove_var("SLACK_API_URL");
-            env::remove_var("SLACK_BOT_TOKEN");
+            env::remove_var("SLACK_APP_TOKEN");
         }
     }
 
@@ -620,7 +634,7 @@ mod tests {
 
         unsafe {
             env::set_var("SLACK_API_URL", url);
-            env::set_var("SLACK_BOT_TOKEN", "bot_token");
+            env::set_var("SLACK_APP_TOKEN", "bot_token");
         }
         let expected_alert_body = json!({
             "channel": "bot-test",
@@ -648,7 +662,7 @@ mod tests {
             ]
         });
         let alerter = SlackAlerter::new(
-            env::var("SLACK_BOT_TOKEN").unwrap(),
+            env::var("SLACK_APP_TOKEN").unwrap(),
             env::var("SLACK_API_URL").unwrap(),
         );
         let alert_body = alerter.construct_alert_body(
@@ -660,7 +674,7 @@ mod tests {
         assert_eq!(alert_body, expected_alert_body);
         unsafe {
             env::remove_var("SLACK_API_URL");
-            env::remove_var("SLACK_BOT_TOKEN");
+            env::remove_var("SLACK_APP_TOKEN");
         }
     }
 
@@ -668,7 +682,7 @@ mod tests {
     fn test_console_dispatcher_returned_when_env_vars_not_set() {
         unsafe {
             env::remove_var("SLACK_API_URL");
-            env::remove_var("SLACK_BOT_TOKEN");
+            env::remove_var("SLACK_APP_TOKEN");
         }
         let dispatch_type = AlertDispatchType::Slack;
         let dispatcher = AlertDispatcher::new(&dispatch_type);
@@ -683,7 +697,7 @@ mod tests {
     fn test_slack_dispatcher_returned_when_env_vars_set() {
         unsafe {
             env::set_var("SLACK_API_URL", "url");
-            env::set_var("SLACK_BOT_TOKEN", "bot_token");
+            env::set_var("SLACK_APP_TOKEN", "bot_token");
         }
         let dispatch_type = AlertDispatchType::Slack;
         let dispatcher = AlertDispatcher::new(&dispatch_type);
@@ -695,7 +709,7 @@ mod tests {
 
         unsafe {
             env::remove_var("SLACK_API_URL");
-            env::remove_var("SLACK_BOT_TOKEN");
+            env::remove_var("SLACK_APP_TOKEN");
         }
     }
 }

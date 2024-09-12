@@ -3,6 +3,7 @@ use colored::Colorize;
 use scouter::utils::types::DriftConfig;
 use scouter::utils::types::{AlertDispatchType, FeatureAlerts};
 use serde_json::{json, Value};
+use std::collections::BTreeMap;
 use std::{collections::HashMap, env};
 use tracing::error;
 
@@ -430,23 +431,24 @@ impl AlertDispatcher {
 mod tests {
     use super::*;
     use scouter::utils::types::{
-        Alert, AlertDispatchType, AlertType, AlertZone, DriftConfig, FeatureAlert,
+        Alert, AlertConfig, AlertDispatchType, AlertType, AlertZone, DriftConfig, FeatureAlert,
     };
-    use std::collections::HashMap;
+
     use std::env;
 
-    fn test_features_hashmap() -> HashMap<String, FeatureAlert> {
-        let mut features: HashMap<String, FeatureAlert> = HashMap::new();
+    fn test_features_map() -> BTreeMap<String, FeatureAlert> {
+        let mut features: BTreeMap<String, FeatureAlert> = BTreeMap::new();
 
         features.insert(
             "test_feature_1".to_string(),
             FeatureAlert {
                 feature: "test_feature_1".to_string(),
                 alerts: vec![Alert {
-                    zone: AlertZone::OutOfBounds.to_str(),
+                    zone: AlertZone::Zone4.to_str(),
                     kind: AlertType::OutOfBounds.to_str(),
                 }],
                 indices: Default::default(),
+                correlations: Default::default(),
             },
         );
         features.insert(
@@ -458,6 +460,7 @@ mod tests {
                     kind: AlertType::Consecutive.to_str(),
                 }],
                 indices: Default::default(),
+                correlations: Default::default(),
             },
         );
         features
@@ -468,7 +471,7 @@ mod tests {
             env::set_var("OPSGENIE_API_URL", "api_url");
             env::set_var("OPSGENIE_API_KEY", "api_key");
         }
-        let features = test_features_hashmap();
+        let features = test_features_map();
         let alerter = OpsGenieAlerter::new("name", "repository", "1.0.0").unwrap();
         let alert_description = alerter.construct_alert_description(&FeatureAlerts { features });
         let expected_alert_description = "Drift has been detected for the following features:\n    test_feature_2: \n        Kind: Consecutive\n        Zone: Zone 1\n    test_feature_1: \n        Kind: Out of bounds\n        Zone: Out of bounds\n".to_string();
@@ -486,7 +489,7 @@ mod tests {
             env::set_var("OPSGENIE_API_URL", "api_url");
             env::set_var("OPSGENIE_API_KEY", "api_key");
         }
-        let features: HashMap<String, FeatureAlert> = HashMap::new();
+        let features: BTreeMap<String, FeatureAlert> = BTreeMap::new();
         let alerter = OpsGenieAlerter::new("name", "repository", "1.0.0").unwrap();
         let alert_description = alerter.construct_alert_description(&FeatureAlerts { features });
         let expected_alert_description = "".to_string();
@@ -549,7 +552,7 @@ mod tests {
             .with_status(201)
             .create();
 
-        let features = test_features_hashmap();
+        let features = test_features_map();
 
         let dispatcher = AlertDispatcher::OpsGenie(HttpAlertDispatcher::new(
             OpsGenieAlerter::new("name", "repository", "1.0.0").unwrap(),
@@ -566,7 +569,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_send_console_alerts() {
-        let features = test_features_hashmap();
+        let features = test_features_map();
         let dispatcher =
             AlertDispatcher::Console(ConsoleAlertDispatcher::new("name", "repository", "1.0.0"));
         let result = dispatcher.process_alerts(&FeatureAlerts { features }).await;
@@ -590,7 +593,7 @@ mod tests {
             .with_status(201)
             .create();
 
-        let features = test_features_hashmap();
+        let features = test_features_map();
 
         let dispatcher = AlertDispatcher::Slack(HttpAlertDispatcher::new(
             SlackAlerter::new("name", "repository", "1.0.0").unwrap(),
@@ -656,16 +659,27 @@ mod tests {
         unsafe {
             env::remove_var("OPSGENIE_API_KEY");
         }
+        let alert_config = AlertConfig::new(
+            None,
+            Some(AlertDispatchType::OpsGenie),
+            None,
+            None,
+            None,
+            None,
+        );
+
         let config = DriftConfig::new(
-            "name".to_string(),
-            "repository".to_string(),
+            Some("name".to_string()),
+            Some("repository".to_string()),
             Some("1.0.0".to_string()),
             None,
             None,
             None,
             None,
-            Some(AlertDispatchType::OpsGenie),
-        );
+            Some(alert_config),
+            None,
+        )
+        .unwrap();
         let dispatcher = AlertDispatcher::new(&config);
         assert!(
             matches!(dispatcher, AlertDispatcher::Console(_)),
@@ -679,16 +693,21 @@ mod tests {
             env::remove_var("SLACK_API_URL");
             env::remove_var("SLACK_APP_TOKEN");
         }
+
+        let alert_config =
+            AlertConfig::new(None, Some(AlertDispatchType::Slack), None, None, None, None);
         let config = DriftConfig::new(
-            "name".to_string(),
-            "repository".to_string(),
+            Some("name".to_string()),
+            Some("repository".to_string()),
             Some("1.0.0".to_string()),
             None,
             None,
             None,
             None,
-            Some(AlertDispatchType::Slack),
-        );
+            Some(alert_config),
+            None,
+        )
+        .unwrap();
 
         let dispatcher = AlertDispatcher::new(&config);
         assert!(
@@ -703,16 +722,20 @@ mod tests {
             env::set_var("SLACK_API_URL", "url");
             env::set_var("SLACK_APP_TOKEN", "bot_token");
         }
+        let alert_config =
+            AlertConfig::new(None, Some(AlertDispatchType::Slack), None, None, None, None);
         let config = DriftConfig::new(
-            "name".to_string(),
-            "repository".to_string(),
+            Some("name".to_string()),
+            Some("repository".to_string()),
             Some("1.0.0".to_string()),
             None,
             None,
             None,
             None,
-            Some(AlertDispatchType::Slack),
-        );
+            Some(alert_config),
+            None,
+        )
+        .unwrap();
 
         let dispatcher = AlertDispatcher::new(&config);
 

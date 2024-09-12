@@ -59,7 +59,7 @@ async fn test_drift_executor_separate() {
 
     assert_eq!(
         alerts.features.get("col_3").unwrap().alerts[0].zone,
-        "Out of bounds"
+        "Zone 4"
     );
 
     let dispatcher = ConsoleAlertDispatcher::new(&name, &repository, &version);

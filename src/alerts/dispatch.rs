@@ -474,7 +474,7 @@ mod tests {
         let features = test_features_map();
         let alerter = OpsGenieAlerter::new("name", "repository", "1.0.0").unwrap();
         let alert_description = alerter.construct_alert_description(&FeatureAlerts { features });
-        let expected_alert_description = "Drift has been detected for the following features:\n    test_feature_2: \n        Kind: Consecutive\n        Zone: Zone 1\n    test_feature_1: \n        Kind: Out of bounds\n        Zone: Out of bounds\n".to_string();
+        let expected_alert_description = "Drift has been detected for the following features:\n    test_feature_2: \n        Kind: Consecutive\n        Zone: Zone 1\n    test_feature_1: \n        Kind: Out of bounds\n        Zone: Zone 4\n".to_string();
         assert_eq!(&alert_description.len(), &expected_alert_description.len());
 
         unsafe {

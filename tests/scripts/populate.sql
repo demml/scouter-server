@@ -57,8 +57,13 @@ VALUES
                     "rule": "16 16 4 8 2 4 1 1"
                   },
                   "percentage": null
-            }
-        }
+            },
+            "features_to_monitor": [],
+            "zones_to_monitor": [],
+            "alert_kwargs": {}
+        },
+        "feature_map": null,
+        "targets": []
       }
     }',
     true,
@@ -122,8 +127,13 @@ VALUES
                     "rule": "8 16 4 8 2 4 1 1"
                   },
                   "percentage": null
-            }
-        }
+            },
+            "features_to_monitor": [],
+            "zones_to_monitor": [],
+            "alert_kwargs": {}
+        },
+        "feature_map": null,
+        "targets": []
       }
       }',
       false,
@@ -187,8 +197,13 @@ VALUES
                     "rule": "16 16 4 8 2 4 1 1"
                   },
                   "percentage": null
-            }
-        }
+            },
+            "features_to_monitor": [],
+            "zones_to_monitor": [],
+            "alert_kwargs": {}
+        },
+        "feature_map": null,
+        "targets": []
       }
     }',
     true,
@@ -252,8 +267,13 @@ VALUES
                     "rule": "8 16 4 8 2 4 1 1"
                   },
                   "percentage": null
-            }
-        }
+            },
+            "features_to_monitor": [],
+            "zones_to_monitor": [],
+            "alert_kwargs": {}
+        },
+        "feature_map": null,
+        "targets": []
       }
       }',
       false,

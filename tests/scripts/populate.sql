@@ -54,12 +54,12 @@ VALUES
             "schedule": "0 0 0 * * *",
             "alert_rule": {
                   "process": {
-                    "rule": "16 16 4 8 2 4 1 1"
+                    "rule": "16 16 4 8 2 4 1 1",
+                    "zones_to_monitor": ["Zone 1", "Zone 2", "Zone 3", "Zone 4"]
                   },
                   "percentage": null
             },
             "features_to_monitor": [],
-            "zones_to_monitor": [],
             "alert_kwargs": {}
         },
         "feature_map": null,
@@ -124,12 +124,12 @@ VALUES
             "schedule": "0 0 0 * * *",
             "alert_rule": {
                   "process": {
-                    "rule": "8 16 4 8 2 4 1 1"
+                    "rule": "8 16 4 8 2 4 1 1",
+                    "zones_to_monitor": ["Zone 1", "Zone 2", "Zone 3", "Zone 4"]
                   },
                   "percentage": null
             },
             "features_to_monitor": [],
-            "zones_to_monitor": [],
             "alert_kwargs": {}
         },
         "feature_map": null,
@@ -194,12 +194,12 @@ VALUES
             "schedule": "0 0 0 * * *",
             "alert_rule": {
                   "process": {
-                    "rule": "16 16 4 8 2 4 1 1"
+                    "rule": "16 16 4 8 2 4 1 1",
+                    "zones_to_monitor": ["Zone 1", "Zone 2", "Zone 3", "Zone 4"]
                   },
                   "percentage": null
             },
             "features_to_monitor": [],
-            "zones_to_monitor": [],
             "alert_kwargs": {}
         },
         "feature_map": null,
@@ -264,12 +264,12 @@ VALUES
             "schedule": "0 0 0 * * *",
             "alert_rule": {
                   "process": {
-                    "rule": "8 16 4 8 2 4 1 1"
+                    "rule": "8 16 4 8 2 4 1 1",
+                    "zones_to_monitor": ["Zone 1", "Zone 2", "Zone 3", "Zone 4"]
                   },
                   "percentage": null
             },
             "features_to_monitor": [],
-            "zones_to_monitor": [],
             "alert_kwargs": {}
         },
         "feature_map": null,

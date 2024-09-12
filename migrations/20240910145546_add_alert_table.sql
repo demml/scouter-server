@@ -18,3 +18,6 @@ SELECT scouter.create_parent(
 );
 
 UPDATE scouter.part_config SET retention = '7 days' WHERE parent_table = 'scouter.alerts';
+
+ALTER TABLE scouter.drift_profile
+add column scouter_version varchar(256) not null default '0.1.0';

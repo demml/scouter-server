@@ -18,7 +18,8 @@ pub async fn startup_kafka(pool: Pool<Postgres>) -> Result<()> {
             .with_context(|| "Failed to create Postgres client")
             .unwrap();
         let message_handler = kafka::consumer::MessageHandler::Postgres(kafka_db_client);
-        let brokers = std::env::var("KAFKA_BROKERS").unwrap();
+        let brokers =
+            std::env::var("KAFKA_BROKERS").unwrap_or_else(|_| "localhost:9092".to_owned());
         let topics = vec![std::env::var("KAFKA_TOPIC").unwrap_or("scouter_monitoring".to_string())];
         let group_id = std::env::var("KAFKA_GROUP").unwrap_or("scouter".to_string());
         let username: Option<String> = std::env::var("KAFKA_USERNAME").ok();

@@ -102,9 +102,22 @@ pub async fn insert_drift(
 
 pub async fn insert_drift_profile(
     State(data): State<Arc<AppState>>,
-    Json(body): Json<DriftProfile>,
+    Json(body): Json<serde_json::Value>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
-    let query_result = &data.db.insert_drift_profile(&body).await;
+    // validate profile is correct
+    // this will be used to validate different versions of the drift profile in the future
+    let body: Result<DriftProfile, serde_json::Error> = serde_json::from_value(body.clone());
+
+    if body.is_err() {
+        // future: - validate against older versions of the drift profile
+        let json_response = json!({
+            "status": "error",
+            "message": "Invalid drift profile"
+        });
+        return Err((StatusCode::BAD_REQUEST, Json(json_response)));
+    }
+
+    let query_result = &data.db.insert_drift_profile(&body.unwrap()).await;
 
     match query_result {
         Ok(_) => {

@@ -166,6 +166,7 @@ async fn test_api_profile() {
                 alert_kwargs: HashMap::new(),
             },
         },
+        version: "1.0.0".to_string(),
     };
 
     let body = serde_json::to_string(&monitor_profile).unwrap();

@@ -473,7 +473,10 @@ mod tests {
         }
         let features = test_features_map();
         let alerter = OpsGenieAlerter::new("name", "repository", "1.0.0").unwrap();
-        let alert_description = alerter.construct_alert_description(&FeatureAlerts { features });
+        let alert_description = alerter.construct_alert_description(&FeatureAlerts {
+            features,
+            has_alerts: true,
+        });
         let expected_alert_description = "Drift has been detected for the following features:\n    test_feature_2: \n        Kind: Consecutive\n        Zone: Zone 1\n    test_feature_1: \n        Kind: Out of bounds\n        Zone: Zone 4\n".to_string();
         assert_eq!(&alert_description.len(), &expected_alert_description.len());
 
@@ -491,7 +494,10 @@ mod tests {
         }
         let features: BTreeMap<String, FeatureAlert> = BTreeMap::new();
         let alerter = OpsGenieAlerter::new("name", "repository", "1.0.0").unwrap();
-        let alert_description = alerter.construct_alert_description(&FeatureAlerts { features });
+        let alert_description = alerter.construct_alert_description(&FeatureAlerts {
+            features,
+            has_alerts: true,
+        });
         let expected_alert_description = "".to_string();
         assert_eq!(alert_description, expected_alert_description);
         unsafe {
@@ -557,7 +563,12 @@ mod tests {
         let dispatcher = AlertDispatcher::OpsGenie(HttpAlertDispatcher::new(
             OpsGenieAlerter::new("name", "repository", "1.0.0").unwrap(),
         ));
-        let _ = dispatcher.process_alerts(&FeatureAlerts { features }).await;
+        let _ = dispatcher
+            .process_alerts(&FeatureAlerts {
+                features,
+                has_alerts: true,
+            })
+            .await;
 
         mock_get_path.assert();
 
@@ -572,7 +583,12 @@ mod tests {
         let features = test_features_map();
         let dispatcher =
             AlertDispatcher::Console(ConsoleAlertDispatcher::new("name", "repository", "1.0.0"));
-        let result = dispatcher.process_alerts(&FeatureAlerts { features }).await;
+        let result = dispatcher
+            .process_alerts(&FeatureAlerts {
+                features,
+                has_alerts: true,
+            })
+            .await;
 
         assert!(result.is_ok());
     }
@@ -598,7 +614,12 @@ mod tests {
         let dispatcher = AlertDispatcher::Slack(HttpAlertDispatcher::new(
             SlackAlerter::new("name", "repository", "1.0.0").unwrap(),
         ));
-        let _ = dispatcher.process_alerts(&FeatureAlerts { features }).await;
+        let _ = dispatcher
+            .process_alerts(&FeatureAlerts {
+                features,
+                has_alerts: true,
+            })
+            .await;
 
         mock_get_path.assert();
 
@@ -659,14 +680,8 @@ mod tests {
         unsafe {
             env::remove_var("OPSGENIE_API_KEY");
         }
-        let alert_config = AlertConfig::new(
-            None,
-            Some(AlertDispatchType::OpsGenie),
-            None,
-            None,
-            None,
-            None,
-        );
+        let alert_config =
+            AlertConfig::new(None, Some(AlertDispatchType::OpsGenie), None, None, None);
 
         let config = DriftConfig::new(
             Some("name".to_string()),
@@ -694,8 +709,7 @@ mod tests {
             env::remove_var("SLACK_APP_TOKEN");
         }
 
-        let alert_config =
-            AlertConfig::new(None, Some(AlertDispatchType::Slack), None, None, None, None);
+        let alert_config = AlertConfig::new(None, Some(AlertDispatchType::Slack), None, None, None);
         let config = DriftConfig::new(
             Some("name".to_string()),
             Some("repository".to_string()),
@@ -722,8 +736,7 @@ mod tests {
             env::set_var("SLACK_API_URL", "url");
             env::set_var("SLACK_APP_TOKEN", "bot_token");
         }
-        let alert_config =
-            AlertConfig::new(None, Some(AlertDispatchType::Slack), None, None, None, None);
+        let alert_config = AlertConfig::new(None, Some(AlertDispatchType::Slack), None, None, None);
         let config = DriftConfig::new(
             Some("name".to_string()),
             Some("repository".to_string()),

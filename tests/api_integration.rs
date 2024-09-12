@@ -155,13 +155,14 @@ async fn test_api_profile() {
                 alert_rule: AlertRule {
                     process: Some(ProcessAlertRule {
                         rule: "test".to_string(),
+                        zones_to_monitor: Vec::new(),
                     }),
                     percentage: None,
                 },
                 alert_dispatch_type: AlertDispatchType::Console,
                 schedule: "0 0 * * * *".to_string(),
                 features_to_monitor: Vec::new(),
-                zones_to_monitor: Vec::new(),
+
                 alert_kwargs: HashMap::new(),
             },
         },

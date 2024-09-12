@@ -141,6 +141,7 @@ pub struct InsertDriftProfileParams {
     pub repository: String,
     pub version: String,
     pub profile: String,
+    pub scouter_version: String,
     pub active: bool,
     pub schedule: String,
     pub next_run: NaiveDateTime,
@@ -155,6 +156,7 @@ impl ToMap for InsertDriftProfileParams {
         params.insert("repository".to_string(), self.repository.clone());
         params.insert("version".to_string(), self.version.clone());
         params.insert("profile".to_string(), self.profile.clone());
+        params.insert("scouter_version".to_string(), self.scouter_version.clone());
         params.insert("active".to_string(), self.active.to_string());
         params.insert("schedule".to_string(), self.schedule.clone());
         params.insert("next_run".to_string(), self.next_run.to_string());

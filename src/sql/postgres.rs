@@ -154,6 +154,7 @@ impl PostgresClient {
             repository: drift_profile.config.repository.clone(),
             version: drift_profile.config.version.clone(),
             profile: serde_json::to_string(&drift_profile).unwrap(),
+            scouter_version: drift_profile.scouter_version.clone(),
             active: false,
             schedule: drift_profile.config.alert_config.schedule.clone(),
             next_run: next_run.naive_utc(),

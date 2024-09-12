@@ -61,6 +61,7 @@ async fn test_postgres_client() {
             "test",
             "1.0.0",
             limit_timestamp.to_string().as_str(),
+            &[],
         )
         .await
         .unwrap();

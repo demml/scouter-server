@@ -310,7 +310,6 @@ impl ConsoleAlertDispatcher {
 impl Dispatch for ConsoleAlertDispatcher {
     async fn process_alerts(&self, feature_alerts: &FeatureAlerts) -> Result<()> {
         let alert_description = self.construct_alert_description(feature_alerts);
-
         if !alert_description.is_empty() {
             let msg1 = "Drift detected for".truecolor(245, 77, 85);
             let msg2 = format!("{}/{}/{}!", self.repository, self.name, self.version)

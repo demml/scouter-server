@@ -453,10 +453,7 @@ impl PostgresClient {
         let mut features = self.get_features(name, repository, version).await?;
 
         if !features_to_monitor.is_empty() {
-            features = features
-                .into_iter()
-                .filter(|feature| features_to_monitor.contains(feature))
-                .collect();
+            features.retain(|feature| features_to_monitor.contains(feature));
         }
 
         let async_queries = features

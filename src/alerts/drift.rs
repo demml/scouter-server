@@ -26,11 +26,18 @@ impl DriftExecutor {
         name: &str,
         repository: &str,
         version: &str,
-        limit_time_stamp: &str,
+        limit_timestamp: &str,
+        features_to_monitor: &[String],
     ) -> Result<QueryResult> {
         let records = self
             .db_client
-            .get_drift_records(name, repository, version, limit_time_stamp)
+            .get_drift_records(
+                name,
+                repository,
+                version,
+                limit_timestamp,
+                features_to_monitor,
+            )
             .await?;
         Ok(records)
     }
@@ -54,11 +61,18 @@ impl DriftExecutor {
         version: &str,
     ) -> Result<(Array2<f64>, Array2<f64>, Vec<String>)> {
         let drift_features = self
-            .get_drift_features(name, repository, version, &limit_timestamp.to_string())
+            .get_drift_features(
+                name,
+                repository,
+                version,
+                &limit_timestamp.to_string(),
+                &drift_profile.config.alert_config.features_to_monitor,
+            )
             .await
             .with_context(|| "error retrieving raw feature data to compute drift")?;
 
         let feature_keys: Vec<String> = drift_features.features.keys().cloned().collect();
+
         let feature_values = drift_features
             .features
             .values()

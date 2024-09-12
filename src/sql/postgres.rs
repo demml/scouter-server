@@ -448,8 +448,16 @@ impl PostgresClient {
         repository: &str,
         version: &str,
         limit_timestamp: &str,
+        features_to_monitor: &[String],
     ) -> Result<QueryResult, anyhow::Error> {
-        let features = self.get_features(name, repository, version).await?;
+        let mut features = self.get_features(name, repository, version).await?;
+
+        if !features_to_monitor.is_empty() {
+            features = features
+                .into_iter()
+                .filter(|feature| features_to_monitor.contains(feature))
+                .collect();
+        }
 
         let async_queries = features
             .iter()

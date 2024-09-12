@@ -15,6 +15,7 @@ use tower::Service;
 use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
 mod test_utils;
 use sqlx::Row;
+use std::collections::BTreeMap;
 
 #[tokio::test]
 async fn test_api_drift() {
@@ -124,7 +125,7 @@ async fn test_api_drift() {
 async fn test_api_profile() {
     let app = test_utils::setup_api(true).await.unwrap();
 
-    let mut features = HashMap::new();
+    let mut features = BTreeMap::new();
     features.insert(
         "feature1".to_string(),
         FeatureDriftProfile {
@@ -148,6 +149,8 @@ async fn test_api_profile() {
             name: "test_app".to_string(),
             repository: "test".to_string(),
             version: "1.0.0".to_string(),
+            targets: Vec::new(),
+            feature_map: None,
             alert_config: AlertConfig {
                 alert_rule: AlertRule {
                     process: Some(ProcessAlertRule {
@@ -157,6 +160,9 @@ async fn test_api_profile() {
                 },
                 alert_dispatch_type: AlertDispatchType::Console,
                 schedule: "0 0 * * * *".to_string(),
+                features_to_monitor: Vec::new(),
+                zones_to_monitor: Vec::new(),
+                alert_kwargs: HashMap::new(),
             },
         },
     };

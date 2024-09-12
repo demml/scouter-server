@@ -3,7 +3,7 @@ use colored::Colorize;
 use scouter::utils::types::DriftConfig;
 use scouter::utils::types::{AlertDispatchType, FeatureAlerts};
 use serde_json::{json, Value};
-use std::collections::BTreeMap;
+
 use std::{collections::HashMap, env};
 use tracing::error;
 
@@ -434,6 +434,7 @@ mod tests {
         Alert, AlertConfig, AlertDispatchType, AlertType, AlertZone, DriftConfig, FeatureAlert,
     };
 
+    use std::collections::BTreeMap;
     use std::env;
 
     fn test_features_map() -> BTreeMap<String, FeatureAlert> {

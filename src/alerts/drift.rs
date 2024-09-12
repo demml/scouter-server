@@ -141,7 +141,7 @@ impl DriftExecutor {
         // Get alerts
         // keys are the feature names that match the order of the drift array columns
         let alert_rule = drift_profile.config.alert_config.alert_rule.clone();
-        let alerts = generate_alerts(
+        let (alerts, has_alert) = generate_alerts(
             &drift_array.view(),
             &sample_array.view(),
             &keys,
@@ -154,10 +154,17 @@ impl DriftExecutor {
         // This would be for things like opsgenie team, feature priority, slack channel, etc.
         let alert_dispatcher = AlertDispatcher::new(&drift_profile.config);
 
-        alert_dispatcher
-            .process_alerts(&alerts)
-            .await
-            .with_context(|| "error processing alerts")?;
+        if has_alert {
+            alert_dispatcher
+                .process_alerts(&alerts)
+                .await
+                .with_context(|| "error processing alerts")?;
+        } else {
+            info!(
+                "No alerts to process for {}/{}/{}",
+                repository, name, version
+            );
+        }
 
         Ok(())
     }

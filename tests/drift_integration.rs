@@ -49,7 +49,7 @@ async fn test_drift_executor_separate() {
     assert_eq!(drift_array.shape(), [10, 3] as [usize; 2]);
 
     let alert_rule = drift_profile.config.alert_config.alert_rule.clone();
-    let alerts = generate_alerts(
+    let (alerts, _has_alert) = generate_alerts(
         &drift_array.view(),
         &sample_array.view(),
         &keys,

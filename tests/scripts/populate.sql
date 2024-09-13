@@ -65,7 +65,7 @@ VALUES
         "feature_map": null,
         "targets": []
       },
-	"version": "0.1.0"
+	"scouter_version": "0.1.0"
     }',
     true,
     '0 0 0 * * *',
@@ -136,7 +136,7 @@ VALUES
         "feature_map": null,
         "targets": []
       },
-	  "version": "0.1.0"
+	  "scouter_version": "0.1.0"
       }',
       false,
       '0 0 0 * * *',
@@ -207,7 +207,7 @@ VALUES
         "feature_map": null,
         "targets": []
       },
-	 "version": "0.1.0"
+	 "scouter_version": "0.1.0"
     }',
     true,
     '0 0 0 * * *',
@@ -278,7 +278,7 @@ VALUES
         "feature_map": null,
         "targets": []
       },
-      "version": "0.1.0"
+      "scouter_version": "0.1.0"
       }',
       false,
       '0 0 0 * * *',

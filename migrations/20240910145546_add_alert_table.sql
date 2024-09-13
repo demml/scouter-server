@@ -1,5 +1,5 @@
 -- Add migration script here
-CREATE TABLE IF NOT exists scouter.alerts (
+CREATE TABLE IF NOT exists scouter.drift_alerts (
   created_at timestamp not null default (timezone('utc', now())),
   name varchar(256),
   repository varchar(256),
@@ -9,10 +9,10 @@ CREATE TABLE IF NOT exists scouter.alerts (
 )
 PARTITION BY RANGE (created_at);
 
-CREATE INDEX ON scouter.alerts (name, repository, version, created_at);
+CREATE INDEX ON scouter.drift_alerts (name, repository, version, created_at);
 
 SELECT scouter.create_parent(
-    'scouter.alerts', 
+    'scouter.drift_alerts', 
     'created_at',
     '1 day'
 );

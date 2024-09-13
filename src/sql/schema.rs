@@ -1,4 +1,5 @@
 use chrono::NaiveDateTime;
+use scouter::utils::types::FeatureAlerts;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -21,4 +22,18 @@ pub struct FeatureResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QueryResult {
     pub features: BTreeMap<String, FeatureResult>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AlertResult {
+    pub created_at: NaiveDateTime,
+    pub name: String,
+    pub repository: String,
+    pub version: String,
+    pub alerts: FeatureAlerts,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AlertResults {
+    pub alerts: Vec<AlertResult>,
 }

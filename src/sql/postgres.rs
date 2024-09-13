@@ -1,10 +1,10 @@
 use crate::sql::query::{
-    GetBinnedFeatureValuesParams, GetDriftProfileParams, GetFeatureValuesParams, GetFeaturesParams,
-    InsertDriftAlertParams, InsertDriftProfileParams, InsertParams, Queries,
-    UpdateDriftProfileRunDatesParams, UpdateDriftProfileStatusParams, DRIFT_ALERT_TABLE,
-    DRIFT_PROFILE_TABLE, DRIFT_TABLE,
+    GetBinnedFeatureValuesParams, GetDriftAlertsParams, GetDriftProfileParams,
+    GetFeatureValuesParams, GetFeaturesParams, InsertDriftAlertParams, InsertDriftProfileParams,
+    InsertParams, Queries, UpdateDriftProfileRunDatesParams, UpdateDriftProfileStatusParams,
+    DRIFT_ALERT_TABLE, DRIFT_PROFILE_TABLE, DRIFT_TABLE,
 };
-use crate::sql::schema::{DriftRecord, FeatureResult, QueryResult};
+use crate::sql::schema::{AlertResult, DriftRecord, FeatureResult, QueryResult};
 use anyhow::*;
 use chrono::Utc;
 use cron::Schedule;
@@ -91,6 +91,15 @@ impl PostgresClient {
         })
     }
 
+    // Inserts a drift alert into the database
+    //
+    // # Arguments
+    //
+    // * `name` - The name of the service to insert the alert for
+    // * `repository` - The name of the repository to insert the alert for
+    // * `version` - The version of the service to insert the alert for
+    // * `alert` - The alert to insert into the database
+    //
     pub async fn insert_drift_alert(
         &self,
         name: &str,
@@ -118,6 +127,74 @@ impl PostgresClient {
             Err(e) => {
                 error!("Failed to insert alert into database: {:?}", e);
                 Err(anyhow!("Failed to insert alert into database: {:?}", e))
+            }
+        }
+    }
+
+    pub async fn get_drift_alerts(
+        &self,
+        name: &str,
+        repository: &str,
+        version: &str,
+        limit_timestamp: Option<&str>,
+    ) -> Result<Vec<AlertResult>, anyhow::Error> {
+        let query = Queries::GetDriftAlerts.get_query();
+
+        let params = GetDriftAlertsParams {
+            table: self.alert_table_name.to_string(),
+            name: name.to_string(),
+            repository: repository.to_string(),
+            version: version.to_string(),
+        };
+
+        let mut formatted_query = query.format(&params);
+
+        if limit_timestamp.is_some() {
+            let limit_timestamp = limit_timestamp.unwrap();
+            formatted_query = format!(
+                "{} AND created_at >= '{}' ORDER BY created_at DESC;",
+                formatted_query, limit_timestamp
+            );
+        } else {
+            formatted_query = format!("{} ORDER BY created_at DESC LIMIT 5;", formatted_query);
+        }
+
+        let result = sqlx::raw_sql(formatted_query.as_str())
+            .fetch_all(&self.pool)
+            .await;
+
+        match result {
+            Ok(result) => {
+                let mut results = Vec::new();
+
+                result.iter().for_each(|row| {
+                    let alerts = serde_json::from_value::<FeatureAlerts>(row.get("alert"))
+                        .with_context(|| {
+                            "error converting postgres jsonb profile to struct type DriftProfile"
+                        });
+
+                    match alerts {
+                        Ok(alerts) => {
+                            let alert = AlertResult {
+                                name: row.get("name"),
+                                repository: row.get("repository"),
+                                version: row.get("version"),
+                                created_at: row.get("created_at"),
+                                alerts,
+                            };
+                            results.push(alert);
+                        }
+                        Err(e) => {
+                            error!("Failed to get alerts from database: {:?}", e);
+                        }
+                    }
+                });
+
+                Ok(results)
+            }
+            Err(e) => {
+                error!("Failed to get alerts from database: {:?}", e);
+                Err(anyhow!("Failed to get alerts from database: {:?}", e))
             }
         }
     }

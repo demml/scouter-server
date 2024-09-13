@@ -1,5 +1,4 @@
 use chrono::NaiveDateTime;
-use scouter::utils::types::FeatureAlerts;
 use std::collections::BTreeMap;
 
 //constants
@@ -11,6 +10,7 @@ const GET_FEATURE_VALUES: &str = include_str!("scripts/feature_values.sql");
 const INSERT_DRIFT_PROFILE: &str = include_str!("scripts/insert_drift_profile.sql");
 const INSERT_DRIFT_ALERT: &str = include_str!("scripts/insert_drift_alert.sql");
 const GET_DRIFT_TASK: &str = include_str!("scripts/poll_for_drift_task.sql");
+const GET_DRIFT_ALERTS: &str = include_str!("scripts/get_drift_alerts.sql");
 const UPDATE_DRIFT_PROFILE_RUN_DATES: &str =
     include_str!("scripts/update_drift_profile_run_dates.sql");
 const UPDATE_DRIFT_PROFILE_STATUS: &str = include_str!("scripts/update_drift_profile_status.sql");
@@ -18,7 +18,7 @@ const UPDATE_DRIFT_PROFILE_STATUS: &str = include_str!("scripts/update_drift_pro
 // table names
 pub const DRIFT_TABLE: &str = "scouter.drift";
 pub const DRIFT_PROFILE_TABLE: &str = "scouter.drift_profile";
-pub const DRIFT_ALERT_TABLE: &str = "scouter.drift_alert";
+pub const DRIFT_ALERT_TABLE: &str = "scouter.drift_alerts";
 
 pub trait ToMap {
     fn to_map(&self) -> BTreeMap<String, String>;
@@ -194,6 +194,24 @@ impl ToMap for InsertDriftAlertParams {
     }
 }
 
+pub struct GetDriftAlertsParams {
+    pub table: String,
+    pub name: String,
+    pub repository: String,
+    pub version: String,
+}
+
+impl ToMap for GetDriftAlertsParams {
+    fn to_map(&self) -> BTreeMap<String, String> {
+        let mut params = BTreeMap::new();
+        params.insert("table".to_string(), self.table.clone());
+        params.insert("name".to_string(), self.name.clone());
+        params.insert("repository".to_string(), self.repository.clone());
+        params.insert("version".to_string(), self.version.clone());
+        params
+    }
+}
+
 pub struct GetBinnedFeatureValuesParams {
     pub table: String,
     pub name: String,
@@ -225,6 +243,7 @@ pub enum Queries {
     InsertDriftRecord,
     InsertDriftProfile,
     InsertDriftAlert,
+    GetDriftAlerts,
     GetBinnedFeatureValues,
     GetFeatureValues,
     GetDriftTask,
@@ -242,6 +261,7 @@ impl Queries {
             Queries::GetFeatureValues => SqlQuery::new(GET_FEATURE_VALUES),
             Queries::InsertDriftProfile => SqlQuery::new(INSERT_DRIFT_PROFILE),
             Queries::InsertDriftAlert => SqlQuery::new(INSERT_DRIFT_ALERT),
+            Queries::GetDriftAlerts => SqlQuery::new(GET_DRIFT_ALERTS),
             Queries::GetDriftTask => SqlQuery::new(GET_DRIFT_TASK),
             Queries::UpdateDriftProfileRunDates => SqlQuery::new(UPDATE_DRIFT_PROFILE_RUN_DATES),
             Queries::UpdateDriftProfileStatus => SqlQuery::new(UPDATE_DRIFT_PROFILE_STATUS),

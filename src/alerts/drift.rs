@@ -9,6 +9,7 @@ use tracing::error;
 use tracing::info;
 
 use crate::alerts::dispatch::AlertDispatcher;
+use crate::alerts::types::TaskAlerts;
 use ndarray::Array2;
 use sqlx::{Postgres, Row};
 
@@ -127,18 +128,19 @@ impl DriftExecutor {
     ///
     /// # Returns
     ///
-    pub async fn process_task<'a>(
+    pub async fn process_task(
         &mut self,
         drift_profile: DriftProfile,
         previous_run: NaiveDateTime,
         name: &str,
         repository: &str,
         version: &str,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<TaskAlerts, anyhow::Error> {
         info!(
             "Processing drift task for profile: {}/{}/{}",
             repository, name, version
         );
+        let mut task_alerts = TaskAlerts { alerts: None };
 
         // Compute drift
         let (drift_array, sample_array, keys) = self
@@ -149,7 +151,7 @@ impl DriftExecutor {
         // if drift array is empty, return early
         if drift_array.is_empty() {
             info!("No features to process returning early");
-            return Ok(());
+            return Ok(task_alerts);
         }
 
         // Get alerts
@@ -173,6 +175,7 @@ impl DriftExecutor {
                 .process_alerts(&alerts)
                 .await
                 .with_context(|| "error processing alerts")?;
+            task_alerts.alerts = Some(alerts);
         } else {
             info!(
                 "No alerts to process for {}/{}/{}",
@@ -180,7 +183,7 @@ impl DriftExecutor {
             );
         }
 
-        Ok(())
+        Ok(task_alerts)
     }
 
     /// Execute single drift computation and alerting
@@ -221,8 +224,25 @@ impl DriftExecutor {
                 .await;
 
             match result {
-                Ok(_) => {
+                Ok(task_alert) => {
                     info!("Drift task processed successfully");
+
+                    if task_alert.alerts.is_some() {
+                        // this should
+                        let insert = self
+                            .db_client
+                            .insert_drift_alert(
+                                &name,
+                                &repository,
+                                &version,
+                                &task_alert.alerts.unwrap(),
+                            )
+                            .await;
+
+                        if let Err(e) = insert {
+                            error!("Error inserting drift alerts: {:?}", e);
+                        }
+                    }
                 }
                 Err(e) => {
                     error!("Error processing drift task: {:?}", e);

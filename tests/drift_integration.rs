@@ -41,7 +41,7 @@ async fn test_drift_executor_separate() {
     let repository: String = profile.get("repository");
     let version: String = profile.get("version");
 
-    let (drift_array, sample_array, keys) = drift_executor
+    let (drift_array, keys) = drift_executor
         .compute_drift(&drift_profile, &previous_run, &name, &repository, &version)
         .await
         .unwrap();
@@ -49,13 +49,7 @@ async fn test_drift_executor_separate() {
     assert_eq!(drift_array.shape(), [10, 3] as [usize; 2]);
 
     let alert_rule = drift_profile.config.alert_config.alert_rule.clone();
-    let alerts = generate_alerts(
-        &drift_array.view(),
-        &sample_array.view(),
-        &keys,
-        &alert_rule,
-    )
-    .unwrap();
+    let alerts = generate_alerts(&drift_array.view(), &keys, &alert_rule).unwrap();
 
     assert_eq!(
         alerts.features.get("col_3").unwrap().alerts[0].zone,

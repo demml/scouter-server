@@ -448,7 +448,6 @@ mod tests {
                     kind: AlertType::OutOfBounds.to_str(),
                 }],
                 indices: Default::default(),
-                correlations: Default::default(),
             },
         );
         features.insert(
@@ -460,7 +459,6 @@ mod tests {
                     kind: AlertType::Consecutive.to_str(),
                 }],
                 indices: Default::default(),
-                correlations: Default::default(),
             },
         );
         features

@@ -12,6 +12,7 @@ use crate::alerts::dispatch::AlertDispatcher;
 use crate::alerts::types::TaskAlerts;
 use ndarray::Array2;
 use sqlx::{Postgres, Row};
+use std::collections::BTreeMap;
 
 pub struct DriftExecutor {
     db_client: PostgresClient,
@@ -60,7 +61,7 @@ impl DriftExecutor {
         name: &str,
         repository: &str,
         version: &str,
-    ) -> Result<(Array2<f64>, Array2<f64>, Vec<String>)> {
+    ) -> Result<(Array2<f64>, Vec<String>)> {
         let drift_features = self
             .get_drift_features(
                 name,
@@ -114,7 +115,7 @@ impl DriftExecutor {
             drift_profile,
         )?;
 
-        Ok((drift, nd_feature_arr, feature_keys))
+        Ok((drift, feature_keys))
     }
 
     /// Process a single drift computation task
@@ -143,7 +144,7 @@ impl DriftExecutor {
         let mut task_alerts = TaskAlerts { alerts: None };
 
         // Compute drift
-        let (drift_array, sample_array, keys) = self
+        let (drift_array, keys) = self
             .compute_drift(&drift_profile, &previous_run, name, repository, version)
             .await
             .with_context(|| "error computing drift")?;
@@ -157,13 +158,8 @@ impl DriftExecutor {
         // Get alerts
         // keys are the feature names that match the order of the drift array columns
         let alert_rule = drift_profile.config.alert_config.alert_rule.clone();
-        let alerts = generate_alerts(
-            &drift_array.view(),
-            &sample_array.view(),
-            &keys,
-            &alert_rule,
-        )
-        .with_context(|| "error generating drift alerts")?;
+        let alerts = generate_alerts(&drift_array.view(), &keys, &alert_rule)
+            .with_context(|| "error generating drift alerts")?;
 
         // Get dispatcher, will default to console if env vars are not found for 3rd party service
         // TODO: Add ability to pass hashmap of kwargs to dispatcher (from drift profile)
@@ -228,15 +224,17 @@ impl DriftExecutor {
                     info!("Drift task processed successfully");
 
                     if task_alert.alerts.is_some() {
-                        // this should
+                        let mut task_alert = task_alert.alerts.unwrap();
+                        //// this should
+
+                        // pop alert indices (don't need to store them in db)
+                        task_alert.features.iter_mut().for_each(|(_, feature)| {
+                            feature.indices = BTreeMap::new();
+                        });
+
                         let insert = self
                             .db_client
-                            .insert_drift_alert(
-                                &name,
-                                &repository,
-                                &version,
-                                &task_alert.alerts.unwrap(),
-                            )
+                            .insert_drift_alert(&name, &repository, &version, &task_alert)
                             .await;
 
                         if let Err(e) = insert {

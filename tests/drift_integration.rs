@@ -108,5 +108,17 @@ async fn test_drift_executor() {
     // assert next run from before computing drift is now the previous run
     assert_eq!(previous_run, curr_next_run);
 
+    let result = sqlx::raw_sql(
+        r#"
+        SELECT * 
+        FROM scouter.drift_alerts
+        "#,
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+
+    assert_eq!(result.len(), 1);
+
     test_utils::teardown().await.unwrap();
 }

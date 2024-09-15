@@ -32,8 +32,3 @@ pub struct AlertResult {
     pub version: String,
     pub alerts: FeatureAlerts,
 }
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AlertResults {
-    pub alerts: Vec<AlertResult>,
-}

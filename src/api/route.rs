@@ -1,5 +1,6 @@
 use crate::api::handler::{
-    get_drift, health_check, insert_drift, insert_drift_profile, update_drift_profile_status,
+    get_drift, get_drift_alerts, health_check, insert_drift, insert_drift_profile,
+    update_drift_profile_status,
 };
 use crate::api::metrics::track_metrics;
 use crate::sql::postgres::PostgresClient;
@@ -30,6 +31,7 @@ pub fn create_router(app_state: Arc<AppState>) -> Router {
         .route("/drift", get(get_drift).post(insert_drift))
         .route("/profile", post(insert_drift_profile))
         .route("/profile/status", put(update_drift_profile_status))
+        .route("/alerts", get(get_drift_alerts))
         .route_layer(middleware::from_fn(track_metrics))
         .with_state(app_state)
         .layer(cors)

@@ -71,7 +71,7 @@ BEGIN
         );
 
         -- Generate drift values for 100 features
-        FOR j IN 1..10000 LOOP
+        FOR j IN 1..1000 LOOP
             drift_values := '';
             FOR k IN 1..100 LOOP
                 drift_values := drift_values || format('(timezone(''utc'', now()), ''test_app%s'', ''opsml'', ''col_%s'', %s, ''0.1.0'')', i, k, random() * 10 - 5);

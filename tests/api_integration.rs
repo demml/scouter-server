@@ -14,6 +14,9 @@ use std::collections::HashMap;
 use tower::Service;
 use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
 mod test_utils;
+use scouter_server::alerts::drift::DriftExecutor;
+use scouter_server::sql::postgres::PostgresClient;
+use scouter_server::sql::schema::AlertResult;
 use sqlx::Row;
 use std::collections::BTreeMap;
 
@@ -255,6 +258,67 @@ async fn test_api_profile_update() {
 
     assert!(new_status != curr_status);
     assert!(new_status);
+
+    test_utils::teardown().await.unwrap();
+}
+
+#[tokio::test]
+async fn test_api_get_drift_alert() {
+    let app = test_utils::setup_api(true).await.unwrap();
+    let pool = test_utils::setup_db(true).await.unwrap();
+    let db_client = PostgresClient::new(pool.clone()).unwrap();
+
+    // populate the database
+    let populate_script = include_str!("scripts/populate.sql");
+    sqlx::raw_sql(populate_script).execute(&pool).await.unwrap();
+    let mut drift_executor = DriftExecutor::new(db_client.clone());
+
+    drift_executor.poll_for_tasks().await.unwrap();
+    let result = sqlx::raw_sql(
+        r#"
+        SELECT * 
+        FROM scouter.drift_profile
+        WHERE name = 'test_app'
+        AND repository = 'statworld'
+        "#,
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+
+    assert_eq!(result.len(), 1);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/alerts?name=test_app&repository=statworld&version=0.1.0")
+                .method("GET")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // get data field from response
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let body: Value = serde_json::from_slice(&body).unwrap();
+
+    let data = body.get("data");
+    let data: Vec<AlertResult> = serde_json::from_value(data.unwrap().clone()).unwrap();
+
+    assert_eq!(data.len(), 1);
+    assert_eq!(
+        data[0].alerts.features["col_3"].alerts[0].kind,
+        "Out of bounds".to_string()
+    );
+    assert_eq!(
+        data[0].alerts.features["col_1"].alerts[0].kind,
+        "Consecutive".to_string()
+    );
+
+    // get body
 
     test_utils::teardown().await.unwrap();
 }

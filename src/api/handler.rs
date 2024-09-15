@@ -1,4 +1,6 @@
-use crate::api::schema::{DriftRecordRequest, ProfileStatusRequest, ServiceDriftRequest};
+use crate::api::schema::{
+    DriftAlertRequest, DriftRecordRequest, ProfileStatusRequest, ServiceDriftRequest,
+};
 use crate::sql::postgres::TimeInterval;
 use crate::sql::schema::DriftRecord;
 use axum::{
@@ -164,6 +166,39 @@ pub async fn update_drift_profile_status(
                 "Failed to update drift profile status for {} {} {} : {:?}",
                 &body.name, &body.repository, &body.version, e
             );
+            let json_response = json!({
+                "status": "error",
+                "message": format!("{:?}", e)
+            });
+            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
+        }
+    }
+}
+
+pub async fn get_drift_alerts(
+    State(data): State<Arc<AppState>>,
+    params: Query<DriftAlertRequest>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    let query_result = &data
+        .db
+        .get_drift_alerts(
+            &params.name,
+            &params.repository,
+            &params.version,
+            params.limit_timestamp.as_deref(),
+        )
+        .await;
+
+    match query_result {
+        Ok(result) => {
+            let json_response = json!({
+                "status": "success",
+                "data": result
+            });
+            Ok(Json(json_response))
+        }
+        Err(e) => {
+            error!("Failed to query drift alerts: {:?}", e);
             let json_response = json!({
                 "status": "error",
                 "message": format!("{:?}", e)

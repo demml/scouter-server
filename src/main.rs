@@ -123,7 +123,7 @@ mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/healthcheck")
+                    .uri("/scouter/healthcheck")
                     .body(Body::empty())
                     .unwrap(),
             )

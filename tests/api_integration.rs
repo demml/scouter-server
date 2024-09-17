@@ -40,7 +40,7 @@ async fn test_api_drift() {
         let response = app
             .call(
                 Request::builder()
-                    .uri("/drift")
+                    .uri("/scouter/drift")
                     .header(http::header::CONTENT_TYPE, "application/json")
                     .method("POST")
                     .body(Body::from(body))
@@ -55,7 +55,7 @@ async fn test_api_drift() {
     // query data
     let response = app.call(
         Request::builder()
-            .uri("/drift?name=test_app&repository=test&version=1.0.0&time_window=5minute&max_data_points=1000")
+            .uri("/scouter/drift?name=test_app&repository=test&version=1.0.0&time_window=5minute&max_data_points=1000")
             .method("GET")
             .body(Body::empty())
             .unwrap(),
@@ -87,7 +87,7 @@ async fn test_api_drift() {
     let response = app
         .call(
             Request::builder()
-                .uri("/drift")
+                .uri("/scouter/drift")
                 .header(http::header::CONTENT_TYPE, "application/json")
                 .method("POST")
                 .body(Body::from(body))
@@ -101,7 +101,7 @@ async fn test_api_drift() {
     // query new version
     let response = app.call(
         Request::builder()
-            .uri("/drift?name=test_app&repository=test&version=2.0.0&time_window=5minute&max_data_points=1000")
+            .uri("/scouter/drift?name=test_app&repository=test&version=2.0.0&time_window=5minute&max_data_points=1000")
             .method("GET")
             .body(Body::empty())
             .unwrap(),
@@ -178,7 +178,7 @@ async fn test_api_profile() {
     let response = app
         .oneshot(
             Request::builder()
-                .uri("/profile")
+                .uri("/scouter/profile")
                 .header(http::header::CONTENT_TYPE, "application/json")
                 .method("POST")
                 .body(Body::from(body))
@@ -230,7 +230,7 @@ async fn test_api_profile_update() {
     let response = app
         .oneshot(
             Request::builder()
-                .uri("/profile/status")
+                .uri("/scouter/profile/status")
                 .header(http::header::CONTENT_TYPE, "application/json")
                 .method("PUT")
                 .body(Body::from(body))
@@ -291,7 +291,7 @@ async fn test_api_get_drift_alert() {
     let response = app
         .oneshot(
             Request::builder()
-                .uri("/alerts?name=test_app&repository=statworld&version=0.1.0")
+                .uri("/scouter/alerts?name=test_app&repository=statworld&version=0.1.0")
                 .method("GET")
                 .body(Body::empty())
                 .unwrap(),

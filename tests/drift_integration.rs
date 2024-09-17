@@ -20,7 +20,7 @@ async fn test_drift_executor_separate() {
     let drift_executor = DriftExecutor::new(db_client.clone());
 
     let mut transaction: sqlx::Transaction<Postgres> = db_client.pool.begin().await.unwrap();
-    let profile = PostgresClient::get_drift_profile(&mut transaction)
+    let profile = PostgresClient::get_drift_profile_task(&mut transaction)
         .await
         .unwrap();
 

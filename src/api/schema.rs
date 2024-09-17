@@ -36,3 +36,10 @@ pub struct DriftAlertRequest {
     pub version: String,
     pub limit_timestamp: Option<String>,
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ProfileRequest {
+    pub name: String,
+    pub repository: String,
+    pub version: String,
+}

@@ -11,7 +11,7 @@ use tracing::info;
 use crate::alerts::dispatch::AlertDispatcher;
 use crate::alerts::types::TaskAlerts;
 use ndarray::Array2;
-use sqlx::{Postgres, Row};
+use sqlx::Row;
 use std::collections::BTreeMap;
 
 pub struct DriftExecutor {
@@ -188,28 +188,29 @@ impl DriftExecutor {
     ///
     /// * `Result<()>` - Result of drift computation and alerting
     pub async fn poll_for_tasks(&mut self) -> Result<()> {
-        let mut sleep: bool = false;
-        let mut transaction: sqlx::Transaction<Postgres> = self.db_client.pool.begin().await?;
+        let mut transaction = self.db_client.pool.begin().await?;
 
-        // Get drift profile
-        let task = PostgresClient::get_drift_profile(&mut transaction)
+        let task = PostgresClient::get_drift_profile_task(&mut transaction)
             .await
-            .with_context(|| "error retrieving drift profile(s) from db!")?;
+            .context("error retrieving drift profile(s) from db!")?;
 
-        if let Some(task) = task {
-            // parse task args
-            let name: String = task.get("name");
-            let repository: String = task.get("repository");
-            let version: String = task.get("version");
-            let schedule: String = task.get("schedule");
+        let Some(task) = task else {
+            transaction.commit().await?;
+            info!("No triggered schedules found in db. Sleeping for 10 seconds");
+            tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+            return Ok(());
+        };
 
-            let drift_profile = serde_json::from_value::<DriftProfile>(task.get("profile"))
-                .with_context(|| {
-                    "error converting postgres jsonb profile to struct type DriftProfile"
-                })?;
+        let name = task.get::<String, _>("name");
+        let repository = task.get::<String, _>("repository");
+        let version = task.get::<String, _>("version");
+        let schedule = task.get::<String, _>("schedule");
 
-            // Process task
-            let result = self
+        let drift_profile = serde_json::from_value::<DriftProfile>(task.get("profile"))
+            .context("error converting postgres jsonb profile to struct type DriftProfile");
+
+        if let Ok(drift_profile) = drift_profile {
+            match self
                 .process_task(
                     drift_profile,
                     task.get("previous_run"),
@@ -217,27 +218,21 @@ impl DriftExecutor {
                     &repository,
                     &version,
                 )
-                .await;
-
-            match result {
+                .await
+            {
                 Ok(task_alert) => {
                     info!("Drift task processed successfully");
 
-                    if task_alert.alerts.is_some() {
-                        let mut task_alert = task_alert.alerts.unwrap();
-                        //// this should
-
-                        // pop alert indices (don't need to store them in db)
+                    if let Some(mut task_alert) = task_alert.alerts {
                         task_alert.features.iter_mut().for_each(|(_, feature)| {
                             feature.indices = BTreeMap::new();
                         });
 
-                        let insert = self
+                        if let Err(e) = self
                             .db_client
                             .insert_drift_alert(&name, &repository, &version, &task_alert)
-                            .await;
-
-                        if let Err(e) = insert {
+                            .await
+                        {
                             error!("Error inserting drift alerts: {:?}", e);
                         }
                     }
@@ -246,29 +241,28 @@ impl DriftExecutor {
                     error!("Error processing drift task: {:?}", e);
                 }
             }
-
-            // Update run dates for profile
-            PostgresClient::update_drift_profile_run_dates(
-                &mut transaction,
-                &name,
-                &repository,
-                &version,
-                &schedule,
-            )
-            .await?;
         } else {
-            sleep = true;
+            error!(
+                "Error converting drift profile for {}/{}/{}. Error: {:?}",
+                &repository, &name, &version, drift_profile
+            );
         }
 
-        // close transaction
+        if let Err(e) = PostgresClient::update_drift_profile_run_dates(
+            &mut transaction,
+            &name,
+            &repository,
+            &version,
+            &schedule,
+        )
+        .await
+        {
+            error!("Error updating drift profile run dates: {:?}", e);
+        } else {
+            info!("Drift profile run dates updated successfully");
+        }
+
         transaction.commit().await?;
-
-        // sleep if no records found (no need to keep polling db)
-        if sleep {
-            // Sleep for a minute
-            info!("No triggered schedules found in db. Sleeping for 10 seconds");
-            tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
-        }
 
         Ok(())
     }

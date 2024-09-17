@@ -1,5 +1,6 @@
 use crate::api::schema::{
-    DriftAlertRequest, DriftRecordRequest, ProfileStatusRequest, ServiceDriftRequest,
+    DriftAlertRequest, DriftRecordRequest, ProfileRequest, ProfileStatusRequest,
+    ServiceDriftRequest,
 };
 use crate::sql::postgres::TimeInterval;
 use crate::sql::schema::DriftRecord;
@@ -131,6 +132,80 @@ pub async fn insert_drift_profile(
         }
         Err(e) => {
             error!("Failed to insert monitor profile: {:?}", e);
+            let json_response = json!({
+                "status": "error",
+                "message": format!("{:?}", e)
+            });
+            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
+        }
+    }
+}
+
+pub async fn update_drift_profile(
+    State(data): State<Arc<AppState>>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    // validate profile is correct
+    // this will be used to validate different versions of the drift profile in the future
+    let body: Result<DriftProfile, serde_json::Error> = serde_json::from_value(body.clone());
+
+    if body.is_err() {
+        // future: - validate against older versions of the drift profile
+        let json_response = json!({
+            "status": "error",
+            "message": "Invalid drift profile"
+        });
+        return Err((StatusCode::BAD_REQUEST, Json(json_response)));
+    }
+
+    let query_result = &data.db.update_drift_profile(&body.unwrap()).await;
+
+    match query_result {
+        Ok(_) => {
+            let json_response = json!({
+                "status": "success",
+                "message": "Drift profile updated successfully"
+            });
+            Ok(Json(json_response))
+        }
+        Err(e) => {
+            error!("Failed to update drift profile: {:?}", e);
+            let json_response = json!({
+                "status": "error",
+                "message": format!("{:?}", e)
+            });
+            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
+        }
+    }
+}
+
+pub async fn get_profile(
+    State(data): State<Arc<AppState>>,
+    params: Query<ProfileRequest>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    let profile = &data
+        .db
+        .get_drift_profile(&params.name, &params.repository, &params.version)
+        .await;
+
+    match profile {
+        Ok(result) => {
+            if result.is_some() {
+                let json_response = json!({
+                    "status": "success",
+                    "data": result
+                });
+                Ok(Json(json_response))
+            } else {
+                let json_response = json!({
+                    "status": "error",
+                    "message": "Profile not found"
+                });
+                Err((StatusCode::NOT_FOUND, Json(json_response)))
+            }
+        }
+        Err(e) => {
+            error!("Failed to query drift profile: {:?}", e);
             let json_response = json!({
                 "status": "error",
                 "message": format!("{:?}", e)

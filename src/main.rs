@@ -135,6 +135,7 @@ mod tests {
         let body = response.into_body().collect().await.unwrap().to_bytes();
 
         let v: Value = serde_json::from_str(std::str::from_utf8(&body[..]).unwrap()).unwrap();
+
         let message: &str = v.get("message").unwrap().as_str().unwrap();
 
         assert_eq!(message, "Alive");

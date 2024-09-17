@@ -13,6 +13,7 @@ use futures::future::join_all;
 use include_dir::{include_dir, Dir};
 use scouter::utils::types::DriftProfile;
 use scouter::utils::types::FeatureAlerts;
+use serde_json::Value;
 use sqlx::{
     postgres::{PgQueryResult, PgRow},
     Pool, Postgres, QueryBuilder, Row, Transaction,
@@ -319,7 +320,7 @@ impl PostgresClient {
         name: &str,
         repository: &str,
         version: &str,
-    ) -> Result<Option<String>, anyhow::Error> {
+    ) -> Result<Option<Value>, anyhow::Error> {
         let query = Queries::GetDriftProfile.get_query();
 
         let params = GetDriftProfileParams {
@@ -329,24 +330,17 @@ impl PostgresClient {
             version: version.to_string(),
         };
 
-        let result = sqlx::raw_sql(query.format(&params).as_str())
+        let result = sqlx::query(query.format(&params).as_str())
             .fetch_optional(&self.pool)
-            .await;
-
-        // return the profile
+            .await
+            .with_context(|| "Failed to get drift profile from database")?;
 
         match result {
-            Ok(result) => {
-                let profile = result.get("profile");
-                Ok(profile)
+            Some(result) => {
+                let profile: Value = result.get("profile");
+                Ok(Some(profile))
             }
-            Err(e) => {
-                error!("Failed to get drift profile from database: {:?}", e);
-                Err(anyhow!(
-                    "Failed to get drift profile from database: {:?}",
-                    e
-                ))
-            }
+            None => Ok(None),
         }
     }
 

@@ -183,18 +183,26 @@ pub async fn get_profile(
     State(data): State<Arc<AppState>>,
     params: Query<ProfileRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
-    let query_result = &data
+    let profile = &data
         .db
         .get_drift_profile(&params.name, &params.repository, &params.version)
         .await;
 
-    match query_result {
+    match profile {
         Ok(result) => {
-            let json_response = json!({
-                "status": "success",
-                "data": result
-            });
-            Ok(Json(json_response))
+            if result.is_some() {
+                let json_response = json!({
+                    "status": "success",
+                    "data": result
+                });
+                Ok(Json(json_response))
+            } else {
+                let json_response = json!({
+                    "status": "error",
+                    "message": "Profile not found"
+                });
+                Err((StatusCode::NOT_FOUND, Json(json_response)))
+            }
         }
         Err(e) => {
             error!("Failed to query drift profile: {:?}", e);

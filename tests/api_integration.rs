@@ -288,7 +288,9 @@ async fn test_api_get_drift_alert() {
 
     assert_eq!(result.len(), 1);
 
-    let response = app
+    let cloned_app = app.clone();
+
+    let response = cloned_app
         .oneshot(
             Request::builder()
                 .uri("/scouter/alerts?name=test_app&repository=statworld&version=0.1.0")
@@ -318,7 +320,109 @@ async fn test_api_get_drift_alert() {
         "Consecutive".to_string()
     );
 
-    // get body
+    test_utils::teardown().await.unwrap();
+}
+
+#[tokio::test]
+async fn test_api_update_profile() {
+    let app = test_utils::setup_api(true).await.unwrap();
+    let pool = test_utils::setup_db(true).await.unwrap();
+    let db_client = PostgresClient::new(pool.clone()).unwrap();
+
+    // populate the database
+    let populate_script = include_str!("scripts/populate.sql");
+    sqlx::raw_sql(populate_script).execute(&pool).await.unwrap();
+    let mut drift_executor = DriftExecutor::new(db_client.clone());
+
+    drift_executor.poll_for_tasks().await.unwrap();
+    let result = sqlx::raw_sql(
+        r#"
+        SELECT * 
+        FROM scouter.drift_profile
+        WHERE name = 'test_app'
+        AND repository = 'statworld'
+        "#,
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+
+    assert_eq!(result.len(), 1);
+    let updated_app = app.clone();
+    let get_app = app.clone();
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/scouter/profile?name=test_app&repository=statworld&version=0.1.0")
+                .method("GET")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // convert to DriftProfile
+
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let body: Value = serde_json::from_slice(&body).unwrap();
+    let data = body.get("data").unwrap();
+    let profile = serde_json::from_value::<DriftProfile>(data.clone()).unwrap();
+    assert!(profile.config.name == "test_app");
+
+    let mut new_profile = profile.clone();
+    new_profile.config.alert_config.alert_rule = AlertRule {
+        process: Some(ProcessAlertRule {
+            rule: "8 8 10 10 8 8 1 1".to_string(),
+            zones_to_monitor: Vec::new(),
+        }),
+        percentage: None,
+    };
+
+    let body = serde_json::to_string(&new_profile).unwrap();
+    let response = updated_app
+        .oneshot(
+            Request::builder()
+                .uri("/scouter/profile")
+                .header(http::header::CONTENT_TYPE, "application/json")
+                .method("PUT")
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let response = get_app
+        .oneshot(
+            Request::builder()
+                .uri("/scouter/profile?name=test_app&repository=statworld&version=0.1.0")
+                .method("GET")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // convert to DriftProfile
+
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let body: Value = serde_json::from_slice(&body).unwrap();
+    let updated_profile = body.get("data").unwrap();
+    let updated_profile = serde_json::from_value::<DriftProfile>(updated_profile.clone()).unwrap();
+
+    assert_eq!(
+        updated_profile
+            .config
+            .alert_config
+            .alert_rule
+            .process
+            .unwrap()
+            .rule,
+        "8 8 10 10 8 8 1 1"
+    );
+
+    // ch
 
     test_utils::teardown().await.unwrap();
 }

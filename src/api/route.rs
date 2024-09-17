@@ -1,5 +1,5 @@
 use crate::api::handler::{
-    get_drift, get_drift_alerts, health_check, insert_drift, insert_drift_profile,
+    get_drift, get_drift_alerts, get_profile, health_check, insert_drift, insert_drift_profile,
     update_drift_profile_status,
 };
 use crate::api::metrics::track_metrics;
@@ -15,6 +15,8 @@ use axum::{
 };
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
+
+use super::handler::update_drift_profile;
 
 const ROUTE_PREFIX: &str = "/scouter";
 
@@ -36,7 +38,9 @@ pub fn create_router(app_state: Arc<AppState>) -> Router {
         )
         .route(
             &format!("{}/profile", ROUTE_PREFIX),
-            post(insert_drift_profile),
+            post(insert_drift_profile)
+                .put(update_drift_profile)
+                .get(get_profile),
         )
         .route(
             &format!("{}/profile/status", ROUTE_PREFIX),

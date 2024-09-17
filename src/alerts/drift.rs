@@ -192,7 +192,7 @@ impl DriftExecutor {
         let mut transaction: sqlx::Transaction<Postgres> = self.db_client.pool.begin().await?;
 
         // Get drift profile
-        let task = PostgresClient::get_drift_profile(&mut transaction)
+        let task = PostgresClient::get_drift_profile_task(&mut transaction)
             .await
             .with_context(|| "error retrieving drift profile(s) from db!")?;
 

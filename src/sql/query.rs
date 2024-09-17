@@ -11,9 +11,11 @@ const INSERT_DRIFT_PROFILE: &str = include_str!("scripts/insert_drift_profile.sq
 const INSERT_DRIFT_ALERT: &str = include_str!("scripts/insert_drift_alert.sql");
 const GET_DRIFT_TASK: &str = include_str!("scripts/poll_for_drift_task.sql");
 const GET_DRIFT_ALERTS: &str = include_str!("scripts/get_drift_alerts.sql");
+const GET_DRIFT_PROFILE: &str = include_str!("scripts/get_drift_profile.sql");
 const UPDATE_DRIFT_PROFILE_RUN_DATES: &str =
     include_str!("scripts/update_drift_profile_run_dates.sql");
 const UPDATE_DRIFT_PROFILE_STATUS: &str = include_str!("scripts/update_drift_profile_status.sql");
+const UPDATE_DRIFT_PROFILE: &str = include_str!("scripts/update_drift_profile.sql");
 
 // table names
 pub const DRIFT_TABLE: &str = "scouter.drift";
@@ -66,9 +68,27 @@ impl ToMap for UpdateDriftProfileStatusParams {
 
 pub struct GetDriftProfileParams {
     pub table: String,
+    pub name: String,
+    pub repository: String,
+    pub version: String,
 }
 
 impl ToMap for GetDriftProfileParams {
+    fn to_map(&self) -> BTreeMap<String, String> {
+        let mut params = BTreeMap::new();
+        params.insert("table".to_string(), self.table.clone());
+        params.insert("name".to_string(), self.name.clone());
+        params.insert("repository".to_string(), self.repository.clone());
+        params.insert("version".to_string(), self.version.clone());
+        params
+    }
+}
+
+pub struct GetDriftProfileTaskParams {
+    pub table: String,
+}
+
+impl ToMap for GetDriftProfileTaskParams {
     fn to_map(&self) -> BTreeMap<String, String> {
         let mut params = BTreeMap::new();
         params.insert("table".to_string(), self.table.clone());
@@ -174,6 +194,27 @@ impl ToMap for InsertDriftProfileParams {
     }
 }
 
+pub struct UpdateDriftProfileParams {
+    pub table: String,
+    pub name: String,
+    pub repository: String,
+    pub version: String,
+    pub profile: String,
+}
+
+impl ToMap for UpdateDriftProfileParams {
+    fn to_map(&self) -> BTreeMap<String, String> {
+        let mut params = BTreeMap::new();
+        params.insert("table".to_string(), self.table.clone());
+        params.insert("name".to_string(), self.name.clone());
+        params.insert("repository".to_string(), self.repository.clone());
+        params.insert("version".to_string(), self.version.clone());
+        params.insert("profile".to_string(), self.profile.clone());
+
+        params
+    }
+}
+
 pub struct InsertDriftAlertParams {
     pub table: String,
     pub name: String,
@@ -247,8 +288,10 @@ pub enum Queries {
     GetBinnedFeatureValues,
     GetFeatureValues,
     GetDriftTask,
+    GetDriftProfile,
     UpdateDriftProfileRunDates,
     UpdateDriftProfileStatus,
+    UpdateDriftProfile,
 }
 
 impl Queries {
@@ -265,6 +308,8 @@ impl Queries {
             Queries::GetDriftTask => SqlQuery::new(GET_DRIFT_TASK),
             Queries::UpdateDriftProfileRunDates => SqlQuery::new(UPDATE_DRIFT_PROFILE_RUN_DATES),
             Queries::UpdateDriftProfileStatus => SqlQuery::new(UPDATE_DRIFT_PROFILE_STATUS),
+            Queries::UpdateDriftProfile => SqlQuery::new(UPDATE_DRIFT_PROFILE),
+            Queries::GetDriftProfile => SqlQuery::new(GET_DRIFT_PROFILE),
         }
     }
 }
@@ -352,7 +397,7 @@ WHERE
     fn test_get_drift_profile_query() {
         let query = Queries::GetDriftTask.get_query();
 
-        let params = GetDriftProfileParams {
+        let params = GetDriftProfileTaskParams {
             table: "schema.table".to_string(),
         };
 

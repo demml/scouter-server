@@ -1,8 +1,9 @@
 use crate::sql::query::{
     GetBinnedFeatureValuesParams, GetDriftAlertsParams, GetDriftProfileParams,
-    GetFeatureValuesParams, GetFeaturesParams, InsertDriftAlertParams, InsertDriftProfileParams,
-    InsertParams, Queries, UpdateDriftProfileRunDatesParams, UpdateDriftProfileStatusParams,
-    DRIFT_ALERT_TABLE, DRIFT_PROFILE_TABLE, DRIFT_TABLE,
+    GetDriftProfileTaskParams, GetFeatureValuesParams, GetFeaturesParams, InsertDriftAlertParams,
+    InsertDriftProfileParams, InsertParams, Queries, UpdateDriftProfileParams,
+    UpdateDriftProfileRunDatesParams, UpdateDriftProfileStatusParams, DRIFT_ALERT_TABLE,
+    DRIFT_PROFILE_TABLE, DRIFT_TABLE,
 };
 use crate::sql::schema::{AlertResult, DriftRecord, FeatureResult, QueryResult};
 use anyhow::*;
@@ -285,12 +286,76 @@ impl PostgresClient {
         }
     }
 
+    pub async fn update_drift_profile(
+        &self,
+        drift_profile: &DriftProfile,
+    ) -> Result<PgQueryResult, anyhow::Error> {
+        let query = Queries::UpdateDriftProfile.get_query();
+
+        let params = UpdateDriftProfileParams {
+            table: "scouter.drift_profile".to_string(),
+            name: drift_profile.config.name.clone(),
+            repository: drift_profile.config.repository.clone(),
+            version: drift_profile.config.version.clone(),
+            profile: serde_json::to_string(&drift_profile).unwrap(),
+        };
+
+        let query_result: std::prelude::v1::Result<sqlx::postgres::PgQueryResult, sqlx::Error> =
+            sqlx::raw_sql(query.format(&params).as_str())
+                .execute(&self.pool)
+                .await;
+
+        match query_result {
+            Ok(result) => Ok(result),
+            Err(e) => {
+                error!("Failed to update data profile: {:?}", e);
+                Err(anyhow!("Failed to update data profile: {:?}", e))
+            }
+        }
+    }
+
     pub async fn get_drift_profile(
+        &self,
+        name: &str,
+        repository: &str,
+        version: &str,
+    ) -> Result<Option<String>, anyhow::Error> {
+        let query = Queries::GetDriftProfile.get_query();
+
+        let params = GetDriftProfileParams {
+            table: self.profile_table_name.to_string(),
+            name: name.to_string(),
+            repository: repository.to_string(),
+            version: version.to_string(),
+        };
+
+        let result = sqlx::raw_sql(query.format(&params).as_str())
+            .fetch_optional(&self.pool)
+            .await;
+
+        // return the profile
+
+        match result {
+            Ok(result) => {
+                let profile = result.get("profile");
+                Ok(profile)
+            }
+            Err(e) => {
+                error!("Failed to get drift profile from database: {:?}", e);
+                Err(anyhow!(
+                    "Failed to get drift profile from database: {:?}",
+                    e
+                ))
+            }
+        }
+    }
+
+    pub async fn get_drift_profile_task(
         transaction: &mut Transaction<'_, Postgres>,
     ) -> Result<Option<PgRow>, Error> {
         let query = Queries::GetDriftTask.get_query();
 
-        let params = GetDriftProfileParams {
+        let params = GetDriftProfileTaskParams {
             table: "scouter.drift_profile".to_string(),
         };
 

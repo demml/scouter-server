@@ -3,6 +3,7 @@ use sqlx::Row;
 
 use scouter_server::sql::postgres::PostgresClient;
 mod test_utils;
+use scouter::utils::types::FeatureAlerts;
 
 #[tokio::test]
 async fn test_postgres_client() {
@@ -61,11 +62,44 @@ async fn test_postgres_client() {
             "test",
             "1.0.0",
             limit_timestamp.to_string().as_str(),
+            &[],
         )
         .await
         .unwrap();
 
     assert_eq!(result.features.len(), 1);
+
+    // send feature alerts
+    let alerts = FeatureAlerts::new(false);
+
+    for _ in 0..3 {
+        db_client
+            .insert_drift_alert(&record.name, &record.repository, &record.version, &alerts)
+            .await
+            .unwrap();
+        // sleep for 1 second
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    }
+
+    // get alerts
+    let result = db_client
+        .get_drift_alerts(&record.name, &record.repository, &record.version, None)
+        .await
+        .unwrap();
+
+    assert_eq!(result.len(), 3);
+
+    let result = db_client
+        .get_drift_alerts(
+            &record.name,
+            &record.repository,
+            &record.version,
+            Some(&result[0].created_at.to_string()),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(result.len(), 1);
 
     test_utils::teardown().await.unwrap();
 }

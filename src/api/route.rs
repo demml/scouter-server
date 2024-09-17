@@ -1,5 +1,6 @@
 use crate::api::handler::{
-    get_drift, health_check, insert_drift, insert_drift_profile, update_drift_profile_status,
+    get_drift, get_drift_alerts, health_check, insert_drift, insert_drift_profile,
+    update_drift_profile_status,
 };
 use crate::api::metrics::track_metrics;
 use crate::sql::postgres::PostgresClient;
@@ -15,6 +16,8 @@ use axum::{
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 
+const ROUTE_PREFIX: &str = "/scouter";
+
 pub struct AppState {
     pub db: PostgresClient,
 }
@@ -26,10 +29,20 @@ pub fn create_router(app_state: Arc<AppState>) -> Router {
         .allow_headers([AUTHORIZATION, ACCEPT, CONTENT_TYPE]);
 
     Router::new()
-        .route("/healthcheck", get(health_check))
-        .route("/drift", get(get_drift).post(insert_drift))
-        .route("/profile", post(insert_drift_profile))
-        .route("/profile/status", put(update_drift_profile_status))
+        .route(&format!("{}/healthcheck", ROUTE_PREFIX), get(health_check))
+        .route(
+            &format!("{}/drift", ROUTE_PREFIX),
+            get(get_drift).post(insert_drift),
+        )
+        .route(
+            &format!("{}/profile", ROUTE_PREFIX),
+            post(insert_drift_profile),
+        )
+        .route(
+            &format!("{}/profile/status", ROUTE_PREFIX),
+            put(update_drift_profile_status),
+        )
+        .route(&format!("{}/alerts", ROUTE_PREFIX), get(get_drift_alerts))
         .route_layer(middleware::from_fn(track_metrics))
         .with_state(app_state)
         .layer(cors)

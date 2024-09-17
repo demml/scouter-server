@@ -124,6 +124,9 @@ pub async fn teardown() -> Result<(), Error> {
 
             DELETE 
             FROM scouter.drift_profile;
+
+            DELETE
+            FROM scouter.drift_alerts;
             "#,
     )
     .fetch_all(&pool)

@@ -8,10 +8,18 @@ const GET_FEATURES: &str = include_str!("scripts/unique_features.sql");
 const GET_BINNED_FEATURE_VALUES: &str = include_str!("scripts/binned_feature_values.sql");
 const GET_FEATURE_VALUES: &str = include_str!("scripts/feature_values.sql");
 const INSERT_DRIFT_PROFILE: &str = include_str!("scripts/insert_drift_profile.sql");
+const INSERT_DRIFT_ALERT: &str = include_str!("scripts/insert_drift_alert.sql");
 const GET_DRIFT_TASK: &str = include_str!("scripts/poll_for_drift_task.sql");
+const GET_DRIFT_ALERTS: &str = include_str!("scripts/get_drift_alerts.sql");
 const UPDATE_DRIFT_PROFILE_RUN_DATES: &str =
     include_str!("scripts/update_drift_profile_run_dates.sql");
 const UPDATE_DRIFT_PROFILE_STATUS: &str = include_str!("scripts/update_drift_profile_status.sql");
+
+// table names
+pub const DRIFT_TABLE: &str = "scouter.drift";
+pub const DRIFT_PROFILE_TABLE: &str = "scouter.drift_profile";
+pub const DRIFT_ALERT_TABLE: &str = "scouter.drift_alerts";
+
 pub trait ToMap {
     fn to_map(&self) -> BTreeMap<String, String>;
 }
@@ -141,6 +149,7 @@ pub struct InsertDriftProfileParams {
     pub repository: String,
     pub version: String,
     pub profile: String,
+    pub scouter_version: String,
     pub active: bool,
     pub schedule: String,
     pub next_run: NaiveDateTime,
@@ -155,11 +164,50 @@ impl ToMap for InsertDriftProfileParams {
         params.insert("repository".to_string(), self.repository.clone());
         params.insert("version".to_string(), self.version.clone());
         params.insert("profile".to_string(), self.profile.clone());
+        params.insert("scouter_version".to_string(), self.scouter_version.clone());
         params.insert("active".to_string(), self.active.to_string());
         params.insert("schedule".to_string(), self.schedule.clone());
         params.insert("next_run".to_string(), self.next_run.to_string());
         params.insert("previous_run".to_string(), self.previous_run.to_string());
 
+        params
+    }
+}
+
+pub struct InsertDriftAlertParams {
+    pub table: String,
+    pub name: String,
+    pub repository: String,
+    pub version: String,
+    pub alert: String,
+}
+
+impl ToMap for InsertDriftAlertParams {
+    fn to_map(&self) -> BTreeMap<String, String> {
+        let mut params = BTreeMap::new();
+        params.insert("table".to_string(), self.table.clone());
+        params.insert("name".to_string(), self.name.clone());
+        params.insert("repository".to_string(), self.repository.clone());
+        params.insert("version".to_string(), self.version.clone());
+        params.insert("alert".to_string(), self.alert.clone());
+        params
+    }
+}
+
+pub struct GetDriftAlertsParams {
+    pub table: String,
+    pub name: String,
+    pub repository: String,
+    pub version: String,
+}
+
+impl ToMap for GetDriftAlertsParams {
+    fn to_map(&self) -> BTreeMap<String, String> {
+        let mut params = BTreeMap::new();
+        params.insert("table".to_string(), self.table.clone());
+        params.insert("name".to_string(), self.name.clone());
+        params.insert("repository".to_string(), self.repository.clone());
+        params.insert("version".to_string(), self.version.clone());
         params
     }
 }
@@ -194,6 +242,8 @@ pub enum Queries {
     GetFeatures,
     InsertDriftRecord,
     InsertDriftProfile,
+    InsertDriftAlert,
+    GetDriftAlerts,
     GetBinnedFeatureValues,
     GetFeatureValues,
     GetDriftTask,
@@ -210,6 +260,8 @@ impl Queries {
             Queries::GetBinnedFeatureValues => SqlQuery::new(GET_BINNED_FEATURE_VALUES),
             Queries::GetFeatureValues => SqlQuery::new(GET_FEATURE_VALUES),
             Queries::InsertDriftProfile => SqlQuery::new(INSERT_DRIFT_PROFILE),
+            Queries::InsertDriftAlert => SqlQuery::new(INSERT_DRIFT_ALERT),
+            Queries::GetDriftAlerts => SqlQuery::new(GET_DRIFT_ALERTS),
             Queries::GetDriftTask => SqlQuery::new(GET_DRIFT_TASK),
             Queries::UpdateDriftProfileRunDates => SqlQuery::new(UPDATE_DRIFT_PROFILE_RUN_DATES),
             Queries::UpdateDriftProfileStatus => SqlQuery::new(UPDATE_DRIFT_PROFILE_STATUS),

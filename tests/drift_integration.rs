@@ -49,11 +49,11 @@ async fn test_drift_executor_separate() {
     assert_eq!(drift_array.shape(), [10, 3] as [usize; 2]);
 
     let alert_rule = drift_profile.config.alert_config.alert_rule.clone();
-    let alerts = generate_alerts(&drift_array.view(), keys, alert_rule).unwrap();
+    let alerts = generate_alerts(&drift_array.view(), &keys, &alert_rule).unwrap();
 
     assert_eq!(
         alerts.features.get("col_3").unwrap().alerts[0].zone,
-        "Out of bounds"
+        "Zone 4"
     );
 
     let dispatcher = ConsoleAlertDispatcher::new(&name, &repository, &version);
@@ -107,6 +107,18 @@ async fn test_drift_executor() {
 
     // assert next run from before computing drift is now the previous run
     assert_eq!(previous_run, curr_next_run);
+
+    let result = sqlx::raw_sql(
+        r#"
+        SELECT * 
+        FROM scouter.drift_alerts
+        "#,
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+
+    assert_eq!(result.len(), 1);
 
     test_utils::teardown().await.unwrap();
 }

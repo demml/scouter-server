@@ -49,7 +49,7 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
 
     // run drift background task
     let num_scheduler_workers = std::env::var("NUM_SCOUTER_SCHEDULER_WORKERS")
-        .unwrap_or_else(|_| "3".to_string())
+        .unwrap_or_else(|_| "4".to_string())
         .parse::<usize>()
         .with_context(|| "Failed to parse NUM_SCHEDULER_WORKERS")?;
 
@@ -123,7 +123,7 @@ mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/healthcheck")
+                    .uri("/scouter/healthcheck")
                     .body(Body::empty())
                     .unwrap(),
             )

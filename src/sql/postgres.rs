@@ -1,15 +1,17 @@
 use crate::sql::query::{
-    GetBinnedFeatureValuesParams, GetDriftProfileParams, GetFeatureValuesParams, GetFeaturesParams,
-    InsertDriftProfileParams, InsertParams, Queries, UpdateDriftProfileRunDatesParams,
-    UpdateDriftProfileStatusParams,
+    GetBinnedFeatureValuesParams, GetDriftAlertsParams, GetDriftProfileParams,
+    GetFeatureValuesParams, GetFeaturesParams, InsertDriftAlertParams, InsertDriftProfileParams,
+    InsertParams, Queries, UpdateDriftProfileRunDatesParams, UpdateDriftProfileStatusParams,
+    DRIFT_ALERT_TABLE, DRIFT_PROFILE_TABLE, DRIFT_TABLE,
 };
-use crate::sql::schema::{DriftRecord, FeatureResult, QueryResult};
+use crate::sql::schema::{AlertResult, DriftRecord, FeatureResult, QueryResult};
 use anyhow::*;
 use chrono::Utc;
 use cron::Schedule;
 use futures::future::join_all;
 use include_dir::{include_dir, Dir};
 use scouter::utils::types::DriftProfile;
+use scouter::utils::types::FeatureAlerts;
 use sqlx::{
     postgres::{PgQueryResult, PgRow},
     Pool, Postgres, QueryBuilder, Row, Transaction,
@@ -71,9 +73,9 @@ impl TimeInterval {
 #[allow(dead_code)]
 pub struct PostgresClient {
     pub pool: Pool<Postgres>,
-    qualified_table_name: String,
-    queue_table_name: String,
+    drift_table_name: String,
     profile_table_name: String,
+    alert_table_name: String,
 }
 
 impl PostgresClient {
@@ -83,10 +85,118 @@ impl PostgresClient {
 
         Ok(Self {
             pool,
-            qualified_table_name: "scouter.drift".to_string(),
-            queue_table_name: "scouter.drift_queue".to_string(),
-            profile_table_name: "scouter.drift_profile".to_string(),
+            drift_table_name: DRIFT_TABLE.to_string(),
+            profile_table_name: DRIFT_PROFILE_TABLE.to_string(),
+            alert_table_name: DRIFT_ALERT_TABLE.to_string(),
         })
+    }
+
+    // Inserts a drift alert into the database
+    //
+    // # Arguments
+    //
+    // * `name` - The name of the service to insert the alert for
+    // * `repository` - The name of the repository to insert the alert for
+    // * `version` - The version of the service to insert the alert for
+    // * `alert` - The alert to insert into the database
+    //
+    pub async fn insert_drift_alert(
+        &self,
+        name: &str,
+        repository: &str,
+        version: &str,
+        alert: &FeatureAlerts,
+    ) -> Result<PgQueryResult, anyhow::Error> {
+        let query = Queries::InsertDriftAlert.get_query();
+
+        let params = InsertDriftAlertParams {
+            table: self.alert_table_name.to_string(),
+            name: name.to_string(),
+            repository: repository.to_string(),
+            version: version.to_string(),
+            alert: serde_json::to_string(&alert).unwrap(),
+        };
+
+        let query_result: std::prelude::v1::Result<sqlx::postgres::PgQueryResult, sqlx::Error> =
+            sqlx::raw_sql(query.format(&params).as_str())
+                .execute(&self.pool)
+                .await;
+
+        match query_result {
+            Ok(result) => Ok(result),
+            Err(e) => {
+                error!("Failed to insert alert into database: {:?}", e);
+                Err(anyhow!("Failed to insert alert into database: {:?}", e))
+            }
+        }
+    }
+
+    pub async fn get_drift_alerts(
+        &self,
+        name: &str,
+        repository: &str,
+        version: &str,
+        limit_timestamp: Option<&str>,
+    ) -> Result<Vec<AlertResult>, anyhow::Error> {
+        let query = Queries::GetDriftAlerts.get_query();
+
+        let params = GetDriftAlertsParams {
+            table: self.alert_table_name.to_string(),
+            name: name.to_string(),
+            repository: repository.to_string(),
+            version: version.to_string(),
+        };
+
+        let mut formatted_query = query.format(&params);
+
+        if limit_timestamp.is_some() {
+            let limit_timestamp = limit_timestamp.unwrap();
+            formatted_query = format!(
+                "{} AND created_at >= '{}' ORDER BY created_at DESC;",
+                formatted_query, limit_timestamp
+            );
+        } else {
+            formatted_query = format!("{} ORDER BY created_at DESC LIMIT 5;", formatted_query);
+        }
+
+        let result = sqlx::raw_sql(formatted_query.as_str())
+            .fetch_all(&self.pool)
+            .await;
+
+        match result {
+            Ok(result) => {
+                let mut results = Vec::new();
+
+                result.iter().for_each(|row| {
+                    let alerts = serde_json::from_value::<FeatureAlerts>(row.get("alert"))
+                        .with_context(|| {
+                            "error converting postgres jsonb profile to struct type DriftProfile"
+                        });
+
+                    match alerts {
+                        Ok(alerts) => {
+                            let alert = AlertResult {
+                                name: row.get("name"),
+                                repository: row.get("repository"),
+                                version: row.get("version"),
+                                created_at: row.get("created_at"),
+                                alerts,
+                            };
+                            results.push(alert);
+                        }
+                        Err(e) => {
+                            error!("Failed to get alerts from database: {:?}", e);
+                        }
+                    }
+                });
+
+                Ok(results)
+            }
+            Err(e) => {
+                error!("Failed to get alerts from database: {:?}", e);
+                Err(anyhow!("Failed to get alerts from database: {:?}", e))
+            }
+        }
     }
 
     // Inserts a drift record into the database
@@ -103,7 +213,7 @@ impl PostgresClient {
         let query = Queries::InsertDriftRecord.get_query();
 
         let params = InsertParams {
-            table: self.qualified_table_name.to_string(),
+            table: self.drift_table_name.to_string(),
             created_at: record.created_at,
             name: record.name.clone(),
             repository: record.repository.clone(),
@@ -154,6 +264,7 @@ impl PostgresClient {
             repository: drift_profile.config.repository.clone(),
             version: drift_profile.config.version.clone(),
             profile: serde_json::to_string(&drift_profile).unwrap(),
+            scouter_version: drift_profile.scouter_version.clone(),
             active: false,
             schedule: drift_profile.config.alert_config.schedule.clone(),
             next_run: next_run.naive_utc(),
@@ -239,7 +350,7 @@ impl PostgresClient {
     ) -> Result<PgQueryResult, anyhow::Error> {
         let insert_statement = format!(
             "INSERT INTO {} (created_at, name, repository, version, feature, value)",
-            self.qualified_table_name
+            self.drift_table_name
         );
 
         let mut query_builder = QueryBuilder::new(insert_statement);
@@ -277,7 +388,7 @@ impl PostgresClient {
         let query = Queries::GetFeatures.get_query();
 
         let params = GetFeaturesParams {
-            table: self.qualified_table_name.to_string(),
+            table: self.drift_table_name.to_string(),
             name: name.to_string(),
             repository: repository.to_string(),
             version: version.to_string(),
@@ -296,7 +407,6 @@ impl PostgresClient {
         Ok(features)
     }
 
-    #[allow(dead_code)]
     async fn run_feature_query(
         &self,
         feature: &str,
@@ -308,7 +418,7 @@ impl PostgresClient {
         let query = Queries::GetFeatureValues.get_query();
 
         let params = GetFeatureValuesParams {
-            table: self.qualified_table_name.to_string(),
+            table: self.drift_table_name.to_string(),
             name: name.to_string(),
             repository: repository.to_string(),
             version: version.to_string(),
@@ -341,7 +451,7 @@ impl PostgresClient {
         let query = Queries::GetBinnedFeatureValues.get_query();
 
         let params = GetBinnedFeatureValuesParams {
-            table: self.qualified_table_name.to_string(),
+            table: self.drift_table_name.to_string(),
             name: name.to_string(),
             repository: repository.to_string(),
             feature,
@@ -441,15 +551,19 @@ impl PostgresClient {
         Ok(query_result)
     }
 
-    #[allow(dead_code)]
     pub async fn get_drift_records(
         &self,
         name: &str,
         repository: &str,
         version: &str,
         limit_timestamp: &str,
+        features_to_monitor: &[String],
     ) -> Result<QueryResult, anyhow::Error> {
-        let features = self.get_features(name, repository, version).await?;
+        let mut features = self.get_features(name, repository, version).await?;
+
+        if !features_to_monitor.is_empty() {
+            features.retain(|feature| features_to_monitor.contains(feature));
+        }
 
         let async_queries = features
             .iter()

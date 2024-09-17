@@ -9,8 +9,10 @@ use tracing::error;
 use tracing::info;
 
 use crate::alerts::dispatch::AlertDispatcher;
+use crate::alerts::types::TaskAlerts;
 use ndarray::Array2;
 use sqlx::{Postgres, Row};
+use std::collections::BTreeMap;
 
 pub struct DriftExecutor {
     db_client: PostgresClient,
@@ -26,11 +28,18 @@ impl DriftExecutor {
         name: &str,
         repository: &str,
         version: &str,
-        limit_time_stamp: &str,
+        limit_timestamp: &str,
+        features_to_monitor: &[String],
     ) -> Result<QueryResult> {
         let records = self
             .db_client
-            .get_drift_records(name, repository, version, limit_time_stamp)
+            .get_drift_records(
+                name,
+                repository,
+                version,
+                limit_timestamp,
+                features_to_monitor,
+            )
             .await?;
         Ok(records)
     }
@@ -54,11 +63,18 @@ impl DriftExecutor {
         version: &str,
     ) -> Result<(Array2<f64>, Vec<String>)> {
         let drift_features = self
-            .get_drift_features(name, repository, version, &limit_timestamp.to_string())
+            .get_drift_features(
+                name,
+                repository,
+                version,
+                &limit_timestamp.to_string(),
+                &drift_profile.config.alert_config.features_to_monitor,
+            )
             .await
             .with_context(|| "error retrieving raw feature data to compute drift")?;
 
         let feature_keys: Vec<String> = drift_features.features.keys().cloned().collect();
+
         let feature_values = drift_features
             .features
             .values()
@@ -113,18 +129,19 @@ impl DriftExecutor {
     ///
     /// # Returns
     ///
-    pub async fn process_task<'a>(
+    pub async fn process_task(
         &mut self,
         drift_profile: DriftProfile,
         previous_run: NaiveDateTime,
         name: &str,
         repository: &str,
         version: &str,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<TaskAlerts, anyhow::Error> {
         info!(
             "Processing drift task for profile: {}/{}/{}",
             repository, name, version
         );
+        let mut task_alerts = TaskAlerts { alerts: None };
 
         // Compute drift
         let (drift_array, keys) = self
@@ -135,13 +152,13 @@ impl DriftExecutor {
         // if drift array is empty, return early
         if drift_array.is_empty() {
             info!("No features to process returning early");
-            return Ok(());
+            return Ok(task_alerts);
         }
 
         // Get alerts
         // keys are the feature names that match the order of the drift array columns
         let alert_rule = drift_profile.config.alert_config.alert_rule.clone();
-        let alerts = generate_alerts(&drift_array.view(), keys, alert_rule)
+        let alerts = generate_alerts(&drift_array.view(), &keys, &alert_rule)
             .with_context(|| "error generating drift alerts")?;
 
         // Get dispatcher, will default to console if env vars are not found for 3rd party service
@@ -149,12 +166,20 @@ impl DriftExecutor {
         // This would be for things like opsgenie team, feature priority, slack channel, etc.
         let alert_dispatcher = AlertDispatcher::new(&drift_profile.config);
 
-        alert_dispatcher
-            .process_alerts(&alerts)
-            .await
-            .with_context(|| "error processing alerts")?;
+        if alerts.has_alerts {
+            alert_dispatcher
+                .process_alerts(&alerts)
+                .await
+                .with_context(|| "error processing alerts")?;
+            task_alerts.alerts = Some(alerts);
+        } else {
+            info!(
+                "No alerts to process for {}/{}/{}",
+                repository, name, version
+            );
+        }
 
-        Ok(())
+        Ok(task_alerts)
     }
 
     /// Execute single drift computation and alerting
@@ -195,8 +220,27 @@ impl DriftExecutor {
                 .await;
 
             match result {
-                Ok(_) => {
+                Ok(task_alert) => {
                     info!("Drift task processed successfully");
+
+                    if task_alert.alerts.is_some() {
+                        let mut task_alert = task_alert.alerts.unwrap();
+                        //// this should
+
+                        // pop alert indices (don't need to store them in db)
+                        task_alert.features.iter_mut().for_each(|(_, feature)| {
+                            feature.indices = BTreeMap::new();
+                        });
+
+                        let insert = self
+                            .db_client
+                            .insert_drift_alert(&name, &repository, &version, &task_alert)
+                            .await;
+
+                        if let Err(e) = insert {
+                            error!("Error inserting drift alerts: {:?}", e);
+                        }
+                    }
                 }
                 Err(e) => {
                     error!("Error processing drift task: {:?}", e);

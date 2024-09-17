@@ -14,7 +14,11 @@ use std::collections::HashMap;
 use tower::Service;
 use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
 mod test_utils;
+use scouter_server::alerts::drift::DriftExecutor;
+use scouter_server::sql::postgres::PostgresClient;
+use scouter_server::sql::schema::AlertResult;
 use sqlx::Row;
+use std::collections::BTreeMap;
 
 #[tokio::test]
 async fn test_api_drift() {
@@ -36,7 +40,7 @@ async fn test_api_drift() {
         let response = app
             .call(
                 Request::builder()
-                    .uri("/drift")
+                    .uri("/scouter/drift")
                     .header(http::header::CONTENT_TYPE, "application/json")
                     .method("POST")
                     .body(Body::from(body))
@@ -51,7 +55,7 @@ async fn test_api_drift() {
     // query data
     let response = app.call(
         Request::builder()
-            .uri("/drift?name=test_app&repository=test&version=1.0.0&time_window=5minute&max_data_points=1000")
+            .uri("/scouter/drift?name=test_app&repository=test&version=1.0.0&time_window=5minute&max_data_points=1000")
             .method("GET")
             .body(Body::empty())
             .unwrap(),
@@ -83,7 +87,7 @@ async fn test_api_drift() {
     let response = app
         .call(
             Request::builder()
-                .uri("/drift")
+                .uri("/scouter/drift")
                 .header(http::header::CONTENT_TYPE, "application/json")
                 .method("POST")
                 .body(Body::from(body))
@@ -97,7 +101,7 @@ async fn test_api_drift() {
     // query new version
     let response = app.call(
         Request::builder()
-            .uri("/drift?name=test_app&repository=test&version=2.0.0&time_window=5minute&max_data_points=1000")
+            .uri("/scouter/drift?name=test_app&repository=test&version=2.0.0&time_window=5minute&max_data_points=1000")
             .method("GET")
             .body(Body::empty())
             .unwrap(),
@@ -124,7 +128,7 @@ async fn test_api_drift() {
 async fn test_api_profile() {
     let app = test_utils::setup_api(true).await.unwrap();
 
-    let mut features = HashMap::new();
+    let mut features = BTreeMap::new();
     features.insert(
         "feature1".to_string(),
         FeatureDriftProfile {
@@ -148,17 +152,24 @@ async fn test_api_profile() {
             name: "test_app".to_string(),
             repository: "test".to_string(),
             version: "1.0.0".to_string(),
+            targets: Vec::new(),
+            feature_map: None,
             alert_config: AlertConfig {
                 alert_rule: AlertRule {
                     process: Some(ProcessAlertRule {
                         rule: "test".to_string(),
+                        zones_to_monitor: Vec::new(),
                     }),
                     percentage: None,
                 },
                 alert_dispatch_type: AlertDispatchType::Console,
                 schedule: "0 0 * * * *".to_string(),
+                features_to_monitor: Vec::new(),
+
+                alert_kwargs: HashMap::new(),
             },
         },
+        scouter_version: "1.0.0".to_string(),
     };
 
     let body = serde_json::to_string(&monitor_profile).unwrap();
@@ -167,7 +178,7 @@ async fn test_api_profile() {
     let response = app
         .oneshot(
             Request::builder()
-                .uri("/profile")
+                .uri("/scouter/profile")
                 .header(http::header::CONTENT_TYPE, "application/json")
                 .method("POST")
                 .body(Body::from(body))
@@ -219,7 +230,7 @@ async fn test_api_profile_update() {
     let response = app
         .oneshot(
             Request::builder()
-                .uri("/profile/status")
+                .uri("/scouter/profile/status")
                 .header(http::header::CONTENT_TYPE, "application/json")
                 .method("PUT")
                 .body(Body::from(body))
@@ -247,6 +258,67 @@ async fn test_api_profile_update() {
 
     assert!(new_status != curr_status);
     assert!(new_status);
+
+    test_utils::teardown().await.unwrap();
+}
+
+#[tokio::test]
+async fn test_api_get_drift_alert() {
+    let app = test_utils::setup_api(true).await.unwrap();
+    let pool = test_utils::setup_db(true).await.unwrap();
+    let db_client = PostgresClient::new(pool.clone()).unwrap();
+
+    // populate the database
+    let populate_script = include_str!("scripts/populate.sql");
+    sqlx::raw_sql(populate_script).execute(&pool).await.unwrap();
+    let mut drift_executor = DriftExecutor::new(db_client.clone());
+
+    drift_executor.poll_for_tasks().await.unwrap();
+    let result = sqlx::raw_sql(
+        r#"
+        SELECT * 
+        FROM scouter.drift_profile
+        WHERE name = 'test_app'
+        AND repository = 'statworld'
+        "#,
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+
+    assert_eq!(result.len(), 1);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/scouter/alerts?name=test_app&repository=statworld&version=0.1.0")
+                .method("GET")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // get data field from response
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let body: Value = serde_json::from_slice(&body).unwrap();
+
+    let data = body.get("data");
+    let data: Vec<AlertResult> = serde_json::from_value(data.unwrap().clone()).unwrap();
+
+    assert_eq!(data.len(), 1);
+    assert_eq!(
+        data[0].alerts.features["col_3"].alerts[0].kind,
+        "Out of bounds".to_string()
+    );
+    assert_eq!(
+        data[0].alerts.features["col_1"].alerts[0].kind,
+        "Consecutive".to_string()
+    );
+
+    // get body
 
     test_utils::teardown().await.unwrap();
 }

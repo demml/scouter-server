@@ -30,4 +30,4 @@ GROUP BY
     feature,
     version
 ORDER BY
-    created_at DESC;
+    created_at ASC;

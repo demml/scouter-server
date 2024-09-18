@@ -519,6 +519,8 @@ impl PostgresClient {
             bin: bin.to_string(),
         };
 
+        println!("Query: {}", query.format(&params));
+
         let result = sqlx::raw_sql(query.format(&params).as_str())
             .fetch_all(&self.pool)
             .await;
@@ -552,9 +554,16 @@ impl PostgresClient {
         version: &str,
         max_data_points: &i32,
         time_window: &i32,
+        feature: Option<String>,
     ) -> Result<QueryResult, anyhow::Error> {
         // get features
-        let features = self.get_features(name, repository, version).await?;
+        let mut features = self.get_features(name, repository, version).await?;
+
+        if feature.is_some() {
+            let feature = feature.unwrap();
+            // filter out features that are not in the list
+            features.retain(|f| f == &feature);
+        }
 
         let bin = *time_window as f64 / *max_data_points as f64;
 

@@ -8,6 +8,7 @@ pub struct ServiceDriftRequest {
     pub repository: String,
     pub version: String,
     pub time_window: String,
+    pub feature: Option<String>,
     pub max_data_points: i32,
 }
 

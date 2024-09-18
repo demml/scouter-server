@@ -44,6 +44,7 @@ pub async fn get_drift(
             &params.version,
             &params.max_data_points,
             &time_interval,
+            params.feature.clone(),
         )
         .await;
 
@@ -193,15 +194,15 @@ pub async fn get_profile(
             if result.is_some() {
                 let json_response = json!({
                     "status": "success",
-                    "data": result
+                    "profile": result
                 });
                 Ok(Json(json_response))
             } else {
                 let json_response = json!({
                     "status": "error",
-                    "message": "Profile not found"
+                    "detail": "Profile not found"
                 });
-                Err((StatusCode::NOT_FOUND, Json(json_response)))
+                Ok(Json(json_response))
             }
         }
         Err(e) => {

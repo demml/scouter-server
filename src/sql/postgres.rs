@@ -5,7 +5,9 @@ use crate::sql::query::{
     UpdateDriftProfileRunDatesParams, UpdateDriftProfileStatusParams, DRIFT_ALERT_TABLE,
     DRIFT_PROFILE_TABLE, DRIFT_TABLE,
 };
-use crate::sql::schema::{AlertResult, DriftRecord, FeatureResult, QueryResult};
+use crate::sql::schema::{
+    AlertResult, DriftRecord, FeatureDistribution, FeatureResult, QueryResult,
+};
 use anyhow::*;
 use chrono::Utc;
 use cron::Schedule;
@@ -519,8 +521,6 @@ impl PostgresClient {
             bin: bin.to_string(),
         };
 
-        println!("Query: {}", query.format(&params));
-
         let result = sqlx::raw_sql(query.format(&params).as_str())
             .fetch_all(&self.pool)
             .await;
@@ -617,6 +617,73 @@ impl PostgresClient {
         }
 
         Ok(query_result)
+    }
+
+    pub async fn get_feature_distribution(
+        &self,
+        name: &str,
+        repository: &str,
+        version: &str,
+        max_data_points: &i32,
+        time_window: &i32,
+        feature: &str,
+    ) -> Result<FeatureDistribution, anyhow::Error> {
+        let query = Queries::GetFeatureDistribution.get_query();
+
+        let bin = *time_window as f64 / *max_data_points as f64;
+
+        let params = GetBinnedFeatureValuesParams {
+            table: self.drift_table_name.to_string(),
+            name: name.to_string(),
+            repository: repository.to_string(),
+            feature: feature.to_string(),
+            version: version.to_string(),
+            time_window: time_window.to_string(),
+            bin: bin.to_string(),
+        };
+
+        let result: Result<Vec<PgRow>, sqlx::Error> = sqlx::raw_sql(query.format(&params).as_str())
+            .fetch_all(&self.pool)
+            .await;
+
+        match result {
+            Ok(result) => {
+                // load to FeatureDistribution
+                let record = &result[0];
+
+                let feature = FeatureDistribution {
+                    name: record.get("name"),
+                    repository: record.get("repository"),
+                    version: record.get("version"),
+                    percentile_10: record.get("percentile_10"),
+                    percentile_20: record.get("percentile_20"),
+                    percentile_30: record.get("percentile_30"),
+                    percentile_40: record.get("percentile_40"),
+                    percentile_50: record.get("percentile_50"),
+                    percentile_60: record.get("percentile_60"),
+                    percentile_70: record.get("percentile_70"),
+                    percentile_80: record.get("percentile_80"),
+                    percentile_90: record.get("percentile_90"),
+                    percentile_100: record.get("percentile_100"),
+                    val_10: record.get("val_10"),
+                    val_20: record.get("val_20"),
+                    val_30: record.get("val_30"),
+                    val_40: record.get("val_40"),
+                    val_50: record.get("val_50"),
+                    val_60: record.get("val_60"),
+                    val_70: record.get("val_70"),
+                    val_80: record.get("val_80"),
+                    val_90: record.get("val_90"),
+                    val_100: record.get("val_100"),
+                };
+
+                Ok(feature)
+            }
+            Err(e) => {
+                error!("Failed to run query: {:?}", e);
+                Err(anyhow!("Failed to run query: {:?}", e))
+            }
+        }
     }
 
     pub async fn get_drift_records(

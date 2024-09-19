@@ -1,6 +1,6 @@
 use crate::api::schema::{
-    DriftAlertRequest, DriftRecordRequest, ProfileRequest, ProfileStatusRequest,
-    ServiceDriftRequest,
+    DriftAlertRequest, DriftRecordRequest, FeatureDriftDistributionRequest, ProfileRequest,
+    ProfileStatusRequest, ServiceDriftRequest,
 };
 use crate::sql::postgres::TimeInterval;
 use crate::sql::schema::DriftRecord;
@@ -58,6 +58,45 @@ pub async fn get_drift(
         }
         Err(e) => {
             error!("Failed to query drift records: {:?}", e);
+            let json_response = json!({
+                "status": "error",
+                "message": format!("{:?}", e)
+            });
+            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
+        }
+    }
+}
+
+pub async fn get_feature_distributions(
+    State(data): State<Arc<AppState>>,
+    params: Query<FeatureDriftDistributionRequest>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    // validate time window
+
+    let time_window = TimeInterval::from_string(&params.time_window).to_minutes();
+
+    let query_result = &data
+        .db
+        .get_feature_distribution(
+            &params.name,
+            &params.repository,
+            &params.version,
+            &params.max_data_points,
+            &time_window,
+            &params.feature,
+        )
+        .await;
+
+    match query_result {
+        Ok(result) => {
+            let json_response = serde_json::json!({
+                "status": "success",
+                "data": result
+            });
+            Ok(Json(json_response))
+        }
+        Err(e) => {
+            error!("Failed to calculate feature distribution: {:?}", e);
             let json_response = json!({
                 "status": "error",
                 "message": format!("{:?}", e)

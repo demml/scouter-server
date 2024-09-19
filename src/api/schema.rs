@@ -13,6 +13,16 @@ pub struct ServiceDriftRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct FeatureDriftDistributionRequest {
+    pub name: String,
+    pub repository: String,
+    pub version: String,
+    pub time_window: String,
+    pub feature: String,
+    pub max_data_points: i32,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DriftRecordRequest {
     pub created_at: Option<NaiveDateTime>,
     pub name: String,

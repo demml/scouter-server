@@ -12,6 +12,7 @@ const INSERT_DRIFT_ALERT: &str = include_str!("scripts/insert_drift_alert.sql");
 const GET_DRIFT_TASK: &str = include_str!("scripts/poll_for_drift_task.sql");
 const GET_DRIFT_ALERTS: &str = include_str!("scripts/get_drift_alerts.sql");
 const GET_DRIFT_PROFILE: &str = include_str!("scripts/get_drift_profile.sql");
+const GET_FEATURE_DISTRIBUTION: &str = include_str!("scripts/get_feature_distribution.sql");
 const UPDATE_DRIFT_PROFILE_RUN_DATES: &str =
     include_str!("scripts/update_drift_profile_run_dates.sql");
 const UPDATE_DRIFT_PROFILE_STATUS: &str = include_str!("scripts/update_drift_profile_status.sql");
@@ -289,6 +290,7 @@ pub enum Queries {
     GetFeatureValues,
     GetDriftTask,
     GetDriftProfile,
+    GetFeatureDistribution,
     UpdateDriftProfileRunDates,
     UpdateDriftProfileStatus,
     UpdateDriftProfile,
@@ -310,6 +312,7 @@ impl Queries {
             Queries::UpdateDriftProfileStatus => SqlQuery::new(UPDATE_DRIFT_PROFILE_STATUS),
             Queries::UpdateDriftProfile => SqlQuery::new(UPDATE_DRIFT_PROFILE),
             Queries::GetDriftProfile => SqlQuery::new(GET_DRIFT_PROFILE),
+            Queries::GetFeatureDistribution => SqlQuery::new(GET_FEATURE_DISTRIBUTION),
         }
     }
 }

@@ -1,7 +1,6 @@
 use chrono::NaiveDateTime;
 use scouter::utils::types::FeatureAlerts;
 use serde::{Deserialize, Serialize};
-use sqlx::FromRow;
 use std::collections::BTreeMap;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -34,7 +33,7 @@ pub struct AlertResult {
     pub alerts: FeatureAlerts,
 }
 
-#[derive(Debug, Deserialize, Serialize, FromRow, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct FeatureDistribution {
     pub name: String,
     pub repository: String,

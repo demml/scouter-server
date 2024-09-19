@@ -38,17 +38,17 @@ percentiles AS (
         repository,
         feature,
         version,
-        COUNT(1)::decimal as cnt,
-        PERCENTILE_CONT(0.1) WITHIN GROUP (ORDER BY value)::decimal AS percentile_10,
-        PERCENTILE_CONT(0.2) WITHIN GROUP (ORDER BY value)::decimal AS percentile_20,
-        PERCENTILE_CONT(0.3) WITHIN GROUP (ORDER BY value)::decimal AS percentile_30,
-        PERCENTILE_CONT(0.4) WITHIN GROUP (ORDER BY value)::decimal AS percentile_40,
-        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY value)::decimal AS percentile_50,
-        PERCENTILE_CONT(0.6) WITHIN GROUP (ORDER BY value)::decimal AS percentile_60,
-        PERCENTILE_CONT(0.7) WITHIN GROUP (ORDER BY value)::decimal AS percentile_70,
-        PERCENTILE_CONT(0.8) WITHIN GROUP (ORDER BY value)::decimal AS percentile_80,
-        PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY value)::decimal AS percentile_90,
-        PERCENTILE_CONT(1) WITHIN GROUP (ORDER BY value)::decimal AS percentile_100
+        COUNT(1)::float8 as cnt,
+        PERCENTILE_CONT(0.1) WITHIN GROUP (ORDER BY value)::float8 AS percentile_10,
+        PERCENTILE_CONT(0.2) WITHIN GROUP (ORDER BY value)::float8 AS percentile_20,
+        PERCENTILE_CONT(0.3) WITHIN GROUP (ORDER BY value)::float8 AS percentile_30,
+        PERCENTILE_CONT(0.4) WITHIN GROUP (ORDER BY value)::float8 AS percentile_40,
+        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY value)::float8 AS percentile_50,
+        PERCENTILE_CONT(0.6) WITHIN GROUP (ORDER BY value)::float8 AS percentile_60,
+        PERCENTILE_CONT(0.7) WITHIN GROUP (ORDER BY value)::float8 AS percentile_70,
+        PERCENTILE_CONT(0.8) WITHIN GROUP (ORDER BY value)::float8 AS percentile_80,
+        PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY value)::float8 AS percentile_90,
+        PERCENTILE_CONT(1) WITHIN GROUP (ORDER BY value)::float8 AS percentile_100
     FROM aggregate
     GROUP BY
         name,

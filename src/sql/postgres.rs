@@ -649,6 +649,12 @@ impl PostgresClient {
         match result {
             Ok(result) => {
                 // load to FeatureDistribution
+
+                // check if data is empty
+                if result.is_empty() {
+                    return Err(anyhow!("No data found for feature distribution"));
+                }
+
                 let record = &result[0];
 
                 let feature = FeatureDistribution {

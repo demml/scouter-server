@@ -8,7 +8,7 @@ use scouter::utils::types::{
     ProcessAlertRule,
 };
 use scouter_server::api::schema::{DriftRecordRequest, ProfileStatusRequest};
-use scouter_server::sql::schema::QueryResult;
+use scouter_server::sql::schema::{FeatureDistribution, QueryResult};
 use serde_json::Value;
 use std::collections::HashMap;
 use tower::Service;
@@ -365,7 +365,7 @@ async fn test_api_update_profile() {
 
     let body = response.into_body().collect().await.unwrap().to_bytes();
     let body: Value = serde_json::from_slice(&body).unwrap();
-    let data = body.get("data").unwrap();
+    let data = body.get("profile").unwrap();
     let profile = serde_json::from_value::<DriftProfile>(data.clone()).unwrap();
     assert!(profile.config.name == "test_app");
 
@@ -408,7 +408,7 @@ async fn test_api_update_profile() {
 
     let body = response.into_body().collect().await.unwrap().to_bytes();
     let body: Value = serde_json::from_slice(&body).unwrap();
-    let updated_profile = body.get("data").unwrap();
+    let updated_profile = body.get("profile").unwrap();
     let updated_profile = serde_json::from_value::<DriftProfile>(updated_profile.clone()).unwrap();
 
     assert_eq!(
@@ -426,3 +426,42 @@ async fn test_api_update_profile() {
 
     test_utils::teardown().await.unwrap();
 }
+
+#[tokio::test]
+async fn test_api_feature_distribution() {
+    let app = test_utils::setup_api(true).await.unwrap();
+    let pool = test_utils::setup_db(true).await.unwrap();
+
+    // populate the database
+    let populate_script = include_str!("scripts/bulk_populate.sql");
+    sqlx::raw_sql(populate_script).execute(&pool).await.unwrap();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/scouter/feature/distribution?name=model-1&repository=ml-platform-1&version=0.1.0&time_window=24hour&max_data_points=10000&feature=col_1")
+                .method("GET")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let body: Value = serde_json::from_slice(&body).unwrap();
+    let distribution = body.get("data").unwrap();
+
+    let distribution: FeatureDistribution = serde_json::from_value(distribution.clone()).unwrap();
+
+    assert_eq!(distribution.name, "model-1");
+    assert_eq!(distribution.repository, "ml-platform-1");
+    assert_eq!(distribution.version, "0.1.0");
+    // assert percent_50 is around 0.0
+    assert!(distribution.percentile_50 < 0.1);
+
+    test_utils::teardown().await.unwrap();
+}
+
+// test getting feature distribution

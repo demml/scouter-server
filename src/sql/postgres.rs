@@ -109,7 +109,8 @@ impl PostgresClient {
         name: &str,
         repository: &str,
         version: &str,
-        alert: &FeatureAlerts,
+        feature: &str,
+        alert: &BTreeMap<String, String>,
     ) -> Result<PgQueryResult, anyhow::Error> {
         let query = Queries::InsertDriftAlert.get_query();
 
@@ -118,6 +119,7 @@ impl PostgresClient {
             name: name.to_string(),
             repository: repository.to_string(),
             version: version.to_string(),
+            feature: feature.to_string(),
             alert: serde_json::to_string(&alert).unwrap(),
         };
 
@@ -172,10 +174,12 @@ impl PostgresClient {
                 let mut results = Vec::new();
 
                 result.iter().for_each(|row| {
-                    let alerts = serde_json::from_value::<FeatureAlerts>(row.get("alert"))
-                        .with_context(|| {
-                            "error converting postgres jsonb profile to struct type DriftProfile"
-                        });
+                    let alerts = serde_json::from_value::<BTreeMap<String, String>>(
+                        row.get("alert"),
+                    )
+                    .with_context(|| {
+                        "error converting postgres jsonb profile to struct type DriftProfile"
+                    });
 
                     match alerts {
                         Ok(alerts) => {
@@ -184,6 +188,7 @@ impl PostgresClient {
                                 repository: row.get("repository"),
                                 version: row.get("version"),
                                 created_at: row.get("created_at"),
+                                feature: row.get("feature"),
                                 alerts,
                             };
                             results.push(alert);

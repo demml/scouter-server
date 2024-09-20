@@ -30,7 +30,8 @@ pub struct AlertResult {
     pub name: String,
     pub repository: String,
     pub version: String,
-    pub alerts: FeatureAlerts,
+    pub feature: String,
+    pub alerts: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

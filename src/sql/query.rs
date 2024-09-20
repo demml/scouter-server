@@ -221,6 +221,7 @@ pub struct InsertDriftAlertParams {
     pub name: String,
     pub repository: String,
     pub version: String,
+    pub feature: String,
     pub alert: String,
 }
 
@@ -231,6 +232,7 @@ impl ToMap for InsertDriftAlertParams {
         params.insert("name".to_string(), self.name.clone());
         params.insert("repository".to_string(), self.repository.clone());
         params.insert("version".to_string(), self.version.clone());
+        params.insert("feature".to_string(), self.feature.clone());
         params.insert("alert".to_string(), self.alert.clone());
         params
     }

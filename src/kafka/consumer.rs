@@ -4,6 +4,7 @@ use anyhow::*;
 use rdkafka::config::ClientConfig;
 use rdkafka::consumer::Consumer;
 
+use futures::future::join_all;
 use futures::StreamExt;
 use rdkafka::consumer::CommitMode;
 use rdkafka::consumer::StreamConsumer;
@@ -93,16 +94,22 @@ pub async fn stream_from_kafka_topic(
     match message {
         Some(Ok(msg)) => {
             let payload = msg.payload().unwrap();
-            let record: DriftRecord = serde_json::from_slice(payload).unwrap();
-            let inserted = message_handler.insert_drift_record(&record).await;
-            match inserted {
-                Ok(_) => {
-                    consumer.commit_message(&msg, CommitMode::Async).unwrap();
+
+            let records: Vec<DriftRecord> = serde_json::from_slice(payload).unwrap();
+
+            let futures = records.iter().map(|r| async move {
+                let inserted = message_handler.insert_drift_record(&r).await;
+                match inserted {
+                    Ok(_) => (),
+                    Err(e) => {
+                        error!("Failed to insert drift record: {:?}", e);
+                    }
                 }
-                Err(e) => {
-                    error!("Failed to insert drift record: {:?}", e);
-                }
-            }
+            });
+
+            join_all(futures).await;
+
+            consumer.commit_message(&msg, CommitMode::Async).unwrap();
         }
         Some(Err(e)) => {
             error!("Failed to receive message: {:?}", e);

@@ -14,7 +14,6 @@ use cron::Schedule;
 use futures::future::join_all;
 use include_dir::{include_dir, Dir};
 use scouter::utils::types::DriftProfile;
-use scouter::utils::types::FeatureAlerts;
 use serde_json::Value;
 use sqlx::{
     postgres::{PgQueryResult, PgRow},

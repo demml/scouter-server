@@ -247,7 +247,7 @@ impl DriftExecutor {
                                     &name,
                                     &repository,
                                     &version,
-                                    &task.get("feature").unwrap_or(&"NA".to_string()),
+                                    task.get("feature").unwrap_or(&"NA".to_string()),
                                     &task,
                                 )
                                 .await

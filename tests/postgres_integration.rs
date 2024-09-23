@@ -1,9 +1,10 @@
+use std::collections::BTreeMap;
+
 use scouter_server::sql::schema::DriftRecord;
 use sqlx::Row;
 
 use scouter_server::sql::postgres::PostgresClient;
 mod test_utils;
-use scouter::utils::types::FeatureAlerts;
 
 #[tokio::test]
 async fn test_postgres_client() {
@@ -70,11 +71,19 @@ async fn test_postgres_client() {
     assert_eq!(result.features.len(), 1);
 
     // send feature alerts
-    let alerts = FeatureAlerts::new(false);
+    let mut alerts = BTreeMap::new();
+    alerts.insert("zone".to_string(), "test".to_string());
 
-    for _ in 0..3 {
+    for i in 0..3 {
+        let feature_name = format!("test_feature_{}", i);
         db_client
-            .insert_drift_alert(&record.name, &record.repository, &record.version, &alerts)
+            .insert_drift_alert(
+                &record.name,
+                &record.repository,
+                &record.version,
+                &feature_name,
+                &alerts,
+            )
             .await
             .unwrap();
         // sleep for 1 second

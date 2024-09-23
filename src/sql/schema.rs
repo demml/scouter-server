@@ -1,5 +1,4 @@
 use chrono::NaiveDateTime;
-use scouter::utils::types::FeatureAlerts;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 

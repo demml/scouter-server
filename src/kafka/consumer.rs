@@ -98,7 +98,7 @@ pub async fn stream_from_kafka_topic(
             let records: Vec<DriftRecord> = serde_json::from_slice(payload).unwrap();
 
             let futures = records.iter().map(|r| async move {
-                let inserted = message_handler.insert_drift_record(&r).await;
+                let inserted = message_handler.insert_drift_record(r).await;
                 match inserted {
                     Ok(_) => (),
                     Err(e) => {

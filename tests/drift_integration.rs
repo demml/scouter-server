@@ -118,7 +118,7 @@ async fn test_drift_executor() {
     .await
     .unwrap();
 
-    assert_eq!(result.len(), 1);
+    assert_eq!(result.len(), 2);
 
     test_utils::teardown().await.unwrap();
 }

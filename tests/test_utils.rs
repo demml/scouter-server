@@ -29,11 +29,12 @@ pub async fn populate_topic(topic_name: &str) -> Result<(), Error> {
         .create()
         .expect("Producer creation error");
 
-    for i in 0..15 {
+    for i in 0..45 {
         // The send operation on the topic returns a future, which will be
         // completed once the result or failure from Kafka is received.
         let feature_names = vec!["feature0", "feature1", "feature2"];
 
+        let mut feature_vec = Vec::new();
         for feature_name in feature_names {
             let record = DriftRecord {
                 created_at: chrono::Utc::now().naive_utc(),
@@ -43,23 +44,25 @@ pub async fn populate_topic(topic_name: &str) -> Result<(), Error> {
                 value: i as f64,
                 version: "1.0.0".to_string(),
             };
-
-            let record_string = serde_json::to_string(&record).unwrap();
-
-            let produce_future = producer.send(
-                FutureRecord::to(topic_name)
-                    .payload(&record_string)
-                    .key("Key"),
-                Duration::from_secs(1),
-            );
-
-            match produce_future.await {
-                Ok(delivery) => println!("Sent: {:?}", delivery),
-                Err((e, _)) => println!("Error: {:?}", e),
-            }
+            feature_vec.push(record);
         }
+
+        let record_string = serde_json::to_string(&feature_vec).unwrap();
+
+        let produce_future = producer.send(
+            FutureRecord::to(topic_name)
+                .payload(&record_string)
+                .key("Key"),
+            Duration::from_secs(1),
+        );
+
+        match produce_future.await {
+            Ok(delivery) => println!("Sent: {:?}", delivery),
+            Err((e, _)) => println!("Error: {:?}", e),
+        }
+
+        producer.flush(Duration::from_secs(5)).unwrap();
     }
-    producer.flush(Duration::from_secs(1)).unwrap();
     Ok(())
 }
 

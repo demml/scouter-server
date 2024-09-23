@@ -310,7 +310,7 @@ async fn test_api_get_drift_alert() {
     let data = body.get("data");
     let data: Vec<AlertResult> = serde_json::from_value(data.unwrap().clone()).unwrap();
 
-    assert_eq!(data.len(), 1);
+    assert_eq!(data.len(), 2);
 
     test_utils::teardown().await.unwrap();
 }

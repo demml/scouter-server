@@ -1,18 +1,13 @@
 use crate::sql::postgres::PostgresClient;
 use crate::sql::schema::DriftRecord;
-use anyhow::*;
 
 use futures::StreamExt;
 
-use std::collections::HashMap;
 use std::result::Result::Ok;
 use tracing::error;
 use tracing::info;
 
-use lapin::{
-    options::*, publisher_confirm::Confirmation, types::FieldTable, BasicProperties, Connection,
-    ConnectionProperties, Consumer, Result,
-};
+use lapin::{options::*, types::FieldTable, Connection, ConnectionProperties, Consumer, Result};
 
 // Get table name constant
 
@@ -69,11 +64,17 @@ pub async fn stream_from_rabbit_queue(
 ) -> Result<()> {
     while let Some(delivery) = consumer.next().await {
         if let Ok(delivery) = delivery {
-            let message = std::str::from_utf8(&delivery.data).unwrap();
-            info!("Received message: {}", message);
-
-            // Acknowledge the message
-            delivery.ack(BasicAckOptions::default()).await?;
+            let record: DriftRecord = serde_json::from_slice(&delivery.data).unwrap();
+            let inserted = message_handler.insert_drift_record(&record).await;
+            match inserted {
+                Ok(_) => {
+                    // Acknowledge the message
+                    delivery.ack(BasicAckOptions::default()).await?;
+                }
+                Err(e) => {
+                    error!("Failed to insert drift record: {:?}", e);
+                }
+            }
         }
     }
 

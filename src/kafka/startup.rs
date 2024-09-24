@@ -8,7 +8,7 @@ use tracing::info;
 pub async fn startup_kafka(pool: Pool<Postgres>) -> Result<()> {
     info!("Starting Kafka consumer");
 
-    let num_kafka_workers = std::env::var("NUM_SCOUTER_KAFKA_WORKERS")
+    let num_kafka_workers = std::env::var("KAFKA_WORKER_COUNT")
         .unwrap_or_else(|_| "3".to_string())
         .parse::<usize>()
         .with_context(|| "Failed to parse NUM_KAFKA_WORKERS")?;

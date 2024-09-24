@@ -74,7 +74,6 @@ pub async fn populate_rabbit_queue() -> Result<(), Error> {
 
     let conn = Connection::connect(&rabbit_addr, ConnectionProperties::default()).await?;
     let channel = conn.create_channel().await.unwrap();
-
     channel
         .queue_declare(
             "scouter_monitoring",

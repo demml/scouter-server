@@ -54,13 +54,13 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
     }
 
     // run drift background task
-    let num_scheduler_workers = std::env::var("NUM_SCOUTER_SCHEDULER_WORKERS")
+    let num_scheduler_workers = std::env::var("SCOUTER_SCHEDULE_WORKER_COUNT")
         .unwrap_or_else(|_| "4".to_string())
         .parse::<usize>()
         .with_context(|| "Failed to parse NUM_SCHEDULER_WORKERS")?;
 
     for i in 0..num_scheduler_workers {
-        info!("Starting drift poller background task: {}", i);
+        info!("Starting drift schedule poller: {}", i);
         let alert_db_client = PostgresClient::new(pool.clone())
             .with_context(|| "Failed to create Postgres client")?;
         tokio::task::spawn(async move {

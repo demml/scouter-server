@@ -33,16 +33,11 @@ impl MessageHandler {
     }
 }
 
-pub async fn create_rabbitmq_consumer(address: &str) -> Result<Consumer> {
+pub async fn create_rabbitmq_consumer(address: &str, prefetch_count: &u16) -> Result<Consumer> {
     let conn = Connection::connect(address, ConnectionProperties::default()).await?;
     let channel = conn.create_channel().await.unwrap();
-
     channel
-        .queue_declare(
-            "scouter_monitoring",
-            QueueDeclareOptions::default(),
-            FieldTable::default(),
-        )
+        .basic_qos(*prefetch_count, BasicQosOptions::default())
         .await?;
 
     let consumer = channel
@@ -55,6 +50,7 @@ pub async fn create_rabbitmq_consumer(address: &str) -> Result<Consumer> {
         .await?;
 
     info!("✅ Started consumer for RabbitMQ");
+
     Ok(consumer)
 }
 
@@ -104,8 +100,9 @@ pub async fn stream_from_rabbit_queue(
 pub async fn start_rabbitmq_background_poll(
     message_handler: MessageHandler,
     address: String,
+    prefetch_count: u16,
 ) -> Result<()> {
-    let mut consumer = create_rabbitmq_consumer(&address).await?;
+    let mut consumer = create_rabbitmq_consumer(&address, &prefetch_count).await?;
 
     loop {
         stream_from_rabbit_queue(&message_handler, &mut consumer).await?;

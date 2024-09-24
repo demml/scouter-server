@@ -1,13 +1,10 @@
 use crate::rabbitmq::consumer::{start_rabbitmq_background_poll, MessageHandler};
 use crate::sql::postgres::PostgresClient;
-use lapin::{
-    options::*, publisher_confirm::Confirmation, types::FieldTable, BasicProperties, Connection,
-    ConnectionProperties, Result,
-};
 use sqlx::{Pool, Postgres};
+use std::result::Result;
 use tracing::info;
 
-pub async fn startup_rabbitmq(pool: Pool<Postgres>) -> Result<()> {
+pub async fn startup_rabbitmq(pool: Pool<Postgres>) -> Result<(), anyhow::Error> {
     info!("Starting RabbitMQ consumer");
 
     let num_rabbits = std::env::var("NUM_SCOUTER_RABBITMQ_CONSUMERS")

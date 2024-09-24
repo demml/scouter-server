@@ -1,7 +1,4 @@
-
-
 services:
-
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
     ports:
@@ -18,7 +15,7 @@ services:
     ports:
       - 9092:9092
     expose:
-      - '29092'
+      - "29092"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
@@ -31,7 +28,7 @@ services:
     image: confluentinc/cp-kafka:latest
     depends_on:
       - kafka
-    entrypoint: [ '/bin/sh', '-c' ]
+    entrypoint: ["/bin/sh", "-c"]
     command: |
       "
       # blocks until kafka is reachable
@@ -48,21 +45,22 @@ services:
     container_name: scouter_server_db
     depends_on:
       - init-kafka
+      - rabbitmq
     build:
       context: .
       dockerfile: Dockerfile
     command:
       [
-      "postgres",
-      "-c",
-      "log_statement=all",
-      "-c",
-      "log_destination=stderr",
-      "-c",
-      "shared_preload_libraries=pg_cron",
-      "-c",
-      "cron.database_name=monitor",
-    ]
+        "postgres",
+        "-c",
+        "log_statement=all",
+        "-c",
+        "log_destination=stderr",
+        "-c",
+        "shared_preload_libraries=pg_cron",
+        "-c",
+        "cron.database_name=monitor",
+      ]
     restart: always
     environment:
       POSTGRES_PASSWORD: admin
@@ -70,3 +68,11 @@ services:
       POSTGRES_DB: monitor
     ports:
       - 5432:5432
+
+  rabbitmq:
+    image: rabbitmq:4-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672" # AMQP port
+      - "15672:15672" # Management interface port
+    restart: always

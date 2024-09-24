@@ -1,6 +1,7 @@
 mod alerts;
 mod api;
 mod kafka;
+mod rabbitmq;
 mod sql;
 
 use crate::alerts::drift::DriftExecutor;
@@ -8,6 +9,7 @@ use crate::api::metrics::metrics_app;
 use crate::api::route::AppState;
 use crate::api::setup::{create_db_pool, setup_logging};
 use crate::kafka::startup::startup_kafka;
+use crate::rabbitmq::startup::startup_rabbitmq;
 use crate::sql::postgres::PostgresClient;
 use anyhow::Context;
 use api::route::create_router;
@@ -46,6 +48,8 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
     if std::env::var("KAFKA_BROKERS").is_ok() {
         startup_kafka(pool.clone()).await?;
     }
+
+    startup_rabbitmq(pool.clone()).await?;
 
     // run drift background task
     let num_scheduler_workers = std::env::var("NUM_SCOUTER_SCHEDULER_WORKERS")

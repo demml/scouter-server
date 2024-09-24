@@ -49,7 +49,9 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
         startup_kafka(pool.clone()).await?;
     }
 
-    startup_rabbitmq(pool.clone()).await?;
+    if std::env::var("RABBITMQ_ADDR").is_ok() {
+        startup_rabbitmq(pool.clone()).await?;
+    }
 
     // run drift background task
     let num_scheduler_workers = std::env::var("NUM_SCOUTER_SCHEDULER_WORKERS")

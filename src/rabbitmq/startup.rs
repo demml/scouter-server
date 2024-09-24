@@ -8,7 +8,7 @@ pub async fn startup_rabbitmq(pool: Pool<Postgres>) -> Result<(), anyhow::Error>
     info!("Starting RabbitMQ consumer");
 
     let num_rabbits = std::env::var("NUM_SCOUTER_RABBITMQ_CONSUMERS")
-        .unwrap_or_else(|_| "1".to_string())
+        .unwrap_or_else(|_| "3".to_string())
         .parse::<usize>()
         .map_err(|e| lapin::Error::from(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
 

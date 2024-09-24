@@ -4,7 +4,6 @@ use scouter_server::sql::postgres::PostgresClient;
 mod test_utils;
 
 #[tokio::test]
-#[ignore]
 async fn test_api_with_rabbitmq() {
     // setup resources
     let pool = test_utils::setup_db(true).await.unwrap();
@@ -13,8 +12,8 @@ async fn test_api_with_rabbitmq() {
     let startup = startup_rabbitmq(pool.clone());
 
     match startup.await {
-        Ok(_) => println!("Successfully started kafka"),
-        Err(e) => println!("Error starting kafka: {:?}", e),
+        Ok(_) => println!("Successfully started rabbitmq consumer"),
+        Err(e) => println!("Error starting rabbitmq consumer: {:?}", e),
     }
 
     tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;

@@ -40,6 +40,14 @@ pub async fn create_rabbitmq_consumer(address: &str, prefetch_count: &u16) -> Re
         .basic_qos(*prefetch_count, BasicQosOptions::default())
         .await?;
 
+    channel
+        .queue_declare(
+            "scouter_monitoring",
+            QueueDeclareOptions::default(),
+            FieldTable::default(),
+        )
+        .await?;
+
     let consumer = channel
         .basic_consume(
             "scouter_monitoring",

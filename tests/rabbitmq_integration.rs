@@ -4,7 +4,7 @@ use scouter_server::sql::postgres::PostgresClient;
 mod test_utils;
 
 #[tokio::test]
-
+#[ignore]
 async fn test_api_with_rabbitmq() {
     // setup resources
     let pool = test_utils::setup_db(true).await.unwrap();

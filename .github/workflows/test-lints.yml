@@ -56,7 +56,7 @@ jobs:
         if: always()
         run: docker compose -f "docker-compose.yml" down
 
-  test-kafka:
+  test-kafka-rabbitmq:
     needs: test-os
     name: test kafka
 

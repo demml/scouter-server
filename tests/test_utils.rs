@@ -1,5 +1,7 @@
 use anyhow::Error;
 use axum::Router;
+use lapin::BasicProperties;
+use lapin::{options::*, types::FieldTable, Connection, ConnectionProperties};
 use rdkafka::config::ClientConfig;
 use rdkafka::producer::FutureProducer;
 use rdkafka::producer::FutureRecord;
@@ -60,6 +62,55 @@ pub async fn populate_topic(topic_name: &str) -> Result<(), Error> {
         }
     }
     producer.flush(Duration::from_secs(1)).unwrap();
+    Ok(())
+}
+
+#[allow(dead_code)]
+pub async fn populate_rabbit_queue() -> Result<(), Error> {
+    // Produce some messages
+
+    let rabbit_addr = std::env::var("RABBITMQ_ADDR")
+        .unwrap_or_else(|_| "amqp://guest:guest@127.0.0.1:5672/%2f".into());
+
+    let conn = Connection::connect(&rabbit_addr, ConnectionProperties::default()).await?;
+    let channel = conn.create_channel().await.unwrap();
+    channel
+        .queue_declare(
+            "scouter_monitoring",
+            QueueDeclareOptions::default(),
+            FieldTable::default(),
+        )
+        .await?;
+
+    for i in 0..15 {
+        // The send operation on the topic returns a future, which will be
+        // completed once the result or failure from Kafka is received.
+        let feature_names = vec!["feature0", "feature1", "feature2"];
+
+        for feature_name in feature_names {
+            let record = DriftRecord {
+                created_at: chrono::Utc::now().naive_utc(),
+                name: "test_app".to_string(),
+                repository: "test".to_string(),
+                feature: feature_name.to_string(),
+                value: i as f64,
+                version: "1.0.0".to_string(),
+            };
+
+            let record_string = serde_json::to_string(&record).unwrap().into_bytes();
+
+            let _confirm = channel
+                .basic_publish(
+                    "",
+                    "scouter_monitoring",
+                    BasicPublishOptions::default(),
+                    &record_string,
+                    BasicProperties::default(),
+                )
+                .await?;
+        }
+    }
+
     Ok(())
 }
 

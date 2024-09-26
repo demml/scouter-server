@@ -7,7 +7,7 @@ use scouter::utils::types::{
     AlertConfig, AlertDispatchType, AlertRule, DriftConfig, DriftProfile, FeatureDriftProfile,
     ProcessAlertRule,
 };
-use scouter_server::api::schema::{DriftRecordRequest, ProfileStatusRequest};
+use scouter_server::api::schema::{DriftRecordRequest, ProfileStatusRequest, UpdateAlertRequest};
 use scouter_server::sql::schema::{FeatureDistribution, QueryResult};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -311,6 +311,80 @@ async fn test_api_get_drift_alert() {
     let data: Vec<AlertResult> = serde_json::from_value(data.unwrap().clone()).unwrap();
 
     assert_eq!(data.len(), 2);
+
+    test_utils::teardown().await.unwrap();
+}
+
+#[tokio::test]
+async fn test_api_update_drift_alert() {
+    let app = test_utils::setup_api(true).await.unwrap();
+    let pool = test_utils::setup_db(true).await.unwrap();
+    let db_client = PostgresClient::new(pool.clone()).unwrap();
+
+    // populate the database
+    let populate_script = include_str!("scripts/populate.sql");
+    sqlx::raw_sql(populate_script).execute(&pool).await.unwrap();
+    let mut drift_executor = DriftExecutor::new(db_client.clone());
+
+    drift_executor.poll_for_tasks().await.unwrap();
+    let result = sqlx::raw_sql(
+        r#"
+        SELECT * 
+        FROM scouter.drift_profile
+        WHERE name = 'test_app'
+        AND repository = 'statworld'
+        "#,
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+
+    assert_eq!(result.len(), 1);
+
+    let cloned_app = app.clone();
+    let clone_app2 = app.clone();
+
+    let response = cloned_app
+        .oneshot(
+            Request::builder()
+                .uri("/scouter/alerts?name=test_app&repository=statworld&version=0.1.0")
+                .method("GET")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // get data field from response
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let body: Value = serde_json::from_slice(&body).unwrap();
+
+    let data = body.get("data");
+    let data: Vec<AlertResult> = serde_json::from_value(data.unwrap().clone()).unwrap();
+
+    // update first alert
+    let alert = data[0].clone();
+
+    let update_request = UpdateAlertRequest {
+        id: alert.id,
+        status: "acknowledged".to_string(),
+    };
+
+    let response = clone_app2
+        .oneshot(
+            Request::builder()
+                .uri("/scouter/alerts")
+                .header(http::header::CONTENT_TYPE, "application/json")
+                .method("PUT")
+                .body(Body::from(serde_json::to_string(&update_request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
 
     test_utils::teardown().await.unwrap();
 }

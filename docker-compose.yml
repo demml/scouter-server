@@ -45,7 +45,7 @@ services:
     container_name: scouter_server_db
     depends_on:
       - init-kafka
-      #- rabbitmq
+      - rabbitmq
     build:
       context: .
       dockerfile: Dockerfile

@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 const INSERT_DRIFT_RECORD: &str = include_str!("scripts/insert_drift_record.sql");
 const GET_FEATURES: &str = include_str!("scripts/unique_features.sql");
 const GET_BINNED_FEATURE_VALUES: &str = include_str!("scripts/binned_feature_values.sql");
+const GET_BINNED_ALERT_VALUES: &str = include_str!("scripts/get_binned_alerts.sql");
 const GET_FEATURE_VALUES: &str = include_str!("scripts/feature_values.sql");
 const INSERT_DRIFT_PROFILE: &str = include_str!("scripts/insert_drift_profile.sql");
 const INSERT_DRIFT_ALERT: &str = include_str!("scripts/insert_drift_alert.sql");
@@ -80,6 +81,29 @@ impl ToMap for UpdateDriftAlertParams {
         params.insert("table".to_string(), self.table.clone());
         params.insert("id".to_string(), self.id.to_string());
         params.insert("status".to_string(), self.status.clone());
+        params
+    }
+}
+
+pub struct GetBinndedAlertsParams {
+    pub table: String,
+    pub name: String,
+    pub repository: String,
+    pub version: String,
+    pub time_window: String,
+    pub bin: String,
+}
+
+impl ToMap for GetBinndedAlertsParams {
+    fn to_map(&self) -> BTreeMap<String, String> {
+        let mut params = BTreeMap::new();
+        params.insert("table".to_string(), self.table.clone());
+        params.insert("name".to_string(), self.name.clone());
+        params.insert("repository".to_string(), self.repository.clone());
+        params.insert("version".to_string(), self.version.clone());
+        params.insert("time_window".to_string(), self.time_window.clone());
+        params.insert("bin".to_string(), self.bin.clone());
+
         params
     }
 }

@@ -1,9 +1,9 @@
 use crate::sql::query::{
     GetBinnedFeatureValuesParams, GetDriftAlertsParams, GetDriftProfileParams,
     GetDriftProfileTaskParams, GetFeatureValuesParams, GetFeaturesParams, InsertDriftAlertParams,
-    InsertDriftProfileParams, InsertParams, Queries, UpdateDriftProfileParams,
-    UpdateDriftProfileRunDatesParams, UpdateDriftProfileStatusParams, DRIFT_ALERT_TABLE,
-    DRIFT_PROFILE_TABLE, DRIFT_TABLE,
+    InsertDriftProfileParams, InsertParams, Queries, UpdateDriftAlertParams,
+    UpdateDriftProfileParams, UpdateDriftProfileRunDatesParams, UpdateDriftProfileStatusParams,
+    DRIFT_ALERT_TABLE, DRIFT_PROFILE_TABLE, DRIFT_TABLE,
 };
 use crate::sql::schema::{
     AlertResult, DriftRecord, FeatureDistribution, FeatureResult, QueryResult,
@@ -319,6 +319,33 @@ impl PostgresClient {
             Err(e) => {
                 error!("Failed to update data profile: {:?}", e);
                 Err(anyhow!("Failed to update data profile: {:?}", e))
+            }
+        }
+    }
+
+    pub async fn update_drift_alert(
+        &self,
+        id: i32,
+        status: &str,
+    ) -> Result<PgQueryResult, anyhow::Error> {
+        let query = Queries::UpdateDriftAlert.get_query();
+
+        let params = UpdateDriftAlertParams {
+            table: self.alert_table_name.to_string(),
+            id: id,
+            status: status.to_string(),
+        };
+
+        let query_result: std::prelude::v1::Result<sqlx::postgres::PgQueryResult, sqlx::Error> =
+            sqlx::raw_sql(query.format(&params).as_str())
+                .execute(&self.pool)
+                .await;
+
+        match query_result {
+            Ok(result) => Ok(result),
+            Err(e) => {
+                error!("Failed to update alert status: {:?}", e);
+                Err(anyhow!("Failed to update alert status: {:?}", e))
             }
         }
     }

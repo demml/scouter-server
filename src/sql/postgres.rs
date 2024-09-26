@@ -1,12 +1,12 @@
 use crate::sql::query::{
-    GetBinnedFeatureValuesParams, GetDriftAlertsParams, GetDriftProfileParams,
-    GetDriftProfileTaskParams, GetFeatureValuesParams, GetFeaturesParams, InsertDriftAlertParams,
-    InsertDriftProfileParams, InsertParams, Queries, UpdateDriftAlertParams,
-    UpdateDriftProfileParams, UpdateDriftProfileRunDatesParams, UpdateDriftProfileStatusParams,
-    DRIFT_ALERT_TABLE, DRIFT_PROFILE_TABLE, DRIFT_TABLE,
+    GetBinndedAlertsParams, GetBinnedFeatureValuesParams, GetDriftAlertsParams,
+    GetDriftProfileParams, GetDriftProfileTaskParams, GetFeatureValuesParams, GetFeaturesParams,
+    InsertDriftAlertParams, InsertDriftProfileParams, InsertParams, Queries,
+    UpdateDriftAlertParams, UpdateDriftProfileParams, UpdateDriftProfileRunDatesParams,
+    UpdateDriftProfileStatusParams, DRIFT_ALERT_TABLE, DRIFT_PROFILE_TABLE, DRIFT_TABLE,
 };
 use crate::sql::schema::{
-    AlertResult, DriftRecord, FeatureDistribution, FeatureResult, QueryResult,
+    AlertHistoryResult, AlertResult, DriftRecord, FeatureDistribution, FeatureResult, QueryResult,
 };
 use anyhow::*;
 use chrono::Utc;
@@ -823,6 +823,55 @@ impl PostgresClient {
             }
         }
         Ok(query_result)
+    }
+
+    pub async fn get_binned_alerts(
+        &self,
+        name: &str,
+        repository: &str,
+        version: &str,
+        max_data_points: &i32,
+        time_window: &i32,
+    ) -> Result<AlertHistoryResult, anyhow::Error> {
+        let query = Queries::GetBinnedAlerts.get_query();
+        let bin = *time_window as f64 / *max_data_points as f64;
+
+        let params = GetBinndedAlertsParams {
+            table: self.alert_table_name.to_string(),
+            name: name.to_string(),
+            repository: repository.to_string(),
+            version: version.to_string(),
+            time_window: time_window.to_string(),
+            bin: bin.to_string(),
+        };
+
+        let result = sqlx::raw_sql(query.format(&params).as_str())
+            .fetch_all(&self.pool)
+            .await;
+
+        match result {
+            Ok(result) => {
+                let mut alert_result = AlertHistoryResult {
+                    alert_count: Vec::new(),
+                    created_at: Vec::new(),
+                    active: Vec::new(),
+                    acknowledged: Vec::new(),
+                };
+
+                for row in result {
+                    alert_result.alert_count.push(row.get("alert_count"));
+                    alert_result.created_at.push(row.get("created_at"));
+                    alert_result.active.push(row.get("active"));
+                    alert_result.acknowledged.push(row.get("acknowledged"));
+                }
+
+                Ok(alert_result)
+            }
+            Err(e) => {
+                error!("Failed to run query: {:?}", e);
+                Err(anyhow!("Failed to run query: {:?}", e))
+            }
+        }
     }
 
     #[allow(dead_code)]

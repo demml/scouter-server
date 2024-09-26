@@ -4,7 +4,9 @@ name,
 repository,
 version,
 feature,
-alert
+alert,
+id,
+status
 FROM $table
 WHERE
     version = '$version'

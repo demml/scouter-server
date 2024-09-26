@@ -13,7 +13,7 @@ use axum::{
 use scouter::utils::types::DriftProfile;
 use serde_json::json;
 use std::sync::Arc;
-use tracing::error;
+use tracing::{error, info};
 
 use crate::api::route::AppState;
 
@@ -294,6 +294,8 @@ pub async fn get_drift_alerts(
     State(data): State<Arc<AppState>>,
     params: Query<DriftAlertRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    info!("Querying drift alerts: {:?}", params);
+
     let query_result = &data
         .db
         .get_drift_alerts(

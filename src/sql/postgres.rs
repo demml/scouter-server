@@ -157,11 +157,11 @@ impl PostgresClient {
         if limit_timestamp.is_some() {
             let limit_timestamp = limit_timestamp.unwrap();
             formatted_query = format!(
-                "{} AND created_at >= '{}' ORDER BY created_at DESC;",
+                "{} AND created_at >= '{}' ORDER BY created_at DESC LIMIT 50;",
                 formatted_query, limit_timestamp
             );
         } else {
-            formatted_query = format!("{} ORDER BY created_at DESC LIMIT 5;", formatted_query);
+            formatted_query = format!("{} ORDER BY created_at DESC LIMIT 50;", formatted_query);
         }
 
         let result = sqlx::raw_sql(formatted_query.as_str())
@@ -189,6 +189,8 @@ impl PostgresClient {
                                 created_at: row.get("created_at"),
                                 feature: row.get("feature"),
                                 alerts,
+                                id: row.get("id"),
+                                status: row.get("status"),
                             };
                             results.push(alert);
                         }

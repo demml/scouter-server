@@ -81,7 +81,9 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
         db: server_db_client,
     }));
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8000")
+    let port = std::env::var("SCOUTER_SERVER_PORT").unwrap_or_else(|_| "8000".to_string());
+
+    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port))
         .await
         .with_context(|| "Failed to bind to port 8000")?;
 

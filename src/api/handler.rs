@@ -331,6 +331,7 @@ pub async fn update_drift_alerts(
     State(data): State<Arc<AppState>>,
     Json(body): Json<UpdateAlertRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    info!("Updating drift alert: {:?}", body);
     let query_result = &data.db.update_drift_alert(body.id, body.status).await;
 
     match query_result {

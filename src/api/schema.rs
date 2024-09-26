@@ -46,6 +46,8 @@ pub struct DriftAlertRequest {
     pub repository: String,
     pub version: String,
     pub limit_timestamp: Option<String>,
+    pub active: Option<bool>,
+    pub limit: Option<i32>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

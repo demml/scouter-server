@@ -142,6 +142,8 @@ impl PostgresClient {
         repository: &str,
         version: &str,
         limit_timestamp: Option<&str>,
+        active: bool,
+        limit: Option<i32>,
     ) -> Result<Vec<AlertResult>, anyhow::Error> {
         let query = Queries::GetDriftAlerts.get_query();
 
@@ -154,14 +156,24 @@ impl PostgresClient {
 
         let mut formatted_query = query.format(&params);
 
+        if active {
+            formatted_query = format!("{} AND status = 'active'", formatted_query);
+        }
+
         if limit_timestamp.is_some() {
             let limit_timestamp = limit_timestamp.unwrap();
             formatted_query = format!(
-                "{} AND created_at >= '{}' ORDER BY created_at DESC LIMIT 50;",
+                "{} AND created_at >= '{}' ORDER BY created_at DESC",
                 formatted_query, limit_timestamp
             );
         } else {
-            formatted_query = format!("{} ORDER BY created_at DESC LIMIT 50;", formatted_query);
+            formatted_query = format!("{} ORDER BY created_at DESC", formatted_query);
+        }
+
+        if limit.is_some() {
+            formatted_query = format!("{} LIMIT {};", formatted_query, limit.unwrap());
+        } else {
+            formatted_query = format!("{};", formatted_query);
         }
 
         let result = sqlx::raw_sql(formatted_query.as_str())

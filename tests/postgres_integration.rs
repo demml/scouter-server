@@ -92,7 +92,14 @@ async fn test_postgres_client() {
 
     // get alerts
     let result = db_client
-        .get_drift_alerts(&record.name, &record.repository, &record.version, None)
+        .get_drift_alerts(
+            &record.name,
+            &record.repository,
+            &record.version,
+            None,
+            true,
+            None,
+        )
         .await
         .unwrap();
 
@@ -104,6 +111,8 @@ async fn test_postgres_client() {
             &record.repository,
             &record.version,
             Some(&result[0].created_at.to_string()),
+            true,
+            Some(50),
         )
         .await
         .unwrap();

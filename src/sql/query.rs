@@ -85,7 +85,7 @@ impl ToMap for UpdateDriftAlertParams {
     }
 }
 
-pub struct GetBinndedAlertsParams {
+pub struct GetAlertMetricsParams {
     pub table: String,
     pub name: String,
     pub repository: String,
@@ -94,7 +94,7 @@ pub struct GetBinndedAlertsParams {
     pub bin: String,
 }
 
-impl ToMap for GetBinndedAlertsParams {
+impl ToMap for GetAlertMetricsParams {
     fn to_map(&self) -> BTreeMap<String, String> {
         let mut params = BTreeMap::new();
         params.insert("table".to_string(), self.table.clone());
@@ -330,7 +330,7 @@ pub enum Queries {
     InsertDriftAlert,
     GetDriftAlerts,
     GetBinnedFeatureValues,
-    GetBinnedAlerts,
+    GetAlertMetrics,
     GetFeatureValues,
     GetDriftTask,
     GetDriftProfile,
@@ -348,7 +348,7 @@ impl Queries {
             Queries::GetFeatures => SqlQuery::new(GET_FEATURES),
             Queries::InsertDriftRecord => SqlQuery::new(INSERT_DRIFT_RECORD),
             Queries::GetBinnedFeatureValues => SqlQuery::new(GET_BINNED_FEATURE_VALUES),
-            Queries::GetBinnedAlerts => SqlQuery::new(GET_BINNED_ALERT_VALUES),
+            Queries::GetAlertMetrics => SqlQuery::new(GET_BINNED_ALERT_VALUES),
             Queries::GetFeatureValues => SqlQuery::new(GET_FEATURE_VALUES),
             Queries::InsertDriftProfile => SqlQuery::new(INSERT_DRIFT_PROFILE),
             Queries::InsertDriftAlert => SqlQuery::new(INSERT_DRIFT_ALERT),

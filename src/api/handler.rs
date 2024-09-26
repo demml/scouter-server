@@ -1,6 +1,6 @@
 use crate::api::schema::{
-    DriftAlertRequest, DriftRecordRequest, FeatureDriftDistributionRequest, ProfileRequest,
-    ProfileStatusRequest, ServiceDriftRequest, UpdateAlertRequest,
+    AlertMetricRequest, DriftAlertRequest, DriftRecordRequest, FeatureDriftDistributionRequest,
+    FeatureDriftRequest, ProfileRequest, ProfileStatusRequest, UpdateAlertRequest,
 };
 use crate::sql::postgres::TimeInterval;
 use crate::sql::schema::DriftRecord;
@@ -30,7 +30,7 @@ pub async fn health_check() -> impl IntoResponse {
 
 pub async fn get_drift(
     State(data): State<Arc<AppState>>,
-    params: Query<ServiceDriftRequest>,
+    params: Query<FeatureDriftRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     // validate time window
 
@@ -344,6 +344,40 @@ pub async fn update_drift_alerts(
         }
         Err(e) => {
             error!("Failed to update drift alert: {:?}", e);
+            let json_response = json!({
+                "status": "error",
+                "message": format!("{:?}", e)
+            });
+            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
+        }
+    }
+}
+
+pub async fn get_alert_metrics(
+    State(data): State<Arc<AppState>>,
+    params: Query<AlertMetricRequest>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    let query_result = &data
+        .db
+        .get_alert_metrics(
+            &params.name,
+            &params.repository,
+            &params.version,
+            &params.max_data_points,
+            &TimeInterval::from_string(&params.time_window).to_minutes(),
+        )
+        .await;
+
+    match query_result {
+        Ok(result) => {
+            let json_response = json!({
+                "status": "success",
+                "data": result
+            });
+            Ok(Json(json_response))
+        }
+        Err(e) => {
+            error!("Failed to query alert metrics: {:?}", e);
             let json_response = json!({
                 "status": "error",
                 "message": format!("{:?}", e)

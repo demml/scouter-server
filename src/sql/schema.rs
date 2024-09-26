@@ -23,6 +23,7 @@ pub struct QueryResult {
     pub features: BTreeMap<String, FeatureResult>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AlertHistoryResult {
     pub created_at: Vec<chrono::NaiveDateTime>,
     pub alert_count: Vec<i32>,

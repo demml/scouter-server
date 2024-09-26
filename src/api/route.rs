@@ -16,7 +16,7 @@ use axum::{
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 
-use super::handler::update_drift_profile;
+use super::handler::{get_alert_metrics, update_drift_profile};
 
 const ROUTE_PREFIX: &str = "/scouter";
 
@@ -53,6 +53,10 @@ pub fn create_router(app_state: Arc<AppState>) -> Router {
         .route(
             &format!("{}/alerts", ROUTE_PREFIX),
             get(get_drift_alerts).put(update_drift_alerts),
+        )
+        .route(
+            &format!("{}/alerts/metrics", ROUTE_PREFIX),
+            get(get_alert_metrics),
         )
         .route_layer(middleware::from_fn(track_metrics))
         .with_state(app_state)

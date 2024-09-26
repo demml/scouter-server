@@ -1,5 +1,5 @@
 use crate::sql::query::{
-    GetBinndedAlertsParams, GetBinnedFeatureValuesParams, GetDriftAlertsParams,
+    GetAlertMetricsParams, GetBinnedFeatureValuesParams, GetDriftAlertsParams,
     GetDriftProfileParams, GetDriftProfileTaskParams, GetFeatureValuesParams, GetFeaturesParams,
     InsertDriftAlertParams, InsertDriftProfileParams, InsertParams, Queries,
     UpdateDriftAlertParams, UpdateDriftProfileParams, UpdateDriftProfileRunDatesParams,
@@ -825,7 +825,7 @@ impl PostgresClient {
         Ok(query_result)
     }
 
-    pub async fn get_binned_alerts(
+    pub async fn get_alert_metrics(
         &self,
         name: &str,
         repository: &str,
@@ -833,10 +833,10 @@ impl PostgresClient {
         max_data_points: &i32,
         time_window: &i32,
     ) -> Result<AlertHistoryResult, anyhow::Error> {
-        let query = Queries::GetBinnedAlerts.get_query();
+        let query = Queries::GetAlertMetrics.get_query();
         let bin = *time_window as f64 / *max_data_points as f64;
 
-        let params = GetBinndedAlertsParams {
+        let params = GetAlertMetricsParams {
             table: self.alert_table_name.to_string(),
             name: name.to_string(),
             repository: repository.to_string(),

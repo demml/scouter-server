@@ -3,12 +3,21 @@ use serde::Deserialize;
 use serde::Serialize;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ServiceDriftRequest {
+pub struct FeatureDriftRequest {
     pub name: String,
     pub repository: String,
     pub version: String,
     pub time_window: String,
     pub feature: Option<String>,
+    pub max_data_points: i32,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct AlertMetricRequest {
+    pub name: String,
+    pub repository: String,
+    pub version: String,
+    pub time_window: String,
     pub max_data_points: i32,
 }
 

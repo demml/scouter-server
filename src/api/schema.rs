@@ -54,3 +54,9 @@ pub struct ProfileRequest {
     pub repository: String,
     pub version: String,
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct UpdateAlertRequest {
+    pub id: i32,
+    pub status: String,
+}

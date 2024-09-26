@@ -1,6 +1,6 @@
 use crate::api::schema::{
     DriftAlertRequest, DriftRecordRequest, FeatureDriftDistributionRequest, ProfileRequest,
-    ProfileStatusRequest, ServiceDriftRequest,
+    ProfileStatusRequest, ServiceDriftRequest, UpdateAlertRequest,
 };
 use crate::sql::postgres::TimeInterval;
 use crate::sql::schema::DriftRecord;
@@ -316,6 +316,31 @@ pub async fn get_drift_alerts(
         }
         Err(e) => {
             error!("Failed to query drift alerts: {:?}", e);
+            let json_response = json!({
+                "status": "error",
+                "message": format!("{:?}", e)
+            });
+            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
+        }
+    }
+}
+
+pub async fn update_drift_alerts(
+    State(data): State<Arc<AppState>>,
+    Json(body): Json<UpdateAlertRequest>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    let query_result = &data.db.update_drift_alert(body.id, body.status).await;
+
+    match query_result {
+        Ok(_) => {
+            let json_response = json!({
+                "status": "success",
+                "message": "Drift alert updated successfully"
+            });
+            Ok(Json(json_response))
+        }
+        Err(e) => {
+            error!("Failed to update drift alert: {:?}", e);
             let json_response = json!({
                 "status": "error",
                 "message": format!("{:?}", e)

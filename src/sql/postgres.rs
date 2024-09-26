@@ -326,14 +326,14 @@ impl PostgresClient {
     pub async fn update_drift_alert(
         &self,
         id: i32,
-        status: &str,
+        status: String,
     ) -> Result<PgQueryResult, anyhow::Error> {
         let query = Queries::UpdateDriftAlert.get_query();
 
         let params = UpdateDriftAlertParams {
             table: self.alert_table_name.to_string(),
             id: id,
-            status: status.to_string(),
+            status: status,
         };
 
         let query_result: std::prelude::v1::Result<sqlx::postgres::PgQueryResult, sqlx::Error> =

@@ -17,6 +17,7 @@ const UPDATE_DRIFT_PROFILE_RUN_DATES: &str =
     include_str!("scripts/update_drift_profile_run_dates.sql");
 const UPDATE_DRIFT_PROFILE_STATUS: &str = include_str!("scripts/update_drift_profile_status.sql");
 const UPDATE_DRIFT_PROFILE: &str = include_str!("scripts/update_drift_profile.sql");
+const UPDATE_DRIFT_ALERT: &str = include_str!("scripts/update_drift_alert.sql");
 
 // table names
 pub const DRIFT_TABLE: &str = "scouter.drift";
@@ -63,6 +64,22 @@ impl ToMap for UpdateDriftProfileStatusParams {
         params.insert("repository".to_string(), self.repository.clone());
         params.insert("version".to_string(), self.version.clone());
         params.insert("active".to_string(), self.active.to_string());
+        params
+    }
+}
+
+pub struct UpdateDriftAlertParams {
+    pub table: String,
+    pub id: i32,
+    pub status: String,
+}
+
+impl ToMap for UpdateDriftAlertParams {
+    fn to_map(&self) -> BTreeMap<String, String> {
+        let mut params = BTreeMap::new();
+        params.insert("table".to_string(), self.table.clone());
+        params.insert("id".to_string(), self.id.to_string());
+        params.insert("status".to_string(), self.status.clone());
         params
     }
 }
@@ -296,6 +313,7 @@ pub enum Queries {
     UpdateDriftProfileRunDates,
     UpdateDriftProfileStatus,
     UpdateDriftProfile,
+    UpdateDriftAlert,
 }
 
 impl Queries {
@@ -313,6 +331,7 @@ impl Queries {
             Queries::UpdateDriftProfileRunDates => SqlQuery::new(UPDATE_DRIFT_PROFILE_RUN_DATES),
             Queries::UpdateDriftProfileStatus => SqlQuery::new(UPDATE_DRIFT_PROFILE_STATUS),
             Queries::UpdateDriftProfile => SqlQuery::new(UPDATE_DRIFT_PROFILE),
+            Queries::UpdateDriftAlert => SqlQuery::new(UPDATE_DRIFT_ALERT),
             Queries::GetDriftProfile => SqlQuery::new(GET_DRIFT_PROFILE),
             Queries::GetFeatureDistribution => SqlQuery::new(GET_FEATURE_DISTRIBUTION),
         }

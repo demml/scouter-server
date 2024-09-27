@@ -8,7 +8,7 @@ use scouter::utils::types::{
     ProcessAlertRule,
 };
 use scouter_server::api::schema::{DriftRecordRequest, ProfileStatusRequest, UpdateAlertRequest};
-use scouter_server::sql::schema::{FeatureDistribution, QueryResult};
+use scouter_server::sql::schema::{AlertHistoryResult, FeatureDistribution, QueryResult};
 use serde_json::Value;
 use std::collections::HashMap;
 use tower::Service;
@@ -385,6 +385,29 @@ async fn test_api_update_drift_alert() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
+
+    // get metrics
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/scouter/alerts/metrics?name=test_app&repository=statworld&version=0.1.0&time_window=5minute&max_data_points=1000")
+                .method("GET")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let body: Value = serde_json::from_slice(&body).unwrap();
+
+    let data = body.get("data");
+    let data: AlertHistoryResult = serde_json::from_value(data.unwrap().clone()).unwrap();
+
+    // assert alert count is greater than 0
+    assert!(data.alert_count.iter().sum::<i64>() > 0);
 
     test_utils::teardown().await.unwrap();
 }

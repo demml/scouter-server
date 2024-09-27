@@ -26,9 +26,9 @@ pub struct QueryResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AlertHistoryResult {
     pub created_at: Vec<chrono::NaiveDateTime>,
-    pub alert_count: Vec<i32>,
-    pub active: Vec<i32>,
-    pub acknowledged: Vec<i32>,
+    pub alert_count: Vec<i64>,
+    pub active: Vec<i64>,
+    pub acknowledged: Vec<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

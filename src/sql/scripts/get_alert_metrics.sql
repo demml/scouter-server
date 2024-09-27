@@ -19,7 +19,7 @@ SELECT
 created_at,
 name,
 repository,
-sum(alert) as alerts,
+sum(alert) as alert_count,
 sum(active) as active,
 sum(acknowledged) as acknowledged
 FROM subquery

@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 const INSERT_DRIFT_RECORD: &str = include_str!("scripts/insert_drift_record.sql");
 const GET_FEATURES: &str = include_str!("scripts/unique_features.sql");
 const GET_BINNED_FEATURE_VALUES: &str = include_str!("scripts/binned_feature_values.sql");
-const GET_BINNED_ALERT_VALUES: &str = include_str!("scripts/get_binned_alerts.sql");
+const GET_BINNED_ALERT_VALUES: &str = include_str!("scripts/get_alert_metrics.sql");
 const GET_FEATURE_VALUES: &str = include_str!("scripts/feature_values.sql");
 const INSERT_DRIFT_PROFILE: &str = include_str!("scripts/insert_drift_profile.sql");
 const INSERT_DRIFT_ALERT: &str = include_str!("scripts/insert_drift_alert.sql");

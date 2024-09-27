@@ -6,7 +6,7 @@ use crate::sql::query::{
     UpdateDriftProfileStatusParams, DRIFT_ALERT_TABLE, DRIFT_PROFILE_TABLE, DRIFT_TABLE,
 };
 use crate::sql::schema::{
-    AlertHistoryResult, AlertResult, DriftRecord, FeatureDistribution, FeatureResult, QueryResult,
+    AlertMetricsResult, AlertResult, DriftRecord, FeatureDistribution, FeatureResult, QueryResult,
 };
 use anyhow::*;
 use chrono::Utc;
@@ -832,7 +832,7 @@ impl PostgresClient {
         version: &str,
         max_data_points: &i32,
         time_window: &i32,
-    ) -> Result<AlertHistoryResult, anyhow::Error> {
+    ) -> Result<AlertMetricsResult, anyhow::Error> {
         let query = Queries::GetAlertMetrics.get_query();
         let bin = *time_window as f64 / *max_data_points as f64;
 
@@ -851,7 +851,7 @@ impl PostgresClient {
 
         match result {
             Ok(result) => {
-                let mut alert_result = AlertHistoryResult {
+                let mut alert_result = AlertMetricsResult {
                     alert_count: Vec::new(),
                     created_at: Vec::new(),
                     active: Vec::new(),

@@ -8,7 +8,7 @@ use scouter::utils::types::{
     ProcessAlertRule,
 };
 use scouter_server::api::schema::{DriftRecordRequest, ProfileStatusRequest, UpdateAlertRequest};
-use scouter_server::sql::schema::{AlertHistoryResult, FeatureDistribution, QueryResult};
+use scouter_server::sql::schema::{AlertMetricsResult, FeatureDistribution, QueryResult};
 use serde_json::Value;
 use std::collections::HashMap;
 use tower::Service;
@@ -404,7 +404,7 @@ async fn test_api_update_drift_alert() {
     let body: Value = serde_json::from_slice(&body).unwrap();
 
     let data = body.get("data");
-    let data: AlertHistoryResult = serde_json::from_value(data.unwrap().clone()).unwrap();
+    let data: AlertMetricsResult = serde_json::from_value(data.unwrap().clone()).unwrap();
 
     // assert alert count is greater than 0
     assert!(data.alert_count.iter().sum::<i64>() > 0);

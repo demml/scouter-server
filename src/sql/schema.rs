@@ -24,7 +24,7 @@ pub struct QueryResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AlertHistoryResult {
+pub struct AlertMetricsResult {
     pub created_at: Vec<chrono::NaiveDateTime>,
     pub alert_count: Vec<i64>,
     pub active: Vec<i64>,

@@ -10,28 +10,7 @@ use tracing::error;
 const OPSGENIE_API_URL: &str = "https://api.opsgenie.com/v2/alerts";
 
 trait DispatchHelpers {
-    fn construct_alert_description(&self, feature_alerts: &SpcFeatureAlerts) -> String {
-        let mut alert_description = String::new();
-        for (i, (_, feature_alert)) in feature_alerts.features.iter().enumerate() {
-            if feature_alert.alerts.is_empty() {
-                continue;
-            }
-            if i == 0 {
-                alert_description.push_str("Drift has been detected for the following features:\n");
-            }
-
-            let feature_name = format!("{:indent$}{}: \n", "", &feature_alert.feature, indent = 4);
-
-            // can't use push_str when adding colorized strings
-            alert_description = format!("{}{}", alert_description, feature_name);
-            feature_alert.alerts.iter().for_each(|alert| {
-                let kind = format!("{:indent$}Kind: {}\n", "", &alert.kind, indent = 8);
-                let zone = format!("{:indent$}Zone: {}\n", "", &alert.zone, indent = 8);
-                alert_description = format!("{}{}{}", alert_description, kind, zone);
-            });
-        }
-        alert_description
-    }
+    fn construct_alert_description(&self, feature_alerts: &AlertFeatures) -> String;
 }
 pub trait Dispatch {
     fn process_alerts(
@@ -124,7 +103,11 @@ impl HttpAlertWrapper for OpsGenieAlerter {
         json!(mapping)
     }
 }
-impl DispatchHelpers for OpsGenieAlerter {}
+impl DispatchHelpers for OpsGenieAlerter {
+    fn construct_alert_description(&self, feature_alerts: &AlertFeatures) -> String {
+        feature_alerts.create_alert_description(AlertDispatchType::OpsGenie)
+    }
+}
 
 #[derive(Debug)]
 pub struct SlackAlerter {
@@ -210,32 +193,8 @@ impl HttpAlertWrapper for SlackAlerter {
 }
 
 impl DispatchHelpers for SlackAlerter {
-    fn construct_alert_description(&self, feature_alerts: &SpcFeatureAlerts) -> String {
-        let mut alert_description = String::new();
-        for (i, (_, feature_alert)) in feature_alerts.features.iter().enumerate() {
-            if feature_alert.alerts.is_empty() {
-                continue;
-            }
-            if i == 0 {
-                alert_description.push_str("Drift has been detected for the following features:\n");
-            }
-
-            let feature_name = format!("{}: \n", &feature_alert.feature);
-
-            // can't use push_str when adding colorized strings
-            alert_description = format!("{}{}", alert_description, feature_name);
-            feature_alert.alerts.iter().for_each(|alert| {
-                let alert = format!(
-                    "{:indent$}{} error in {}\n",
-                    "",
-                    &alert.kind,
-                    &alert.zone,
-                    indent = 4,
-                );
-                alert_description = format!("{}{}", alert_description, alert);
-            });
-        }
-        alert_description
+    fn construct_alert_description(&self, feature_alerts: &AlertFeatures) -> String {
+        feature_alerts.create_alert_description(AlertDispatchType::OpsGenie)
     }
 }
 
@@ -277,7 +236,7 @@ impl<T: HttpAlertWrapper> HttpAlertDispatcher<T> {
 }
 
 impl<T: HttpAlertWrapper + DispatchHelpers> Dispatch for HttpAlertDispatcher<T> {
-    async fn process_alerts(&self, feature_alerts: &SpcFeatureAlerts) -> Result<()> {
+    async fn process_alerts(&self, feature_alerts: &AlertFeatures) -> Result<()> {
         let alert_description = self.alerter.construct_alert_description(feature_alerts);
 
         let alert_body = self.alerter.construct_alert_body(&alert_description);
@@ -324,31 +283,8 @@ impl Dispatch for ConsoleAlertDispatcher {
 }
 
 impl DispatchHelpers for ConsoleAlertDispatcher {
-    fn construct_alert_description(&self, feature_alerts: &SpcFeatureAlerts) -> String {
-        let mut alert_description = String::new();
-
-        for (i, (_, feature_alert)) in feature_alerts.features.iter().enumerate() {
-            if feature_alert.alerts.is_empty() {
-                continue;
-            }
-            if i == 0 {
-                alert_description.push_str("Features that have drifted: \n");
-            }
-
-            let feature_name = format!("{:indent$}{}: \n", "", &feature_alert.feature, indent = 4)
-                .truecolor(245, 77, 85);
-
-            // can't use push_str when adding colorized strings
-            alert_description = format!("{}{}", alert_description, feature_name);
-            feature_alert.alerts.iter().for_each(|alert| {
-                let kind = format!("{:indent$}Kind: {}\n", "", &alert.kind, indent = 8)
-                    .truecolor(249, 179, 93);
-                let zone = format!("{:indent$}Zone: {}\n", "", &alert.zone, indent = 8)
-                    .truecolor(249, 179, 93);
-                alert_description = format!("{}{}{}", alert_description, kind, zone);
-            });
-        }
-        alert_description
+    fn construct_alert_description(&self, feature_alerts: &AlertFeatures) -> String {
+        feature_alerts.create_alert_description(AlertDispatchType::Console)
     }
 }
 

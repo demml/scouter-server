@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use colored::Colorize;
-use scouter::utils::types::DriftConfig;
-use scouter::utils::types::{AlertDispatchType, FeatureAlerts};
+use scouter::core::spc::types::{SpcDriftConfig, SpcFeatureAlerts};
+use scouter::core::utils::AlertDispatchType;
 use serde_json::{json, Value};
 
 use std::{collections::HashMap, env};
@@ -10,7 +10,7 @@ use tracing::error;
 const OPSGENIE_API_URL: &str = "https://api.opsgenie.com/v2/alerts";
 
 trait DispatchHelpers {
-    fn construct_alert_description(&self, feature_alerts: &FeatureAlerts) -> String {
+    fn construct_alert_description(&self, feature_alerts: &SpcFeatureAlerts) -> String {
         let mut alert_description = String::new();
         for (i, (_, feature_alert)) in feature_alerts.features.iter().enumerate() {
             if feature_alert.alerts.is_empty() {
@@ -36,7 +36,7 @@ trait DispatchHelpers {
 pub trait Dispatch {
     fn process_alerts(
         &self,
-        feature_alerts: &FeatureAlerts,
+        feature_alerts: &SpcFeatureAlerts,
     ) -> impl futures::Future<Output = Result<()>>;
 }
 pub trait HttpAlertWrapper {
@@ -210,7 +210,7 @@ impl HttpAlertWrapper for SlackAlerter {
 }
 
 impl DispatchHelpers for SlackAlerter {
-    fn construct_alert_description(&self, feature_alerts: &FeatureAlerts) -> String {
+    fn construct_alert_description(&self, feature_alerts: &SpcFeatureAlerts) -> String {
         let mut alert_description = String::new();
         for (i, (_, feature_alert)) in feature_alerts.features.iter().enumerate() {
             if feature_alert.alerts.is_empty() {
@@ -277,7 +277,7 @@ impl<T: HttpAlertWrapper> HttpAlertDispatcher<T> {
 }
 
 impl<T: HttpAlertWrapper + DispatchHelpers> Dispatch for HttpAlertDispatcher<T> {
-    async fn process_alerts(&self, feature_alerts: &FeatureAlerts) -> Result<()> {
+    async fn process_alerts(&self, feature_alerts: &SpcFeatureAlerts) -> Result<()> {
         let alert_description = self.alerter.construct_alert_description(feature_alerts);
 
         let alert_body = self.alerter.construct_alert_body(&alert_description);
@@ -308,7 +308,7 @@ impl ConsoleAlertDispatcher {
 }
 
 impl Dispatch for ConsoleAlertDispatcher {
-    async fn process_alerts(&self, feature_alerts: &FeatureAlerts) -> Result<()> {
+    async fn process_alerts(&self, feature_alerts: &SpcFeatureAlerts) -> Result<()> {
         let alert_description = self.construct_alert_description(feature_alerts);
         if !alert_description.is_empty() {
             let msg1 = "Drift detected for".truecolor(245, 77, 85);
@@ -324,7 +324,7 @@ impl Dispatch for ConsoleAlertDispatcher {
 }
 
 impl DispatchHelpers for ConsoleAlertDispatcher {
-    fn construct_alert_description(&self, feature_alerts: &FeatureAlerts) -> String {
+    fn construct_alert_description(&self, feature_alerts: &SpcFeatureAlerts) -> String {
         let mut alert_description = String::new();
 
         for (i, (_, feature_alert)) in feature_alerts.features.iter().enumerate() {
@@ -361,7 +361,7 @@ pub enum AlertDispatcher {
 
 impl AlertDispatcher {
     // process alerts can be called asynchronously
-    pub async fn process_alerts(&self, feature_alerts: &FeatureAlerts) -> Result<()> {
+    pub async fn process_alerts(&self, feature_alerts: &SpcFeatureAlerts) -> Result<()> {
         match self {
             AlertDispatcher::Console(dispatcher) => dispatcher
                 .process_alerts(feature_alerts)
@@ -378,11 +378,11 @@ impl AlertDispatcher {
         }
     }
 
-    pub fn new(config: &DriftConfig) -> Self {
+    pub fn new(config: &SpcDriftConfig) -> Self {
         let name = config.name.clone();
         let repository = config.repository.clone();
         let version = config.version.clone();
-        let dispatch_type = &config.alert_config.alert_dispatch_type;
+        let dispatch_type = &config.alert_config.dispatch_type;
 
         let alerter = if let AlertDispatchType::OpsGenie = dispatch_type {
             let _alerter = OpsGenieAlerter::new(&name, &repository, &version);
@@ -429,36 +429,35 @@ impl AlertDispatcher {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use scouter::utils::types::{
-        Alert, AlertConfig, AlertDispatchType, AlertType, AlertZone, DriftConfig, FeatureAlert,
+    use scouter::core::spc::types::{
+        AlertZone, SpcAlert, SpcAlertConfig, SpcAlertType, SpcDriftConfig, SpcFeatureAlert,
     };
+    use scouter::core::utils::AlertDispatchType;
 
-    use std::collections::BTreeMap;
+    use std::collections::HashMap;
     use std::env;
 
-    fn test_features_map() -> BTreeMap<String, FeatureAlert> {
-        let mut features: BTreeMap<String, FeatureAlert> = BTreeMap::new();
+    fn test_features_map() -> HashMap<String, SpcFeatureAlert> {
+        let mut features: HashMap<String, SpcFeatureAlert> = HashMap::new();
 
         features.insert(
             "test_feature_1".to_string(),
-            FeatureAlert {
+            SpcFeatureAlert {
                 feature: "test_feature_1".to_string(),
-                alerts: vec![Alert {
+                alerts: vec![SpcAlert {
                     zone: AlertZone::Zone4.to_str(),
-                    kind: AlertType::OutOfBounds.to_str(),
+                    kind: SpcAlertType::OutOfBounds.to_str(),
                 }],
-                indices: Default::default(),
             },
         );
         features.insert(
             "test_feature_2".to_string(),
-            FeatureAlert {
+            SpcFeatureAlert {
                 feature: "test_feature_2".to_string(),
-                alerts: vec![Alert {
+                alerts: vec![SpcAlert {
                     zone: AlertZone::Zone1.to_str(),
-                    kind: AlertType::Consecutive.to_str(),
+                    kind: SpcAlertType::Consecutive.to_str(),
                 }],
-                indices: Default::default(),
             },
         );
         features
@@ -471,7 +470,7 @@ mod tests {
         }
         let features = test_features_map();
         let alerter = OpsGenieAlerter::new("name", "repository", "1.0.0").unwrap();
-        let alert_description = alerter.construct_alert_description(&FeatureAlerts {
+        let alert_description = alerter.construct_alert_description(&SpcFeatureAlerts {
             features,
             has_alerts: true,
         });
@@ -490,9 +489,9 @@ mod tests {
             env::set_var("OPSGENIE_API_URL", "api_url");
             env::set_var("OPSGENIE_API_KEY", "api_key");
         }
-        let features: BTreeMap<String, FeatureAlert> = BTreeMap::new();
+        let features: HashMap<String, SpcFeatureAlert> = HashMap::new();
         let alerter = OpsGenieAlerter::new("name", "repository", "1.0.0").unwrap();
-        let alert_description = alerter.construct_alert_description(&FeatureAlerts {
+        let alert_description = alerter.construct_alert_description(&SpcFeatureAlerts {
             features,
             has_alerts: true,
         });
@@ -562,7 +561,7 @@ mod tests {
             OpsGenieAlerter::new("name", "repository", "1.0.0").unwrap(),
         ));
         let _ = dispatcher
-            .process_alerts(&FeatureAlerts {
+            .process_alerts(&SpcFeatureAlerts {
                 features,
                 has_alerts: true,
             })
@@ -582,7 +581,7 @@ mod tests {
         let dispatcher =
             AlertDispatcher::Console(ConsoleAlertDispatcher::new("name", "repository", "1.0.0"));
         let result = dispatcher
-            .process_alerts(&FeatureAlerts {
+            .process_alerts(&SpcFeatureAlerts {
                 features,
                 has_alerts: true,
             })
@@ -613,7 +612,7 @@ mod tests {
             SlackAlerter::new("name", "repository", "1.0.0").unwrap(),
         ));
         let _ = dispatcher
-            .process_alerts(&FeatureAlerts {
+            .process_alerts(&SpcFeatureAlerts {
                 features,
                 has_alerts: true,
             })
@@ -679,9 +678,9 @@ mod tests {
             env::remove_var("OPSGENIE_API_KEY");
         }
         let alert_config =
-            AlertConfig::new(None, Some(AlertDispatchType::OpsGenie), None, None, None);
+            SpcAlertConfig::new(None, Some(AlertDispatchType::OpsGenie), None, None, None);
 
-        let config = DriftConfig::new(
+        let config = SpcDriftConfig::new(
             Some("name".to_string()),
             Some("repository".to_string()),
             Some("1.0.0".to_string()),
@@ -707,8 +706,9 @@ mod tests {
             env::remove_var("SLACK_APP_TOKEN");
         }
 
-        let alert_config = AlertConfig::new(None, Some(AlertDispatchType::Slack), None, None, None);
-        let config = DriftConfig::new(
+        let alert_config =
+            SpcAlertConfig::new(None, Some(AlertDispatchType::Slack), None, None, None);
+        let config = SpcDriftConfig::new(
             Some("name".to_string()),
             Some("repository".to_string()),
             Some("1.0.0".to_string()),
@@ -734,8 +734,9 @@ mod tests {
             env::set_var("SLACK_API_URL", "url");
             env::set_var("SLACK_APP_TOKEN", "bot_token");
         }
-        let alert_config = AlertConfig::new(None, Some(AlertDispatchType::Slack), None, None, None);
-        let config = DriftConfig::new(
+        let alert_config =
+            SpcAlertConfig::new(None, Some(AlertDispatchType::Slack), None, None, None);
+        let config = SpcDriftConfig::new(
             Some("name".to_string()),
             Some("repository".to_string()),
             Some("1.0.0".to_string()),

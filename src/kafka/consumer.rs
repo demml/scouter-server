@@ -1,14 +1,14 @@
 use crate::sql::postgres::PostgresClient;
-use crate::sql::schema::DriftRecord;
 use anyhow::*;
 use rdkafka::config::ClientConfig;
 use rdkafka::consumer::Consumer;
+use scouter::core::spc::types::SpcDriftServerRecord;
 
 use futures::StreamExt;
 use rdkafka::consumer::CommitMode;
 use rdkafka::consumer::StreamConsumer;
 use rdkafka::Message;
-use serde_json::Value;
+use scouter::core::spc::types::SpcDriftServerRecords;
 use std::collections::HashMap;
 use std::result::Result::Ok;
 use tracing::error;
@@ -20,7 +20,7 @@ pub enum MessageHandler {
 }
 
 impl MessageHandler {
-    pub async fn insert_drift_record(&self, records: &DriftRecord) -> Result<()> {
+    pub async fn insert_drift_record(&self, records: &SpcDriftServerRecord) -> Result<()> {
         match self {
             Self::Postgres(client) => {
                 let result = client.insert_drift_record(records).await;
@@ -97,13 +97,9 @@ pub async fn stream_from_kafka_topic(
             // print size of payload in bytes
             info!("Received message with size: {}", payload.len());
 
-            let request: HashMap<String, Vec<DriftRecord>> =
-                serde_json::from_slice(payload).unwrap();
+            let records: SpcDriftServerRecords = serde_json::from_slice(payload).unwrap();
 
-            let request_type = request.keys().collect::<Vec<&String>>()[0];
-            let records = request.get(request_type).unwrap();
-
-            for record in records.iter() {
+            for record in records.records.iter() {
                 let inserted = message_handler.insert_drift_record(record).await;
                 match inserted {
                     Ok(_) => (),

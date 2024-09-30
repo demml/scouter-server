@@ -10,7 +10,8 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use scouter::utils::types::DriftProfile;
+
+use scouter::core::spc::types::{SpcDriftProfile, SpcDriftServerRecord};
 use serde_json::json;
 use std::sync::Arc;
 use tracing::{error, info};
@@ -111,7 +112,7 @@ pub async fn insert_drift(
     Json(body): Json<DriftRecordRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     // set default if missing
-    let record = DriftRecord {
+    let record = SpcDriftServerRecord {
         created_at: body
             .created_at
             .unwrap_or_else(|| chrono::Utc::now().naive_utc()),
@@ -149,7 +150,7 @@ pub async fn insert_drift_profile(
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     // validate profile is correct
     // this will be used to validate different versions of the drift profile in the future
-    let body: Result<DriftProfile, serde_json::Error> = serde_json::from_value(body.clone());
+    let body: Result<SpcDriftProfile, serde_json::Error> = serde_json::from_value(body.clone());
 
     if body.is_err() {
         // future: - validate against older versions of the drift profile
@@ -187,7 +188,7 @@ pub async fn update_drift_profile(
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     // validate profile is correct
     // this will be used to validate different versions of the drift profile in the future
-    let body: Result<DriftProfile, serde_json::Error> = serde_json::from_value(body.clone());
+    let body: Result<SpcDriftProfile, serde_json::Error> = serde_json::from_value(body.clone());
 
     if body.is_err() {
         // future: - validate against older versions of the drift profile

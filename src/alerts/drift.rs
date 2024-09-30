@@ -2,9 +2,10 @@ use crate::sql::postgres::PostgresClient;
 use crate::sql::schema::QueryResult;
 use anyhow::{Context, Result};
 use chrono::NaiveDateTime;
-use scouter::core::alert::generate_alerts;
-use scouter::core::monitor::Monitor;
-use scouter::utils::types::DriftProfile;
+
+use scouter::core::spc::alert::generate_alerts;
+use scouter::core::spc::monitor::SpcMonitor;
+use scouter::core::spc::types::SpcDriftProfile;
 use tracing::error;
 use tracing::info;
 
@@ -56,7 +57,7 @@ impl DriftExecutor {
     /// * `Result<Array2<f64>>` - Drift array
     pub async fn compute_drift(
         &self,
-        drift_profile: &DriftProfile,
+        drift_profile: &SpcDriftProfile,
         limit_timestamp: &NaiveDateTime,
         name: &str,
         repository: &str,
@@ -109,7 +110,7 @@ impl DriftExecutor {
         let nd_feature_arr = Array2::from_shape_vec((num_rows, num_cols), feature_values)
             .with_context(|| "Shape error")?;
 
-        let drift = Monitor::new().calculate_drift_from_sample(
+        let drift = SpcMonitor::new().calculate_drift_from_sample(
             &feature_keys,
             &nd_feature_arr.t().view(), // need to transpose because calculation is done at the row level across each feature
             drift_profile,
@@ -131,7 +132,7 @@ impl DriftExecutor {
     ///
     pub async fn process_task(
         &mut self,
-        drift_profile: DriftProfile,
+        drift_profile: SpcDriftProfile,
         previous_run: NaiveDateTime,
         name: &str,
         repository: &str,
@@ -157,7 +158,7 @@ impl DriftExecutor {
 
         // Get alerts
         // keys are the feature names that match the order of the drift array columns
-        let alert_rule = drift_profile.config.alert_config.alert_rule.clone();
+        let alert_rule = drift_profile.config.alert_config.rule.clone();
         let alerts = generate_alerts(&drift_array.view(), &keys, &alert_rule)
             .with_context(|| "error generating drift alerts")?;
 
@@ -206,7 +207,7 @@ impl DriftExecutor {
         let version = task.get::<String, _>("version");
         let schedule = task.get::<String, _>("schedule");
 
-        let drift_profile = serde_json::from_value::<DriftProfile>(task.get("profile"))
+        let drift_profile = serde_json::from_value::<SpcDriftProfile>(task.get("profile"))
             .context("error converting postgres jsonb profile to struct type DriftProfile");
 
         if let Ok(drift_profile) = drift_profile {

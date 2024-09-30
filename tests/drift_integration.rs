@@ -1,6 +1,6 @@
 use chrono::NaiveDateTime;
-use scouter::core::alert::generate_alerts;
-use scouter::utils::types::DriftProfile;
+use scouter::core::spc::alert::generate_alerts;
+use scouter::core::spc::types::SpcDriftProfile;
 use scouter_server::alerts::dispatch::ConsoleAlertDispatcher;
 use scouter_server::alerts::dispatch::Dispatch;
 use scouter_server::alerts::drift::DriftExecutor;
@@ -29,7 +29,7 @@ async fn test_drift_executor_separate() {
 
     let profile = profile.unwrap();
 
-    let drift_profile = serde_json::from_value::<DriftProfile>(profile.get("profile")).unwrap();
+    let drift_profile = serde_json::from_value::<SpcDriftProfile>(profile.get("profile")).unwrap();
 
     // assert drift_profile.config.name is "test_app"
     assert_eq!(drift_profile.config.name, "test_app");
@@ -48,7 +48,7 @@ async fn test_drift_executor_separate() {
 
     assert_eq!(drift_array.shape(), [10, 3] as [usize; 2]);
 
-    let alert_rule = drift_profile.config.alert_config.alert_rule.clone();
+    let alert_rule = drift_profile.config.alert_config.rule.clone();
     let alerts = generate_alerts(&drift_array.view(), &keys, &alert_rule).unwrap();
 
     assert_eq!(

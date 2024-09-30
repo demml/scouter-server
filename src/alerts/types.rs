@@ -1,4 +1,4 @@
-use scouter::utils::types::FeatureAlerts;
+use scouter::core::spc::types::SpcFeatureAlerts;
 pub struct TaskAlerts {
-    pub alerts: Option<FeatureAlerts>,
+    pub alerts: Option<SpcFeatureAlerts>,
 }

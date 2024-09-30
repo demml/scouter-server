@@ -13,7 +13,7 @@ use chrono::Utc;
 use cron::Schedule;
 use futures::future::join_all;
 use include_dir::{include_dir, Dir};
-use scouter::utils::types::DriftProfile;
+use scouter::core::spc::types::{SpcDriftProfile, SpcDriftServerRecord};
 use serde_json::Value;
 use sqlx::{
     postgres::{PgQueryResult, PgRow},
@@ -230,7 +230,7 @@ impl PostgresClient {
     //
     pub async fn insert_drift_record(
         &self,
-        record: &DriftRecord,
+        record: &SpcDriftServerRecord,
     ) -> Result<PgQueryResult, anyhow::Error> {
         let query = Queries::InsertDriftRecord.get_query();
 
@@ -261,7 +261,7 @@ impl PostgresClient {
 
     pub async fn insert_drift_profile(
         &self,
-        drift_profile: &DriftProfile,
+        drift_profile: &SpcDriftProfile,
     ) -> Result<PgQueryResult, anyhow::Error> {
         let query = Queries::InsertDriftProfile.get_query();
 
@@ -309,7 +309,7 @@ impl PostgresClient {
 
     pub async fn update_drift_profile(
         &self,
-        drift_profile: &DriftProfile,
+        drift_profile: &SpcDriftProfile,
     ) -> Result<PgQueryResult, anyhow::Error> {
         let query = Queries::UpdateDriftProfile.get_query();
 

@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use scouter_server::sql::schema::DriftRecord;
+use scouter::core::spc::types::SpcDriftServerRecord;
 use sqlx::Row;
 
 use scouter_server::sql::postgres::PostgresClient;
@@ -12,7 +12,7 @@ async fn test_postgres_client() {
     let db_client = PostgresClient::new(pool.clone()).unwrap();
 
     // test inserting record
-    let record = DriftRecord {
+    let record = SpcDriftServerRecord {
         created_at: chrono::Utc::now().naive_utc(),
         name: "test_app".to_string(),
         repository: "test".to_string(),
@@ -37,7 +37,7 @@ async fn test_postgres_client() {
 
     // iterate over the result and create DriftRecord
     for row in result {
-        let record = DriftRecord {
+        let record = SpcDriftServerRecord {
             created_at: row.get("created_at"),
             name: row.get("name"),
             repository: row.get("repository"),

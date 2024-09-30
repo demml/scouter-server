@@ -1,8 +1,8 @@
 use crate::sql::postgres::PostgresClient;
-use crate::sql::schema::DriftRecord;
 
 use futures::StreamExt;
 
+use scouter::core::spc::types::{SpcDriftServerRecord, SpcDriftServerRecords};
 use std::result::Result::Ok;
 use tracing::error;
 use tracing::info;
@@ -16,7 +16,7 @@ pub enum MessageHandler {
 }
 
 impl MessageHandler {
-    pub async fn insert_drift_record(&self, records: &DriftRecord) -> Result<()> {
+    pub async fn insert_drift_record(&self, records: &SpcDriftServerRecord) -> Result<()> {
         match self {
             Self::Postgres(client) => {
                 let result = client.insert_drift_record(records).await;
@@ -68,15 +68,18 @@ pub async fn stream_from_rabbit_queue(
 ) -> Result<()> {
     while let Some(delivery) = consumer.next().await {
         if let Ok(delivery) = delivery {
-            let record: DriftRecord = serde_json::from_slice(&delivery.data).unwrap();
-            let inserted = message_handler.insert_drift_record(&record).await;
-            match inserted {
-                Ok(_) => {
-                    // Acknowledge the message
-                    delivery.ack(BasicAckOptions::default()).await?;
-                }
-                Err(e) => {
-                    error!("Failed to insert drift record: {:?}", e);
+            let records: SpcDriftServerRecords = serde_json::from_slice(&delivery.data).unwrap();
+
+            for record in records.records.iter() {
+                let inserted = message_handler.insert_drift_record(&record).await;
+                match inserted {
+                    Ok(_) => {
+                        // Acknowledge the message
+                        delivery.ack(BasicAckOptions::default()).await?;
+                    }
+                    Err(e) => {
+                        error!("Failed to insert drift record: {:?}", e);
+                    }
                 }
             }
         }

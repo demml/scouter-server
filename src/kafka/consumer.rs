@@ -8,11 +8,11 @@ use futures::StreamExt;
 use rdkafka::consumer::CommitMode;
 use rdkafka::consumer::StreamConsumer;
 use rdkafka::Message;
+use serde_json::Value;
 use std::collections::HashMap;
 use std::result::Result::Ok;
 use tracing::error;
 use tracing::info;
-
 // Get table name constant
 
 pub enum MessageHandler {
@@ -97,7 +97,11 @@ pub async fn stream_from_kafka_topic(
             // print size of payload in bytes
             info!("Received message with size: {}", payload.len());
 
-            let records: Vec<DriftRecord> = serde_json::from_slice(payload).unwrap();
+            let request: HashMap<String, Vec<DriftRecord>> =
+                serde_json::from_slice(payload).unwrap();
+
+            let request_type = request.keys().collect::<Vec<&String>>()[0];
+            let records = request.get(request_type).unwrap();
 
             for record in records.iter() {
                 let inserted = message_handler.insert_drift_record(record).await;

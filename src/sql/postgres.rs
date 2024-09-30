@@ -344,8 +344,8 @@ impl PostgresClient {
 
         let params = UpdateDriftAlertParams {
             table: self.alert_table_name.to_string(),
-            id: id,
-            status: status,
+            id,
+            status,
         };
 
         let query_result: std::prelude::v1::Result<sqlx::postgres::PgQueryResult, sqlx::Error> =

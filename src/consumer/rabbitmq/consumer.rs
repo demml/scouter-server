@@ -1,7 +1,7 @@
 #[cfg(feature = "rabbitmq")]
 pub mod rabbitmq_consumer {
 
-    use crate::consumer::consumer::MessageHandler;
+    use crate::consumer::base::MessageHandler;
     use futures::StreamExt;
 
     use scouter::core::spc::types::SpcDriftServerRecord;
@@ -58,7 +58,7 @@ pub mod rabbitmq_consumer {
                     };
 
                 for record in records.iter() {
-                    let inserted = message_handler.insert_drift_record(&record).await;
+                    let inserted = message_handler.insert_drift_record(record).await;
                     match inserted {
                         Ok(_) => {
                             // Acknowledge the message

@@ -1,7 +1,7 @@
 #[cfg(feature = "kafka")]
 pub mod kafka_consumer {
 
-    use crate::consumer::consumer::MessageHandler;
+    use crate::consumer::base::MessageHandler;
     use anyhow::*;
     use rdkafka::config::ClientConfig;
     use rdkafka::consumer::Consumer;

@@ -1,6 +1,6 @@
 #[cfg(feature = "rabbitmq")]
 pub mod rabbitmq_startup {
-    use crate::consumer::consumer::MessageHandler;
+    use crate::consumer::base::MessageHandler;
     use crate::consumer::rabbitmq::consumer::rabbitmq_consumer::start_rabbitmq_background_poll;
     use crate::sql::postgres::PostgresClient;
     use sqlx::{Pool, Postgres};

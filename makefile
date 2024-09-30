@@ -7,7 +7,7 @@ format:
 
 .PHONY: lints
 lints:
-	cargo clippy --workspace --all-targets -- -D warnings
+	cargo clippy --workspace --all-targets --features "rabbitmq,kafka" -- -D warnings
 
 .PHONY: test
 test:

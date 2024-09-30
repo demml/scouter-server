@@ -1,8 +1,12 @@
 use crate::test_utils::*;
-use scouter_server::kafka::startup::startup_kafka;
+
 use scouter_server::sql::postgres::PostgresClient;
 mod test_utils;
 
+#[cfg(feature = "kafka")]
+use scouter_server::consumer::kafka::startup::kafka_startup::startup_kafka;
+
+#[cfg(feature = "kafka")]
 #[tokio::test]
 #[ignore]
 async fn test_api_with_kafka() {

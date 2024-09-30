@@ -3,7 +3,6 @@ use crate::api::schema::{
     FeatureDriftRequest, ProfileRequest, ProfileStatusRequest, UpdateAlertRequest,
 };
 use crate::sql::postgres::TimeInterval;
-use crate::sql::schema::DriftRecord;
 use axum::{
     extract::{Query, State},
     http::StatusCode,

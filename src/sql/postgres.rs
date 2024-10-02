@@ -111,18 +111,14 @@ impl PostgresClient {
     ) -> Result<PgQueryResult, anyhow::Error> {
         let query = Queries::InsertDriftAlert.get_query();
 
-        let params = InsertDriftAlertParams {
-            table: self.alert_table_name.to_string(),
-            name: name.to_string(),
-            repository: repository.to_string(),
-            version: version.to_string(),
-            alert: serde_json::to_string(&alert).unwrap(),
-        };
-
-        let query_result: std::prelude::v1::Result<sqlx::postgres::PgQueryResult, sqlx::Error> =
-            sqlx::raw_sql(query.format(&params).as_str())
-                .execute(&self.pool)
-                .await;
+        let query_result = sqlx::query(&query.sql)
+            .bind(name)
+            .bind(repository)
+            .bind(version)
+            .bind(serde_json::to_value(&alert).unwrap())
+            .execute(&self.pool)
+            .await
+            .with_context(|| "Failed to insert alert into database");
 
         match query_result {
             Ok(result) => Ok(result),
@@ -149,51 +145,26 @@ impl PostgresClient {
             version: version.to_string(),
         };
 
-        let mut formatted_query = query.format(&params);
-
-        if limit_timestamp.is_some() {
+        let query = if limit_timestamp.is_some() {
             let limit_timestamp = limit_timestamp.unwrap();
-            formatted_query = format!(
+            format!(
                 "{} AND created_at >= '{}' ORDER BY created_at DESC;",
-                formatted_query, limit_timestamp
-            );
+                query.sql, limit_timestamp
+            )
         } else {
-            formatted_query = format!("{} ORDER BY created_at DESC LIMIT 5;", formatted_query);
-        }
+            format!("{} ORDER BY created_at DESC LIMIT 5;", query.sql)
+        };
 
-        let result = sqlx::raw_sql(formatted_query.as_str())
+        let result: Result<Vec<AlertResult>, sqlx::Error> = sqlx::query_as(&query)
+            .bind(params.table)
+            .bind(params.version)
+            .bind(params.name)
+            .bind(params.repository)
             .fetch_all(&self.pool)
             .await;
 
         match result {
-            Ok(result) => {
-                let mut results = Vec::new();
-
-                result.iter().for_each(|row| {
-                    let alerts = serde_json::from_value::<FeatureAlerts>(row.get("alert"))
-                        .with_context(|| {
-                            "error converting postgres jsonb profile to struct type DriftProfile"
-                        });
-
-                    match alerts {
-                        Ok(alerts) => {
-                            let alert = AlertResult {
-                                name: row.get("name"),
-                                repository: row.get("repository"),
-                                version: row.get("version"),
-                                created_at: row.get("created_at"),
-                                alerts,
-                            };
-                            results.push(alert);
-                        }
-                        Err(e) => {
-                            error!("Failed to get alerts from database: {:?}", e);
-                        }
-                    }
-                });
-
-                Ok(results)
-            }
+            Ok(result) => Ok(result),
             Err(e) => {
                 error!("Failed to get alerts from database: {:?}", e);
                 Err(anyhow!("Failed to get alerts from database: {:?}", e))

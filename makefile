@@ -17,7 +17,8 @@ test:
 test.ignored:
 	cargo test -- --nocapture  --test-threads=1 --ignored
 
-.PHONY: setup-local
-setup-local:
+.PHONY: setup.local
+setup.local:
+	docker-compose down
 	docker-compose up --build init-kafka
 	docker-compose up --build db

@@ -216,7 +216,6 @@ impl ToMap for UpdateDriftProfileParams {
 }
 
 pub struct InsertDriftAlertParams {
-    pub table: String,
     pub name: String,
     pub repository: String,
     pub version: String,
@@ -226,7 +225,6 @@ pub struct InsertDriftAlertParams {
 impl ToMap for InsertDriftAlertParams {
     fn to_map(&self) -> BTreeMap<String, String> {
         let mut params = BTreeMap::new();
-        params.insert("table".to_string(), self.table.clone());
         params.insert("name".to_string(), self.name.clone());
         params.insert("repository".to_string(), self.repository.clone());
         params.insert("version".to_string(), self.version.clone());
@@ -315,7 +313,7 @@ impl Queries {
 }
 
 pub struct SqlQuery {
-    sql: String,
+    pub sql: String,
 }
 
 impl SqlQuery {

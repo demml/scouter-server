@@ -89,3 +89,14 @@ impl<'r> FromRow<'r, PgRow> for AlertResult {
         })
     }
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskRequest {
+    pub name: String,
+    pub repository: String,
+    pub version: String,
+    pub profile: serde_json::Value,
+    pub profile_type: String,
+    pub previous_run: NaiveDateTime,
+    pub schedule: String,
+}

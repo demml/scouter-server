@@ -50,20 +50,18 @@ VALUES
         "repository": "statworld",
         "version": "0.1.0",
         "alert_config": {
-            "alert_dispatch_type": "Console",
+            "dispatch_type": "Console",
             "schedule": "0 0 0 * * *",
-            "alert_rule": {
-                  "process": {
+            "rule": {
                     "rule": "4 4 4 8 2 4 1 1",
                     "zones_to_monitor": ["Zone 1", "Zone 2", "Zone 3", "Zone 4"]
-                  },
-                  "percentage": null
             },
             "features_to_monitor": ["col_1", "col_3"],
-            "alert_kwargs": {}
+            "dispatch_kwargs": {}
         },
         "feature_map": null,
-        "targets": []
+        "targets": [],
+        "drift_type": "spc"
       },
 	"scouter_version": "0.1.0"
     }',
@@ -122,20 +120,18 @@ VALUES
         "repository": "mathworld",
         "version": "0.1.0",
         "alert_config": {
-            "alert_dispatch_type": "Console",
+            "dispatch_type": "Console",
             "schedule": "0 0 0 * * *",
-            "alert_rule": {
-                  "process": {
+            "rule": {
                     "rule": "8 16 4 8 2 4 1 1",
                     "zones_to_monitor": ["Zone 1", "Zone 2", "Zone 3", "Zone 4"]
-                  },
-                  "percentage": null
             },
             "features_to_monitor": [],
-            "alert_kwargs": {}
+            "dispatch_kwargs": {}
         },
         "feature_map": null,
-        "targets": []
+        "targets": [],
+        "drift_type": "spc"
       },
 	  "scouter_version": "0.1.0"
       }',
@@ -194,20 +190,18 @@ VALUES
         "repository": "opsml",
         "version": "0.1.0",
         "alert_config": {
-            "alert_dispatch_type": "Console",
+            "dispatch_type": "Console",
             "schedule": "0 0 0 * * *",
-            "alert_rule": {
-                  "process": {
+            "rule": {
                     "rule": "16 16 4 8 2 4 1 1",
                     "zones_to_monitor": ["Zone 1", "Zone 2", "Zone 3", "Zone 4"]
-                  },
-                  "percentage": null
             },
             "features_to_monitor": [],
-            "alert_kwargs": {}
+            "dispatch_kwargs": {}
         },
         "feature_map": null,
-        "targets": []
+        "targets": [],
+        "drift_type": "spc"
       },
 	 "scouter_version": "0.1.0"
     }',
@@ -266,20 +260,18 @@ VALUES
         "repository": "opsml",
         "version": "0.1.0",
         "alert_config": {
-            "alert_dispatch_type": "Console",
+            "dispatch_type": "Console",
             "schedule": "0 0 0 * * *",
-            "alert_rule": {
-                  "process": {
+            "rule": {
                     "rule": "8 16 4 8 2 4 1 1",
                     "zones_to_monitor": ["Zone 1", "Zone 2", "Zone 3", "Zone 4"]
-                  },
-                  "percentage": null
             },
             "features_to_monitor": [],
-            "alert_kwargs": {}
+            "dispatch_kwargs": {}
         },
         "feature_map": null,
-        "targets": []
+        "targets": [],
+        "drift_type": "spc"
       },
       "scouter_version": "0.1.0"
       }',

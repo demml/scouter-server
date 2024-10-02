@@ -27,6 +27,23 @@ pub struct QueryResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BinnedSpcFeatureResult {
+    pub feature: String,
+    pub created_at: Vec<chrono::NaiveDateTime>,
+    pub values: Vec<f64>,
+}
+
+impl<'r> FromRow<'r, PgRow> for BinnedSpcFeatureResult {
+    fn from_row(row: &'r PgRow) -> Result<Self, Error> {
+        Ok(BinnedSpcFeatureResult {
+            feature: row.try_get("feature")?,
+            created_at: row.try_get("created_at")?,
+            values: row.try_get("values")?,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AlertResult {
     pub created_at: NaiveDateTime,
     pub name: String,

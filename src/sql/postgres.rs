@@ -3,7 +3,9 @@ use crate::sql::query::{
     GetFeatureValuesParams, GetFeaturesParams, Queries, UpdateDriftProfileRunDatesParams,
     UpdateDriftProfileStatusParams, DRIFT_ALERT_TABLE, DRIFT_PROFILE_TABLE, DRIFT_TABLE,
 };
-use crate::sql::schema::{AlertResult, DriftRecord, FeatureResult, QueryResult};
+use crate::sql::schema::{
+    AlertResult, BinnedSpcFeatureResult, DriftRecord, FeatureResult, QueryResult,
+};
 use anyhow::*;
 use chrono::Utc;
 use cron::Schedule;
@@ -380,15 +382,10 @@ impl PostgresClient {
 
         let query = query_builder.build();
 
-        let query_result = query.execute(&self.pool).await;
-
-        match query_result {
-            Ok(result) => Ok(result),
-            Err(e) => {
-                error!("Failed to insert record into database: {:?}", e);
-                Err(anyhow!("Failed to insert record into database: {:?}", e))
-            }
-        }
+        query.execute(&self.pool).await.map_err(|e| {
+            error!("Failed to insert record into database: {:?}", e);
+            anyhow!("Failed to insert record into database: {:?}", e)
+        })
     }
 
     // Queries the database for all features under a service
@@ -401,7 +398,7 @@ impl PostgresClient {
     ) -> Result<Vec<String>, anyhow::Error> {
         let query = Queries::GetFeatures.get_query();
 
-        let result = sqlx::query(&query.sql)
+        sqlx::query(&query.sql)
             .bind(name)
             .bind(repository)
             .bind(version)
@@ -416,9 +413,7 @@ impl PostgresClient {
                     .iter()
                     .map(|row| row.get("feature"))
                     .collect::<Vec<String>>()
-            });
-
-        Ok(result?)
+            })
     }
 
     async fn run_feature_query(
@@ -431,7 +426,7 @@ impl PostgresClient {
     ) -> Result<Vec<PgRow>, anyhow::Error> {
         let query = Queries::GetFeatureValues.get_query();
 
-        let result = sqlx::query(&query.sql)
+        sqlx::query(&query.sql)
             .bind(limit_timestamp)
             .bind(name)
             .bind(repository)
@@ -442,9 +437,7 @@ impl PostgresClient {
             .map_err(|e| {
                 error!("Failed to run query: {:?}", e);
                 anyhow!("Failed to run query: {:?}", e)
-            });
-
-        Ok(result?)
+            })
     }
 
     async fn run_binned_feature_query(
@@ -455,30 +448,23 @@ impl PostgresClient {
         time_window: &i32,
         name: &str,
         repository: &str,
-    ) -> Result<Vec<PgRow>, anyhow::Error> {
+    ) -> Result<BinnedSpcFeatureResult, anyhow::Error> {
         let query = Queries::GetBinnedFeatureValues.get_query();
 
-        let params = GetBinnedFeatureValuesParams {
-            table: self.drift_table_name.to_string(),
-            name: name.to_string(),
-            repository: repository.to_string(),
-            feature,
-            version: version.to_string(),
-            time_window: time_window.to_string(),
-            bin: bin.to_string(),
-        };
-
-        let result = sqlx::raw_sql(query.format(&params).as_str())
-            .fetch_all(&self.pool)
+        let binned: Result<BinnedSpcFeatureResult, sqlx::Error> = sqlx::query_as(&query.sql)
+            .bind(bin)
+            .bind(time_window)
+            .bind(name)
+            .bind(repository)
+            .bind(version)
+            .bind(feature)
+            .fetch_one(&self.pool)
             .await;
 
-        match result {
-            Ok(result) => Ok(result),
-            Err(e) => {
-                error!("Failed to run query: {:?}", e);
-                Err(anyhow!("Failed to run query: {:?}", e))
-            }
-        }
+        binned.map_err(|e| {
+            error!("Failed to run query: {:?}", e);
+            anyhow!("Failed to run query: {:?}", e)
+        })
     }
 
     // Queries the database for drift records based on a time window and aggregation
@@ -528,33 +514,20 @@ impl PostgresClient {
             features: BTreeMap::new(),
         };
 
-        for data in query_results {
-            match data {
-                Ok(data) => {
-                    //check if data is empty
-                    if data.is_empty() {
-                        continue;
-                    }
-
-                    let feature_name = data[0].get("feature");
-                    let mut created_at = Vec::new();
-                    let mut values = Vec::new();
-
-                    for row in data {
-                        created_at.push(row.get("created_at"));
-                        values.push(row.get("value"));
-                    }
-
-                    query_result
-                        .features
-                        .insert(feature_name, FeatureResult { created_at, values });
-                }
-                Err(e) => {
-                    error!("Failed to run query: {:?}", e);
-                    return Err(anyhow!("Failed to run query: {:?}", e));
-                }
+        query_results.iter().for_each(|result| match result {
+            Ok(result) => {
+                query_result.features.insert(
+                    result.feature.clone(),
+                    FeatureResult {
+                        created_at: result.created_at.clone(),
+                        values: result.values.clone(),
+                    },
+                );
             }
-        }
+            Err(e) => {
+                error!("Failed to run query: {:?}", e);
+            }
+        });
 
         Ok(query_result)
     }

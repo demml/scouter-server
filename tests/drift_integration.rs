@@ -1,10 +1,9 @@
 use chrono::NaiveDateTime;
 use scouter::core::dispatch::dispatcher::dispatcher_logic::{ConsoleAlertDispatcher, Dispatch};
-use scouter::core::drift::spc::alert::generate_alerts;
+
 use scouter::core::drift::spc::types::SpcDriftProfile;
 use scouter_server::alerts::drift::DriftExecutor;
 use scouter_server::alerts::spc::drift::SpcDrifter;
-use scouter_server::alerts::types::TaskAlerts;
 use scouter_server::sql::postgres::PostgresClient;
 use sqlx::{Postgres, Row};
 mod test_utils;
@@ -53,19 +52,20 @@ async fn test_drift_executor_separate() {
 
     assert_eq!(drift_array.shape(), [10, 3] as [usize; 2]);
 
-    let alerts = TaskAlerts { alerts: None };
     let alerts = drifter
-        .generate_alerts(&drift_array.view(), &keys, alerts)
+        .generate_alerts(&drift_array.view(), &keys)
         .await
         .unwrap();
 
+    let task = alerts.unwrap();
+
     assert_eq!(
-        alerts.features.get("col_3").unwrap().alerts[0].zone,
+        task.alerts.features.get("col_3").unwrap().alerts[0].zone,
         "Zone 4"
     );
 
     let dispatcher = ConsoleAlertDispatcher::new(&name, &repository, &version);
-    dispatcher.process_alerts(&alerts).await.unwrap();
+    dispatcher.process_alerts(&task.alerts).await.unwrap();
 
     transaction.commit().await.unwrap();
     test_utils::teardown().await.unwrap();

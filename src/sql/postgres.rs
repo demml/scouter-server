@@ -1,8 +1,8 @@
 use crate::sql::query::{
     GetBinnedFeatureValuesParams, GetDriftProfileParams, GetDriftProfileTaskParams,
-    GetFeatureValuesParams, GetFeaturesParams, InsertDriftProfileParams, Queries,
-    UpdateDriftProfileParams, UpdateDriftProfileRunDatesParams, UpdateDriftProfileStatusParams,
-    DRIFT_ALERT_TABLE, DRIFT_PROFILE_TABLE, DRIFT_TABLE,
+    GetFeatureValuesParams, GetFeaturesParams, Queries, UpdateDriftProfileParams,
+    UpdateDriftProfileRunDatesParams, UpdateDriftProfileStatusParams, DRIFT_ALERT_TABLE,
+    DRIFT_PROFILE_TABLE, DRIFT_TABLE,
 };
 use crate::sql::schema::{AlertResult, DriftRecord, FeatureResult, QueryResult};
 use anyhow::*;
@@ -11,7 +11,6 @@ use cron::Schedule;
 use futures::future::join_all;
 use include_dir::{include_dir, Dir};
 use scouter::utils::types::DriftProfile;
-use scouter::utils::types::FeatureAlerts;
 use serde_json::Value;
 use sqlx::{
     postgres::{PgQueryResult, PgRow},
@@ -238,23 +237,19 @@ impl PostgresClient {
             )
         })?;
 
-        let params = InsertDriftProfileParams {
-            table: "scouter.drift_profile".to_string(),
-            name: drift_profile.config.name.clone(),
-            repository: drift_profile.config.repository.clone(),
-            version: drift_profile.config.version.clone(),
-            profile: serde_json::to_string(&drift_profile).unwrap(),
-            scouter_version: drift_profile.scouter_version.clone(),
-            active: false,
-            schedule: drift_profile.config.alert_config.schedule.clone(),
-            next_run: next_run.naive_utc(),
-            previous_run: next_run.naive_utc(),
-        };
-
-        let query_result: std::prelude::v1::Result<sqlx::postgres::PgQueryResult, sqlx::Error> =
-            sqlx::raw_sql(query.format(&params).as_str())
-                .execute(&self.pool)
-                .await;
+        let query_result = sqlx::query(&query.sql)
+            .bind(drift_profile.config.name.clone())
+            .bind(drift_profile.config.repository.clone())
+            .bind(drift_profile.config.version.clone())
+            .bind(drift_profile.scouter_version.clone())
+            .bind(serde_json::to_value(drift_profile).unwrap())
+            .bind(false)
+            .bind(drift_profile.config.alert_config.schedule.clone())
+            .bind(next_run.naive_utc())
+            .bind(next_run.naive_utc())
+            .execute(&self.pool)
+            .await
+            .with_context(|| "Failed to insert alert into database");
 
         match query_result {
             Ok(result) => Ok(result),

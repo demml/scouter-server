@@ -38,6 +38,18 @@ impl SpcDrifter {
             profile,
         }
     }
+
+    /// Get drift features for a given drift profile
+    ///
+    /// # Arguments
+    ///
+    /// * `db_client` - Postgres client to use for querying feature data
+    /// * `limit_timestamp` - Limit timestamp for drift computation (this is the previous_run timestamp)
+    /// * `features_to_monitor` - Features to monitor for drift
+    ///
+    /// # Returns
+    ///
+    /// * `Result<QueryResult>` - Query result
     async fn get_drift_features(
         &self,
         db_client: &PostgresClient,
@@ -60,8 +72,8 @@ impl SpcDrifter {
     ///
     /// # Arguments
     ///
-    /// * `drift_profile` - Drift profile to compute drift for
     /// * `limit_timestamp` - Limit timestamp for drift computation (this is the previous_run timestamp)
+    /// * `db_client` - Postgres client to use for querying feature data
     ///     
     /// # Returns
     ///
@@ -125,6 +137,16 @@ impl SpcDrifter {
         Ok((drift, feature_keys))
     }
 
+    /// Generate alerts for a given drift profile
+    ///
+    /// # Arguments
+    ///
+    /// * `array` - Drift array
+    /// * `features` - Features to monitor for drift
+    ///
+    /// # Returns
+    ///
+    /// * `Result<Option<TaskAlerts>>` - Task alerts
     pub async fn generate_alerts<'a>(
         &self,
         array: &ArrayView2<'a, f64>,

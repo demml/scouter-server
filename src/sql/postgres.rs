@@ -291,14 +291,10 @@ impl PostgresClient {
     ) -> Result<Option<Value>, anyhow::Error> {
         let query = Queries::GetDriftProfile.get_query();
 
-        let params = GetDriftProfileParams {
-            table: self.profile_table_name.to_string(),
-            name: name.to_string(),
-            repository: repository.to_string(),
-            version: version.to_string(),
-        };
-
-        let result = sqlx::query(query.format(&params).as_str())
+        let result = sqlx::query(&query.sql)
+            .bind(name)
+            .bind(repository)
+            .bind(version)
             .fetch_optional(&self.pool)
             .await
             .with_context(|| "Failed to get drift profile from database")?;
@@ -316,12 +312,7 @@ impl PostgresClient {
         transaction: &mut Transaction<'_, Postgres>,
     ) -> Result<Option<PgRow>, Error> {
         let query = Queries::GetDriftTask.get_query();
-
-        let params = GetDriftProfileTaskParams {
-            table: "scouter.drift_profile".to_string(),
-        };
-
-        let result = sqlx::query(query.format(&params).as_str())
+        let result = sqlx::query(&query.sql)
             .fetch_optional(&mut **transaction)
             .await
             .with_context(|| "Failed to get drift profile from database")?;
@@ -348,15 +339,11 @@ impl PostgresClient {
             )
         })?;
 
-        let params = UpdateDriftProfileRunDatesParams {
-            table: "scouter.drift_profile".to_string(),
-            name: name.to_string(),
-            repository: repository.to_string(),
-            version: version.to_string(),
-            next_run: next_run.naive_utc(),
-        };
-
-        let query_result = sqlx::query(query.format(&params).as_str())
+        let query_result = sqlx::query(&query.sql)
+            .bind(next_run.naive_utc())
+            .bind(name)
+            .bind(repository)
+            .bind(version)
             .execute(&mut **transaction)
             .await;
 

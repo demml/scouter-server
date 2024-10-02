@@ -1,5 +1,5 @@
 SELECT profile
-FROM $table
-WHERE name = '$name'
-  and repository = '$repository'
-  and version = '$version';
+FROM scouter.drift_profile
+WHERE name = $1
+  and repository = $2
+  and version = $3;

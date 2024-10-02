@@ -1,9 +1,8 @@
 use crate::sql::query::{
-    GetBinnedFeatureValuesParams, GetDriftAlertsParams, GetDriftProfileParams,
-    GetDriftProfileTaskParams, GetFeatureValuesParams, GetFeaturesParams, InsertDriftAlertParams,
-    InsertDriftProfileParams, InsertParams, Queries, UpdateDriftProfileParams,
-    UpdateDriftProfileRunDatesParams, UpdateDriftProfileStatusParams, DRIFT_ALERT_TABLE,
-    DRIFT_PROFILE_TABLE, DRIFT_TABLE,
+    GetBinnedFeatureValuesParams, GetDriftProfileParams, GetDriftProfileTaskParams,
+    GetFeatureValuesParams, GetFeaturesParams, InsertDriftProfileParams, Queries,
+    UpdateDriftProfileParams, UpdateDriftProfileRunDatesParams, UpdateDriftProfileStatusParams,
+    DRIFT_ALERT_TABLE, DRIFT_PROFILE_TABLE, DRIFT_TABLE,
 };
 use crate::sql::schema::{AlertResult, DriftRecord, FeatureResult, QueryResult};
 use anyhow::*;
@@ -115,7 +114,7 @@ impl PostgresClient {
             .bind(name)
             .bind(repository)
             .bind(version)
-            .bind(serde_json::to_value(&alert).unwrap())
+            .bind(serde_json::to_value(alert).unwrap())
             .execute(&self.pool)
             .await
             .with_context(|| "Failed to insert alert into database");
@@ -138,13 +137,6 @@ impl PostgresClient {
     ) -> Result<Vec<AlertResult>, anyhow::Error> {
         let query = Queries::GetDriftAlerts.get_query();
 
-        let params = GetDriftAlertsParams {
-            table: self.alert_table_name.to_string(),
-            name: name.to_string(),
-            repository: repository.to_string(),
-            version: version.to_string(),
-        };
-
         let query = if limit_timestamp.is_some() {
             let limit_timestamp = limit_timestamp.unwrap();
             format!(
@@ -156,10 +148,9 @@ impl PostgresClient {
         };
 
         let result: Result<Vec<AlertResult>, sqlx::Error> = sqlx::query_as(&query)
-            .bind(params.table)
-            .bind(params.version)
-            .bind(params.name)
-            .bind(params.repository)
+            .bind(version)
+            .bind(name)
+            .bind(repository)
             .fetch_all(&self.pool)
             .await;
 
@@ -185,20 +176,16 @@ impl PostgresClient {
     ) -> Result<PgQueryResult, anyhow::Error> {
         let query = Queries::InsertDriftRecord.get_query();
 
-        let params = InsertParams {
-            table: self.drift_table_name.to_string(),
-            created_at: record.created_at,
-            name: record.name.clone(),
-            repository: record.repository.clone(),
-            feature: record.feature.clone(),
-            value: record.value.to_string(),
-            version: record.version.clone(),
-        };
-
-        let query_result: std::prelude::v1::Result<sqlx::postgres::PgQueryResult, sqlx::Error> =
-            sqlx::raw_sql(query.format(&params).as_str())
-                .execute(&self.pool)
-                .await;
+        let query_result = sqlx::query(&query.sql)
+            .bind(record.created_at)
+            .bind(&record.name)
+            .bind(&record.repository)
+            .bind(&record.version)
+            .bind(&record.feature)
+            .bind(record.value)
+            .execute(&self.pool)
+            .await
+            .with_context(|| "Failed to insert alert into database");
 
         //drop params
         match query_result {

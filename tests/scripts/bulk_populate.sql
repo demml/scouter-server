@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS tablefunc;
+
 CREATE OR REPLACE FUNCTION insert_sample_data(num_records INTEGER)
 RETURNS VOID AS $$
 DECLARE
@@ -10,17 +12,17 @@ BEGIN
     FOR i IN 1..num_records LOOP
         -- Generate feature JSON
         feature_json := '{}'::JSONB;
-        FOR j IN 1..100 LOOP
+        FOR j IN 1..10 LOOP
             feature_json := feature_json || jsonb_build_object(
                 'col_' || j, jsonb_build_object(
                     'id', 'col_' || j,
-                    'center', random() * 10 - 5,
-                    'one_ucl', random() * 10 - 5,
-                    'one_lcl', random() * 10 - 5,
-                    'two_ucl', random() * 10 - 5,
-                    'two_lcl', random() * 10 - 5,
-                    'three_ucl', random() * 10 - 5,
-                    'three_lcl', random() * 10 - 5,
+                    'center', random(),
+                    'one_ucl', random() + 1,
+                    'one_lcl', random() - 1,
+                    'two_ucl', random() + 2,
+                    'two_lcl', random() - 2,
+                    'three_ucl', random() + 3,
+                    'three_lcl', random() - 3,
                     'timestamp', '2024-06-26T20:43:27.957229'
                 )
             );
@@ -32,8 +34,8 @@ BEGIN
             'config', jsonb_build_object(
                 'sample_size', 25,
                 'sample', true,
-                'name', 'test_app',
-                'repository', 'opsml',
+                'name', 'model-' || i,
+                'repository', 'ml-platform-' || i,
                 'version', '0.1.0',
                 'alert_config', jsonb_build_object(
                     'alert_dispatch_type', 'Console',
@@ -60,8 +62,8 @@ BEGIN
         VALUES (
             timezone('utc', now()),
             timezone('utc', now()),
-            'test_app' || i,
-            'opsml',
+            'model-' || i,
+            'ml-platform-' || i,
             '0.1.0',
             profile_json,
             true,
@@ -73,9 +75,9 @@ BEGIN
         -- Generate drift values for 100 features
         FOR j IN 1..1000 LOOP
             drift_values := '';
-            FOR k IN 1..100 LOOP
-                drift_values := drift_values || format('(timezone(''utc'', now()), ''test_app%s'', ''opsml'', ''col_%s'', %s, ''0.1.0'')', i, k, random() * 10 - 5);
-                IF k < 100 THEN
+            FOR k IN 1..10 LOOP
+                drift_values := drift_values || format('(timezone(''utc'', now() + interval ''%s seconds''), ''model-%s'', ''ml-platform-%s'', ''col_%s'', %s, ''0.1.0'')', (j - 1) * 20 + (k - 1), i, i, k, normal_rand(1, 0, 1));
+                IF k < 10 THEN
                     drift_values := drift_values || ',';
                 END IF;
             END LOOP;

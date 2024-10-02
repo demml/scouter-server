@@ -1,7 +1,7 @@
 SELECT
 DISTINCT feature
-FROM $table
+FROM scouter.drift
 WHERE
-   name = '$name'
-   AND repository = '$repository'
-   AND version = '$version';
+   name = $1
+   AND repository = $2
+   AND version = $3;

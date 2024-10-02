@@ -3,9 +3,12 @@ created_at,
 name,
 repository,
 version,
-alert
-FROM $table
+feature,
+alert,
+id,
+status
+FROM scouter.drift_alerts
 WHERE
-    version = '$version'
-    AND name = '$name'
-    AND repository = '$repository'
+    version = $1
+    AND name = $2
+    AND repository = $3

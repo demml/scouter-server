@@ -224,16 +224,36 @@ impl DriftExecutor {
                     info!("Drift task processed successfully");
 
                     if let Some(mut task_alert) = task_alert.alerts {
+                        let mut tasks = Vec::new();
                         task_alert.features.iter_mut().for_each(|(_, feature)| {
-                            feature.indices = BTreeMap::new();
+                            feature.alerts.iter().for_each(|alert| {
+                                let alert_map = {
+                                    let mut alert_map = BTreeMap::new();
+                                    alert_map.insert("zone".to_string(), alert.zone.clone());
+                                    alert_map.insert("kind".to_string(), alert.kind.clone());
+                                    alert_map
+                                        .insert("feature".to_string(), feature.feature.clone());
+                                    alert_map
+                                };
+                                tasks.push(alert_map);
+                            });
                         });
 
-                        if let Err(e) = self
-                            .db_client
-                            .insert_drift_alert(&name, &repository, &version, &task_alert)
-                            .await
-                        {
-                            error!("Error inserting drift alerts: {:?}", e);
+                        // insert each task into db
+                        for task in tasks {
+                            if let Err(e) = self
+                                .db_client
+                                .insert_drift_alert(
+                                    &name,
+                                    &repository,
+                                    &version,
+                                    task.get("feature").unwrap_or(&"NA".to_string()),
+                                    &task,
+                                )
+                                .await
+                            {
+                                error!("Error inserting drift alerts: {:?}", e);
+                            }
                         }
                     }
                 }

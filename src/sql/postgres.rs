@@ -1,18 +1,12 @@
-use crate::sql::query::{
-    GetBinnedFeatureValuesParams, GetDriftAlertsParams, GetDriftProfileParams,
-    GetDriftProfileTaskParams, GetFeatureValuesParams, GetFeaturesParams, InsertDriftAlertParams,
-    InsertDriftProfileParams, InsertParams, Queries, UpdateDriftProfileParams,
-    UpdateDriftProfileRunDatesParams, UpdateDriftProfileStatusParams, DRIFT_ALERT_TABLE,
-    DRIFT_PROFILE_TABLE, DRIFT_TABLE,
-};
-use crate::sql::schema::{AlertResult, DriftRecord, FeatureResult, QueryResult};
+use crate::api::schema::{BaseRequest, DriftAlertRequest, DriftRequest, ProfileStatusRequest};
+use crate::sql::query::Queries;
+use crate::sql::schema::{AlertResult, DriftRecord, FeatureResult, QueryResult, SpcFeatureResult};
 use anyhow::*;
 use chrono::Utc;
 use cron::Schedule;
 use futures::future::join_all;
 use include_dir::{include_dir, Dir};
 use scouter::utils::types::DriftProfile;
-use scouter::utils::types::FeatureAlerts;
 use serde_json::Value;
 use sqlx::{
     postgres::{PgQueryResult, PgRow},
@@ -75,9 +69,6 @@ impl TimeInterval {
 #[allow(dead_code)]
 pub struct PostgresClient {
     pub pool: Pool<Postgres>,
-    drift_table_name: String,
-    profile_table_name: String,
-    alert_table_name: String,
 }
 
 impl PostgresClient {
@@ -85,12 +76,7 @@ impl PostgresClient {
     pub fn new(pool: Pool<Postgres>) -> Result<Self, anyhow::Error> {
         // get database url from env or use the provided one
 
-        Ok(Self {
-            pool,
-            drift_table_name: DRIFT_TABLE.to_string(),
-            profile_table_name: DRIFT_PROFILE_TABLE.to_string(),
-            alert_table_name: DRIFT_ALERT_TABLE.to_string(),
-        })
+        Ok(Self { pool })
     }
 
     // Inserts a drift alert into the database
@@ -107,22 +93,20 @@ impl PostgresClient {
         name: &str,
         repository: &str,
         version: &str,
-        alert: &FeatureAlerts,
+        feature: &str,
+        alert: &BTreeMap<String, String>,
     ) -> Result<PgQueryResult, anyhow::Error> {
         let query = Queries::InsertDriftAlert.get_query();
 
-        let params = InsertDriftAlertParams {
-            table: self.alert_table_name.to_string(),
-            name: name.to_string(),
-            repository: repository.to_string(),
-            version: version.to_string(),
-            alert: serde_json::to_string(&alert).unwrap(),
-        };
-
-        let query_result: std::prelude::v1::Result<sqlx::postgres::PgQueryResult, sqlx::Error> =
-            sqlx::raw_sql(query.format(&params).as_str())
-                .execute(&self.pool)
-                .await;
+        let query_result = sqlx::query(&query.sql)
+            .bind(name)
+            .bind(repository)
+            .bind(version)
+            .bind(feature)
+            .bind(serde_json::to_value(alert).unwrap())
+            .execute(&self.pool)
+            .await
+            .with_context(|| "Failed to insert alert into database");
 
         match query_result {
             Ok(result) => Ok(result),
@@ -135,65 +119,46 @@ impl PostgresClient {
 
     pub async fn get_drift_alerts(
         &self,
-        name: &str,
-        repository: &str,
-        version: &str,
-        limit_timestamp: Option<&str>,
+        params: &DriftAlertRequest,
     ) -> Result<Vec<AlertResult>, anyhow::Error> {
+        let active = params.active.unwrap_or(false);
+
         let query = Queries::GetDriftAlerts.get_query();
 
-        let params = GetDriftAlertsParams {
-            table: self.alert_table_name.to_string(),
-            name: name.to_string(),
-            repository: repository.to_string(),
-            version: version.to_string(),
+        // check if active
+        let built_query = if active {
+            format!("{} AND status = 'active'", query.sql)
+        } else {
+            query.sql
         };
 
-        let mut formatted_query = query.format(&params);
-
-        if limit_timestamp.is_some() {
-            let limit_timestamp = limit_timestamp.unwrap();
-            formatted_query = format!(
-                "{} AND created_at >= '{}' ORDER BY created_at DESC;",
-                formatted_query, limit_timestamp
-            );
+        // check if limit timestamp is provided
+        let built_query = if params.limit_timestamp.is_some() {
+            format!(
+                "{} AND created_at >= '{}' ORDER BY created_at DESC",
+                built_query,
+                params.limit_timestamp.as_ref().unwrap()
+            )
         } else {
-            formatted_query = format!("{} ORDER BY created_at DESC LIMIT 5;", formatted_query);
-        }
+            format!("{} ORDER BY created_at DESC", built_query)
+        };
 
-        let result = sqlx::raw_sql(formatted_query.as_str())
+        // check if limit is provided
+        let built_query = if params.limit.is_some() {
+            format!("{} LIMIT {};", built_query, params.limit.unwrap())
+        } else {
+            format!("{};", built_query)
+        };
+
+        let result: Result<Vec<AlertResult>, sqlx::Error> = sqlx::query_as(&built_query)
+            .bind(&params.version)
+            .bind(&params.name)
+            .bind(&params.repository)
             .fetch_all(&self.pool)
             .await;
 
         match result {
-            Ok(result) => {
-                let mut results = Vec::new();
-
-                result.iter().for_each(|row| {
-                    let alerts = serde_json::from_value::<FeatureAlerts>(row.get("alert"))
-                        .with_context(|| {
-                            "error converting postgres jsonb profile to struct type DriftProfile"
-                        });
-
-                    match alerts {
-                        Ok(alerts) => {
-                            let alert = AlertResult {
-                                name: row.get("name"),
-                                repository: row.get("repository"),
-                                version: row.get("version"),
-                                created_at: row.get("created_at"),
-                                alerts,
-                            };
-                            results.push(alert);
-                        }
-                        Err(e) => {
-                            error!("Failed to get alerts from database: {:?}", e);
-                        }
-                    }
-                });
-
-                Ok(results)
-            }
+            Ok(result) => Ok(result),
             Err(e) => {
                 error!("Failed to get alerts from database: {:?}", e);
                 Err(anyhow!("Failed to get alerts from database: {:?}", e))
@@ -214,20 +179,16 @@ impl PostgresClient {
     ) -> Result<PgQueryResult, anyhow::Error> {
         let query = Queries::InsertDriftRecord.get_query();
 
-        let params = InsertParams {
-            table: self.drift_table_name.to_string(),
-            created_at: record.created_at,
-            name: record.name.clone(),
-            repository: record.repository.clone(),
-            feature: record.feature.clone(),
-            value: record.value.to_string(),
-            version: record.version.clone(),
-        };
-
-        let query_result: std::prelude::v1::Result<sqlx::postgres::PgQueryResult, sqlx::Error> =
-            sqlx::raw_sql(query.format(&params).as_str())
-                .execute(&self.pool)
-                .await;
+        let query_result = sqlx::query(&query.sql)
+            .bind(record.created_at)
+            .bind(&record.name)
+            .bind(&record.repository)
+            .bind(&record.version)
+            .bind(&record.feature)
+            .bind(record.value)
+            .execute(&self.pool)
+            .await
+            .with_context(|| "Failed to insert alert into database");
 
         //drop params
         match query_result {
@@ -260,23 +221,19 @@ impl PostgresClient {
             )
         })?;
 
-        let params = InsertDriftProfileParams {
-            table: "scouter.drift_profile".to_string(),
-            name: drift_profile.config.name.clone(),
-            repository: drift_profile.config.repository.clone(),
-            version: drift_profile.config.version.clone(),
-            profile: serde_json::to_string(&drift_profile).unwrap(),
-            scouter_version: drift_profile.scouter_version.clone(),
-            active: false,
-            schedule: drift_profile.config.alert_config.schedule.clone(),
-            next_run: next_run.naive_utc(),
-            previous_run: next_run.naive_utc(),
-        };
-
-        let query_result: std::prelude::v1::Result<sqlx::postgres::PgQueryResult, sqlx::Error> =
-            sqlx::raw_sql(query.format(&params).as_str())
-                .execute(&self.pool)
-                .await;
+        let query_result = sqlx::query(&query.sql)
+            .bind(drift_profile.config.name.clone())
+            .bind(drift_profile.config.repository.clone())
+            .bind(drift_profile.config.version.clone())
+            .bind(drift_profile.scouter_version.clone())
+            .bind(serde_json::to_value(drift_profile).unwrap())
+            .bind(false)
+            .bind(drift_profile.config.alert_config.schedule.clone())
+            .bind(next_run.naive_utc())
+            .bind(next_run.naive_utc())
+            .execute(&self.pool)
+            .await
+            .with_context(|| "Failed to insert profile into database");
 
         match query_result {
             Ok(result) => Ok(result),
@@ -293,18 +250,14 @@ impl PostgresClient {
     ) -> Result<PgQueryResult, anyhow::Error> {
         let query = Queries::UpdateDriftProfile.get_query();
 
-        let params = UpdateDriftProfileParams {
-            table: "scouter.drift_profile".to_string(),
-            name: drift_profile.config.name.clone(),
-            repository: drift_profile.config.repository.clone(),
-            version: drift_profile.config.version.clone(),
-            profile: serde_json::to_string(&drift_profile).unwrap(),
-        };
-
-        let query_result: std::prelude::v1::Result<sqlx::postgres::PgQueryResult, sqlx::Error> =
-            sqlx::raw_sql(query.format(&params).as_str())
-                .execute(&self.pool)
-                .await;
+        let query_result = sqlx::query(&query.sql)
+            .bind(serde_json::to_value(drift_profile).unwrap())
+            .bind(drift_profile.config.name.clone())
+            .bind(drift_profile.config.repository.clone())
+            .bind(drift_profile.config.version.clone())
+            .execute(&self.pool)
+            .await
+            .with_context(|| "Failed to insert profile into database");
 
         match query_result {
             Ok(result) => Ok(result),
@@ -317,20 +270,14 @@ impl PostgresClient {
 
     pub async fn get_drift_profile(
         &self,
-        name: &str,
-        repository: &str,
-        version: &str,
+        params: &BaseRequest,
     ) -> Result<Option<Value>, anyhow::Error> {
         let query = Queries::GetDriftProfile.get_query();
 
-        let params = GetDriftProfileParams {
-            table: self.profile_table_name.to_string(),
-            name: name.to_string(),
-            repository: repository.to_string(),
-            version: version.to_string(),
-        };
-
-        let result = sqlx::query(query.format(&params).as_str())
+        let result = sqlx::query(&query.sql)
+            .bind(&params.name)
+            .bind(&params.repository)
+            .bind(&params.version)
             .fetch_optional(&self.pool)
             .await
             .with_context(|| "Failed to get drift profile from database")?;
@@ -348,12 +295,7 @@ impl PostgresClient {
         transaction: &mut Transaction<'_, Postgres>,
     ) -> Result<Option<PgRow>, Error> {
         let query = Queries::GetDriftTask.get_query();
-
-        let params = GetDriftProfileTaskParams {
-            table: "scouter.drift_profile".to_string(),
-        };
-
-        let result = sqlx::query(query.format(&params).as_str())
+        let result = sqlx::query(&query.sql)
             .fetch_optional(&mut **transaction)
             .await
             .with_context(|| "Failed to get drift profile from database")?;
@@ -380,15 +322,11 @@ impl PostgresClient {
             )
         })?;
 
-        let params = UpdateDriftProfileRunDatesParams {
-            table: "scouter.drift_profile".to_string(),
-            name: name.to_string(),
-            repository: repository.to_string(),
-            version: version.to_string(),
-            next_run: next_run.naive_utc(),
-        };
-
-        let query_result = sqlx::query(query.format(&params).as_str())
+        let query_result = sqlx::query(&query.sql)
+            .bind(next_run.naive_utc())
+            .bind(name)
+            .bind(repository)
+            .bind(version)
             .execute(&mut **transaction)
             .await;
 
@@ -407,10 +345,8 @@ impl PostgresClient {
         &self,
         records: &[DriftRecord],
     ) -> Result<PgQueryResult, anyhow::Error> {
-        let insert_statement = format!(
-            "INSERT INTO {} (created_at, name, repository, version, feature, value)",
-            self.drift_table_name
-        );
+        let insert_statement =
+            "INSERT INTO scouter.drift (created_at, name, repository, version, feature, value)";
 
         let mut query_builder = QueryBuilder::new(insert_statement);
 
@@ -425,15 +361,10 @@ impl PostgresClient {
 
         let query = query_builder.build();
 
-        let query_result = query.execute(&self.pool).await;
-
-        match query_result {
-            Ok(result) => Ok(result),
-            Err(e) => {
-                error!("Failed to insert record into database: {:?}", e);
-                Err(anyhow!("Failed to insert record into database: {:?}", e))
-            }
-        }
+        query.execute(&self.pool).await.map_err(|e| {
+            error!("Failed to insert record into database: {:?}", e);
+            anyhow!("Failed to insert record into database: {:?}", e)
+        })
     }
 
     // Queries the database for all features under a service
@@ -446,56 +377,48 @@ impl PostgresClient {
     ) -> Result<Vec<String>, anyhow::Error> {
         let query = Queries::GetFeatures.get_query();
 
-        let params = GetFeaturesParams {
-            table: self.drift_table_name.to_string(),
-            name: name.to_string(),
-            repository: repository.to_string(),
-            version: version.to_string(),
-        };
-
-        let result = sqlx::raw_sql(query.format(&params).as_str())
+        sqlx::query(&query.sql)
+            .bind(name)
+            .bind(repository)
+            .bind(version)
             .fetch_all(&self.pool)
-            .await?;
-
-        let mut features = Vec::new();
-
-        for row in result {
-            features.push(row.get("feature"));
-        }
-
-        Ok(features)
+            .await
+            .map_err(|e| {
+                error!("Failed to get features from database: {:?}", e);
+                anyhow!("Failed to get features from database: {:?}", e)
+            })
+            .map(|result| {
+                result
+                    .iter()
+                    .map(|row| row.get("feature"))
+                    .collect::<Vec<String>>()
+            })
     }
 
-    async fn run_feature_query(
+    async fn run_spc_feature_query(
         &self,
         feature: &str,
         name: &str,
         repository: &str,
         version: &str,
         limit_timestamp: &str,
-    ) -> Result<Vec<PgRow>, anyhow::Error> {
+    ) -> Result<SpcFeatureResult, anyhow::Error> {
         let query = Queries::GetFeatureValues.get_query();
 
-        let params = GetFeatureValuesParams {
-            table: self.drift_table_name.to_string(),
-            name: name.to_string(),
-            repository: repository.to_string(),
-            version: version.to_string(),
-            feature: feature.to_string(),
-            limit_timestamp: limit_timestamp.to_string(),
-        };
-
-        let result = sqlx::raw_sql(query.format(&params).as_str())
-            .fetch_all(&self.pool)
-            .await;
-
-        match result {
-            Ok(result) => Ok(result),
-            Err(e) => {
+        let feature_values: Result<SpcFeatureResult, anyhow::Error> = sqlx::query_as(&query.sql)
+            .bind(limit_timestamp)
+            .bind(name)
+            .bind(repository)
+            .bind(version)
+            .bind(feature)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|e| {
                 error!("Failed to run query: {:?}", e);
-                Err(anyhow!("Failed to run query: {:?}", e))
-            }
-        }
+                anyhow!("Failed to run query: {:?}", e)
+            });
+
+        feature_values
     }
 
     async fn run_binned_feature_query(
@@ -506,30 +429,23 @@ impl PostgresClient {
         time_window: &i32,
         name: &str,
         repository: &str,
-    ) -> Result<Vec<PgRow>, anyhow::Error> {
+    ) -> Result<SpcFeatureResult, anyhow::Error> {
         let query = Queries::GetBinnedFeatureValues.get_query();
 
-        let params = GetBinnedFeatureValuesParams {
-            table: self.drift_table_name.to_string(),
-            name: name.to_string(),
-            repository: repository.to_string(),
-            feature,
-            version: version.to_string(),
-            time_window: time_window.to_string(),
-            bin: bin.to_string(),
-        };
-
-        let result = sqlx::raw_sql(query.format(&params).as_str())
-            .fetch_all(&self.pool)
+        let binned: Result<SpcFeatureResult, sqlx::Error> = sqlx::query_as(&query.sql)
+            .bind(bin)
+            .bind(time_window)
+            .bind(name)
+            .bind(repository)
+            .bind(version)
+            .bind(feature)
+            .fetch_one(&self.pool)
             .await;
 
-        match result {
-            Ok(result) => Ok(result),
-            Err(e) => {
-                error!("Failed to run query: {:?}", e);
-                Err(anyhow!("Failed to run query: {:?}", e))
-            }
-        }
+        binned.map_err(|e| {
+            error!("Failed to run query: {:?}", e);
+            anyhow!("Failed to run query: {:?}", e)
+        })
     }
 
     // Queries the database for drift records based on a time window and aggregation
@@ -547,16 +463,16 @@ impl PostgresClient {
     // * A vector of drift records
     pub async fn get_binned_drift_records(
         &self,
-        name: &str,
-        repository: &str,
-        version: &str,
-        max_data_points: &i32,
-        time_window: &i32,
+        params: &DriftRequest,
     ) -> Result<QueryResult, anyhow::Error> {
         // get features
-        let features = self.get_features(name, repository, version).await?;
+        let features = self
+            .get_features(&params.name, &params.repository, &params.version)
+            .await?;
 
-        let bin = *time_window as f64 / *max_data_points as f64;
+        let time_window = TimeInterval::from_string(&params.time_window).to_minutes();
+
+        let bin = time_window as f64 / params.max_data_points as f64;
 
         let async_queries = features
             .iter()
@@ -564,10 +480,10 @@ impl PostgresClient {
                 self.run_binned_feature_query(
                     &bin,
                     feature.to_string(),
-                    version,
-                    time_window,
-                    name,
-                    repository,
+                    &params.version,
+                    &time_window,
+                    &params.name,
+                    &params.repository,
                 )
             })
             .collect::<Vec<_>>();
@@ -579,33 +495,20 @@ impl PostgresClient {
             features: BTreeMap::new(),
         };
 
-        for data in query_results {
-            match data {
-                Ok(data) => {
-                    //check if data is empty
-                    if data.is_empty() {
-                        continue;
-                    }
-
-                    let feature_name = data[0].get("feature");
-                    let mut created_at = Vec::new();
-                    let mut values = Vec::new();
-
-                    for row in data {
-                        created_at.push(row.get("created_at"));
-                        values.push(row.get("value"));
-                    }
-
-                    query_result
-                        .features
-                        .insert(feature_name, FeatureResult { created_at, values });
-                }
-                Err(e) => {
-                    error!("Failed to run query: {:?}", e);
-                    return Err(anyhow!("Failed to run query: {:?}", e));
-                }
+        query_results.iter().for_each(|result| match result {
+            Ok(result) => {
+                query_result.features.insert(
+                    result.feature.clone(),
+                    FeatureResult {
+                        created_at: result.created_at.clone(),
+                        values: result.values.clone(),
+                    },
+                );
             }
-        }
+            Err(e) => {
+                error!("Failed to run query: {:?}", e);
+            }
+        });
 
         Ok(query_result)
     }
@@ -624,14 +527,15 @@ impl PostgresClient {
             features.retain(|feature| features_to_monitor.contains(feature));
         }
 
-        let async_queries = features
-            .iter()
-            .map(|feature| {
-                self.run_feature_query(feature, name, repository, version, limit_timestamp)
-            })
-            .collect::<Vec<_>>();
-
-        let query_results = join_all(async_queries).await;
+        let query_results = join_all(
+            features
+                .iter()
+                .map(|feature| {
+                    self.run_spc_feature_query(feature, name, repository, version, limit_timestamp)
+                })
+                .collect::<Vec<_>>(),
+        )
+        .await;
 
         let mut query_result = QueryResult {
             features: BTreeMap::new(),
@@ -640,23 +544,18 @@ impl PostgresClient {
         let feature_sizes = query_results
             .iter()
             .map(|result| match result {
-                Ok(result) => result.len(),
+                Ok(result) => result.values.len(),
                 Err(_) => 0,
             })
             .collect::<Vec<_>>();
 
         // check if all feature values have the same length
         // log a warning if they don't
-        if !feature_sizes.iter().all(|size| *size == feature_sizes[0]) {
-            let msg = format!(
-                "Feature values have different lengths for drift profile: {}/{}/{}",
-                name, repository, version
-            );
-
+        if feature_sizes.windows(2).any(|w| w[0] != w[1]) {
             warn!(
-                "{}, Timestamp: {:?}, feature sizes: {:?}",
-                msg, limit_timestamp, feature_sizes
-            );
+                    "Feature values have different lengths for drift profile: {}/{}/{}, Timestamp: {:?}, feature sizes: {:?}",
+                    name, repository, version, limit_timestamp, feature_sizes
+                );
         }
 
         // Get smallest non-zero feature size
@@ -668,27 +567,16 @@ impl PostgresClient {
 
         for data in query_results {
             match data {
-                Ok(data) => {
-                    //check if data is empty
-                    if data.is_empty() {
-                        continue;
-                    }
-
-                    let feature_name = data[0].get("feature");
-                    let mut created_at = Vec::new();
-                    let mut values = Vec::new();
-
-                    data.iter().enumerate().for_each(|(i, row)| {
-                        if i < *min_feature_size {
-                            created_at.push(row.get("created_at"));
-                            values.push(row.get("value"));
-                        }
-                    });
-
-                    query_result
-                        .features
-                        .insert(feature_name, FeatureResult { created_at, values });
+                Ok(data) if !data.values.is_empty() => {
+                    query_result.features.insert(
+                        data.feature.clone(),
+                        FeatureResult {
+                            values: data.values[..*min_feature_size].to_vec(),
+                            created_at: data.created_at[..*min_feature_size].to_vec(),
+                        },
+                    );
                 }
+                Ok(_) => continue,
                 Err(e) => {
                     error!("Failed to run query: {:?}", e);
                     return Err(anyhow!("Failed to run query: {:?}", e));
@@ -716,22 +604,15 @@ impl PostgresClient {
 
     pub async fn update_drift_profile_status(
         &self,
-        name: &str,
-        repository: &str,
-        version: &str,
-        active: &bool,
+        params: &ProfileStatusRequest,
     ) -> Result<(), anyhow::Error> {
         let query = Queries::UpdateDriftProfileStatus.get_query();
 
-        let params = UpdateDriftProfileStatusParams {
-            table: self.profile_table_name.to_string(),
-            name: name.to_string(),
-            repository: repository.to_string(),
-            version: version.to_string(),
-            active: *active,
-        };
-
-        let query_result = sqlx::raw_sql(query.format(&params).as_str())
+        let query_result = sqlx::query(&query.sql)
+            .bind(params.active)
+            .bind(&params.name)
+            .bind(&params.repository)
+            .bind(&params.version)
             .execute(&self.pool)
             .await;
 

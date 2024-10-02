@@ -3,7 +3,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ServiceDriftRequest {
+pub struct DriftRequest {
     pub name: String,
     pub repository: String,
     pub version: String,
@@ -35,10 +35,12 @@ pub struct DriftAlertRequest {
     pub repository: String,
     pub version: String,
     pub limit_timestamp: Option<String>,
+    pub active: Option<bool>,
+    pub limit: Option<i32>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ProfileRequest {
+pub struct BaseRequest {
     pub name: String,
     pub repository: String,
     pub version: String,

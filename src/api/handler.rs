@@ -1,8 +1,7 @@
 use crate::api::schema::{
-    DriftAlertRequest, DriftRecordRequest, ProfileRequest, ProfileStatusRequest,
-    ServiceDriftRequest,
+    BaseRequest, DriftAlertRequest, DriftRecordRequest, DriftRequest, ProfileStatusRequest,
 };
-use crate::sql::postgres::TimeInterval;
+
 use crate::sql::schema::DriftRecord;
 use axum::{
     extract::{Query, State},
@@ -30,22 +29,11 @@ pub async fn health_check() -> impl IntoResponse {
 
 pub async fn get_drift(
     State(data): State<Arc<AppState>>,
-    params: Query<ServiceDriftRequest>,
+    params: Query<DriftRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     // validate time window
 
-    let time_interval = TimeInterval::from_string(&params.time_window).to_minutes();
-
-    let query_result = &data
-        .db
-        .get_binned_drift_records(
-            &params.name,
-            &params.repository,
-            &params.version,
-            &params.max_data_points,
-            &time_interval,
-        )
-        .await;
+    let query_result = &data.db.get_binned_drift_records(&params).await;
 
     match query_result {
         Ok(result) => {
@@ -71,34 +59,23 @@ pub async fn insert_drift(
     Json(body): Json<DriftRecordRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     // set default if missing
-    let record = DriftRecord {
-        created_at: body
-            .created_at
-            .unwrap_or_else(|| chrono::Utc::now().naive_utc()),
-        name: body.name.clone(),
-        repository: body.repository.clone(),
-        feature: body.feature.clone(),
-        value: body.value,
-        version: body.version.clone(),
-    };
-
+    let record = DriftRecord::from_request(body);
     let query_result = &data.db.insert_drift_record(&record).await;
 
     match query_result {
-        Ok(_) => {
-            let json_response = json!({
-                "status": "success",
-                "message": "Record inserted successfully"
-            });
-            Ok(Json(json_response))
-        }
+        Ok(_) => Ok(Json(json!({
+            "status": "success",
+            "message": "Record inserted successfully"
+        }))),
         Err(e) => {
             error!("Failed to insert drift record: {:?}", e);
-            let json_response = json!({
-                "status": "error",
-                "message": format!("{:?}", e)
-            });
-            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "status": "error",
+                    "message": format!("{:?}", e)
+                })),
+            ))
         }
     }
 }
@@ -181,36 +158,31 @@ pub async fn update_drift_profile(
 
 pub async fn get_profile(
     State(data): State<Arc<AppState>>,
-    params: Query<ProfileRequest>,
+    params: Query<BaseRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
-    let profile = &data
-        .db
-        .get_drift_profile(&params.name, &params.repository, &params.version)
-        .await;
+    let profile = &data.db.get_drift_profile(&params).await;
 
     match profile {
-        Ok(result) => {
-            if result.is_some() {
-                let json_response = json!({
-                    "status": "success",
-                    "data": result
-                });
-                Ok(Json(json_response))
-            } else {
-                let json_response = json!({
-                    "status": "error",
-                    "message": "Profile not found"
-                });
-                Err((StatusCode::NOT_FOUND, Json(json_response)))
-            }
-        }
+        Ok(Some(result)) => Ok(Json(json!({
+            "status": "success",
+            "data": result
+        }))),
+        Ok(None) => Err((
+            StatusCode::NOT_FOUND,
+            Json(json!({
+                "status": "error",
+                "message": "Profile not found"
+            })),
+        )),
         Err(e) => {
             error!("Failed to query drift profile: {:?}", e);
-            let json_response = json!({
-                "status": "error",
-                "message": format!("{:?}", e)
-            });
-            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "status": "error",
+                    "message": format!("{:?}", e)
+                })),
+            ))
         }
     }
 }
@@ -219,33 +191,28 @@ pub async fn update_drift_profile_status(
     State(data): State<Arc<AppState>>,
     Json(body): Json<ProfileStatusRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
-    let query_result = &data
-        .db
-        .update_drift_profile_status(&body.name, &body.repository, &body.version, &body.active)
-        .await;
+    let query_result = &data.db.update_drift_profile_status(&body).await;
 
     match query_result {
-        Ok(_) => {
-            let message = format!(
+        Ok(_) => Ok(Json(json!({
+            "status": "success",
+            "message": format!(
                 "Monitor profile status updated to {} for {} {} {}",
                 &body.active, &body.name, &body.repository, &body.version
-            );
-            let json_response = json!({
-                "status": "success",
-                "message": message
-            });
-            Ok(Json(json_response))
-        }
+            )
+        }))),
         Err(e) => {
             error!(
                 "Failed to update drift profile status for {} {} {} : {:?}",
                 &body.name, &body.repository, &body.version, e
             );
-            let json_response = json!({
-                "status": "error",
-                "message": format!("{:?}", e)
-            });
-            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "status": "error",
+                    "message": format!("{:?}", e)
+                })),
+            ))
         }
     }
 }
@@ -254,15 +221,7 @@ pub async fn get_drift_alerts(
     State(data): State<Arc<AppState>>,
     params: Query<DriftAlertRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
-    let query_result = &data
-        .db
-        .get_drift_alerts(
-            &params.name,
-            &params.repository,
-            &params.version,
-            params.limit_timestamp.as_deref(),
-        )
-        .await;
+    let query_result = &data.db.get_drift_alerts(&params).await;
 
     match query_result {
         Ok(result) => {

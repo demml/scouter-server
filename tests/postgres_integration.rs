@@ -125,8 +125,8 @@ async fn test_postgres_client() {
             &record.name,
             &record.repository,
             &record.version,
-            &(1000 as i32),
-            &(30 as i32),
+            &(1000_i32),
+            &(30_i32),
         )
         .await
         .unwrap();

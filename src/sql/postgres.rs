@@ -1,11 +1,7 @@
 use crate::sql::query::{
-    GetBinnedFeatureValuesParams, GetDriftProfileParams, GetDriftProfileTaskParams,
-    GetFeatureValuesParams, GetFeaturesParams, Queries, UpdateDriftProfileRunDatesParams,
-    UpdateDriftProfileStatusParams, DRIFT_ALERT_TABLE, DRIFT_PROFILE_TABLE, DRIFT_TABLE,
+    Queries, UpdateDriftProfileStatusParams, DRIFT_ALERT_TABLE, DRIFT_PROFILE_TABLE, DRIFT_TABLE,
 };
-use crate::sql::schema::{
-    AlertResult, BinnedSpcFeatureResult, DriftRecord, FeatureResult, QueryResult,
-};
+use crate::sql::schema::{AlertResult, DriftRecord, FeatureResult, QueryResult, SpcFeatureResult};
 use anyhow::*;
 use chrono::Utc;
 use cron::Schedule;
@@ -416,28 +412,30 @@ impl PostgresClient {
             })
     }
 
-    async fn run_feature_query(
+    async fn run_spc_feature_query(
         &self,
         feature: &str,
         name: &str,
         repository: &str,
         version: &str,
         limit_timestamp: &str,
-    ) -> Result<Vec<PgRow>, anyhow::Error> {
+    ) -> Result<SpcFeatureResult, anyhow::Error> {
         let query = Queries::GetFeatureValues.get_query();
 
-        sqlx::query(&query.sql)
+        let feature_values: Result<SpcFeatureResult, anyhow::Error> = sqlx::query_as(&query.sql)
             .bind(limit_timestamp)
             .bind(name)
             .bind(repository)
             .bind(version)
             .bind(feature)
-            .fetch_all(&self.pool)
+            .fetch_one(&self.pool)
             .await
             .map_err(|e| {
                 error!("Failed to run query: {:?}", e);
                 anyhow!("Failed to run query: {:?}", e)
-            })
+            });
+
+        feature_values
     }
 
     async fn run_binned_feature_query(
@@ -448,10 +446,10 @@ impl PostgresClient {
         time_window: &i32,
         name: &str,
         repository: &str,
-    ) -> Result<BinnedSpcFeatureResult, anyhow::Error> {
+    ) -> Result<SpcFeatureResult, anyhow::Error> {
         let query = Queries::GetBinnedFeatureValues.get_query();
 
-        let binned: Result<BinnedSpcFeatureResult, sqlx::Error> = sqlx::query_as(&query.sql)
+        let binned: Result<SpcFeatureResult, sqlx::Error> = sqlx::query_as(&query.sql)
             .bind(bin)
             .bind(time_window)
             .bind(name)
@@ -546,14 +544,15 @@ impl PostgresClient {
             features.retain(|feature| features_to_monitor.contains(feature));
         }
 
-        let async_queries = features
-            .iter()
-            .map(|feature| {
-                self.run_feature_query(feature, name, repository, version, limit_timestamp)
-            })
-            .collect::<Vec<_>>();
-
-        let query_results = join_all(async_queries).await;
+        let query_results = join_all(
+            features
+                .iter()
+                .map(|feature| {
+                    self.run_spc_feature_query(feature, name, repository, version, limit_timestamp)
+                })
+                .collect::<Vec<_>>(),
+        )
+        .await;
 
         let mut query_result = QueryResult {
             features: BTreeMap::new(),
@@ -562,23 +561,18 @@ impl PostgresClient {
         let feature_sizes = query_results
             .iter()
             .map(|result| match result {
-                Ok(result) => result.len(),
+                Ok(result) => result.values.len(),
                 Err(_) => 0,
             })
             .collect::<Vec<_>>();
 
         // check if all feature values have the same length
         // log a warning if they don't
-        if !feature_sizes.iter().all(|size| *size == feature_sizes[0]) {
-            let msg = format!(
-                "Feature values have different lengths for drift profile: {}/{}/{}",
-                name, repository, version
-            );
-
+        if feature_sizes.windows(2).any(|w| w[0] != w[1]) {
             warn!(
-                "{}, Timestamp: {:?}, feature sizes: {:?}",
-                msg, limit_timestamp, feature_sizes
-            );
+                    "Feature values have different lengths for drift profile: {}/{}/{}, Timestamp: {:?}, feature sizes: {:?}",
+                    name, repository, version, limit_timestamp, feature_sizes
+                );
         }
 
         // Get smallest non-zero feature size
@@ -590,27 +584,16 @@ impl PostgresClient {
 
         for data in query_results {
             match data {
-                Ok(data) => {
-                    //check if data is empty
-                    if data.is_empty() {
-                        continue;
-                    }
-
-                    let feature_name = data[0].get("feature");
-                    let mut created_at = Vec::new();
-                    let mut values = Vec::new();
-
-                    data.iter().enumerate().for_each(|(i, row)| {
-                        if i < *min_feature_size {
-                            created_at.push(row.get("created_at"));
-                            values.push(row.get("value"));
-                        }
-                    });
-
-                    query_result
-                        .features
-                        .insert(feature_name, FeatureResult { created_at, values });
+                Ok(data) if !data.values.is_empty() => {
+                    query_result.features.insert(
+                        data.feature.clone(),
+                        FeatureResult {
+                            values: data.values[..*min_feature_size].to_vec(),
+                            created_at: data.created_at[..*min_feature_size].to_vec(),
+                        },
+                    );
                 }
+                Ok(_) => continue,
                 Err(e) => {
                     error!("Failed to run query: {:?}", e);
                     return Err(anyhow!("Failed to run query: {:?}", e));

@@ -119,5 +119,19 @@ async fn test_postgres_client() {
 
     assert_eq!(result.len(), 1);
 
+    //test get_binned_drift_records
+    let result = db_client
+        .get_binned_drift_records(
+            &record.name,
+            &record.repository,
+            &record.version,
+            &(1000 as i32),
+            &(30 as i32),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(result.features.len(), 1);
+
     test_utils::teardown().await.unwrap();
 }

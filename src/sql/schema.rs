@@ -95,7 +95,7 @@ pub struct TaskRequest {
     pub name: String,
     pub repository: String,
     pub version: String,
-    pub profile: serde_json::Value,
+    pub profile: String,
     pub profile_type: String,
     pub previous_run: NaiveDateTime,
     pub schedule: String,
@@ -103,13 +103,11 @@ pub struct TaskRequest {
 
 impl<'r> FromRow<'r, PgRow> for TaskRequest {
     fn from_row(row: &'r PgRow) -> Result<Self, Error> {
-        let profile: serde_json::Value = row.try_get("profile")?;
-
         Ok(TaskRequest {
             name: row.try_get("name")?,
             repository: row.try_get("repository")?,
             version: row.try_get("version")?,
-            profile,
+            profile: row.try_get("profile")?,
             profile_type: row.try_get("profile_type")?,
             previous_run: row.try_get("previous_run")?,
             schedule: row.try_get("schedule")?,

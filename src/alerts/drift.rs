@@ -1,47 +1,23 @@
+use crate::alerts::types::DriftProfile;
 use crate::sql::postgres::PostgresClient;
-use crate::sql::schema::QueryResult;
 use anyhow::{Context, Result};
 use chrono::NaiveDateTime;
-use scouter::core::dispatch::dispatcher::dispatcher_logic::AlertDispatcher;
 use scouter::core::drift::base::DriftType;
-use scouter::core::drift::spc::alert::generate_alerts;
-use scouter::core::drift::spc::monitor::SpcMonitor;
-use scouter::core::drift::spc::types::SpcDriftProfile;
+use std::collections::BTreeMap;
 use tracing::error;
 use tracing::info;
 
-use crate::alerts::types::{Drifter, TaskAlerts};
-use ndarray::Array2;
-use sqlx::Row;
-use std::collections::BTreeMap;
-
-use super::spc::drift::SpcDrifter;
-
-pub trait GetDrifter {
-    fn get_drifter(
-        &self,
-        db_client: PostgresClient,
-        name: String,
-        repository: String,
-        version: String,
-    ) -> Drifter;
+pub trait DriftTypeTrait {
+    fn from_str(value: &str) -> DriftType;
 }
 
-impl GetDrifter for SpcDriftProfile {
-    fn get_drifter(
-        &self,
-        db_client: PostgresClient,
-        name: String,
-        repository: String,
-        version: String,
-    ) -> Drifter {
-        Drifter::SpcDrifter(SpcDrifter::new(
-            db_client,
-            name,
-            repository,
-            version,
-            self.clone(),
-        ))
+impl DriftTypeTrait for DriftType {
+    fn from_str(value: &str) -> DriftType {
+        match value {
+            "SPC" => DriftType::SPC,
+            "PSI" => DriftType::PSI,
+            _ => DriftType::NONE,
+        }
     }
 }
 
@@ -65,23 +41,23 @@ impl DriftExecutor {
     ///
     /// # Returns
     ///
-    pub async fn process_task<T: GetDrifter>(
+    pub async fn process_task(
         &mut self,
-        profile: T,
+        profile: DriftProfile,
         previous_run: NaiveDateTime,
         name: &str,
         repository: &str,
         version: &str,
     ) -> Result<Option<Vec<BTreeMap<String, String>>>, anyhow::Error> {
         // match Drifter enum
-        let drifter = profile.get_drifter(
-            self.db_client.clone(),
-            name.to_string(),
-            repository.to_string(),
-            version.to_string(),
-        );
-
-        drifter.check_for_alerts(previous_run).await
+        profile
+            .get_drifter(
+                name.to_string(),
+                repository.to_string(),
+                version.to_string(),
+            )
+            .check_for_alerts(&self.db_client, previous_run)
+            .await
     }
 
     /// Execute single drift computation and alerting
@@ -104,12 +80,9 @@ impl DriftExecutor {
             return Ok(());
         };
 
-        let profile = if task.profile_type == "spc" {
-            serde_json::from_value::<SpcDriftProfile>(task.profile)
-                .context("error converting postgres jsonb profile to struct type SpcDriftProfile")
-        } else {
-            Err(anyhow::anyhow!("unsupported profile type"))
-        };
+        let profile =
+            DriftProfile::from_type(DriftType::from_str(&task.profile_type), task.profile)
+                .context("error converting drift profile to DriftProfile");
 
         if let Ok(profile) = profile {
             match self

@@ -18,7 +18,6 @@ use ndarray::Array2;
 // Defines the SpcDrifter struct
 // This is used to process drift alerts for spc style profiles
 pub struct SpcDrifter {
-    db_client: PostgresClient,
     name: String,
     repository: String,
     version: String,
@@ -27,14 +26,12 @@ pub struct SpcDrifter {
 
 impl SpcDrifter {
     pub fn new(
-        db_client: PostgresClient,
         name: String,
         repository: String,
         version: String,
         profile: SpcDriftProfile,
     ) -> Self {
         Self {
-            db_client,
             name,
             repository,
             version,
@@ -43,11 +40,11 @@ impl SpcDrifter {
     }
     async fn get_drift_features(
         &self,
+        db_client: &PostgresClient,
         limit_timestamp: &str,
         features_to_monitor: &[String],
     ) -> Result<QueryResult> {
-        let records = self
-            .db_client
+        let records = db_client
             .get_drift_records(
                 &self.name,
                 &self.repository,
@@ -72,9 +69,11 @@ impl SpcDrifter {
     pub async fn compute_drift(
         &self,
         limit_timestamp: &NaiveDateTime,
+        db_client: &PostgresClient,
     ) -> Result<(Array2<f64>, Vec<String>)> {
         let drift_features = self
             .get_drift_features(
+                db_client,
                 &limit_timestamp.to_string(),
                 &self.profile.config.alert_config.features_to_monitor,
             )
@@ -206,6 +205,7 @@ impl SpcDrifter {
     /// * `previous_run` - Previous run timestamp
     pub async fn check_for_alerts(
         &self,
+        db_client: &PostgresClient,
         previous_run: NaiveDateTime,
     ) -> Result<Option<Vec<BTreeMap<String, String>>>, anyhow::Error> {
         info!(
@@ -216,7 +216,7 @@ impl SpcDrifter {
 
         // Compute drift
         let (drift_array, keys) = self
-            .compute_drift(&previous_run)
+            .compute_drift(&previous_run, db_client)
             .await
             .with_context(|| "error computing drift")?;
 

@@ -1,6 +1,8 @@
 use crate::api::schema::{BaseRequest, DriftAlertRequest, DriftRequest, ProfileStatusRequest};
 use crate::sql::query::Queries;
-use crate::sql::schema::{AlertResult, DriftRecord, FeatureResult, QueryResult, SpcFeatureResult};
+use crate::sql::schema::{
+    AlertResult, DriftRecord, FeatureResult, QueryResult, SpcFeatureResult, TaskRequest,
+};
 use anyhow::*;
 use chrono::Utc;
 use cron::Schedule;
@@ -293,14 +295,16 @@ impl PostgresClient {
 
     pub async fn get_drift_profile_task(
         transaction: &mut Transaction<'_, Postgres>,
-    ) -> Result<Option<PgRow>, Error> {
+    ) -> Result<Option<TaskRequest>, Error> {
         let query = Queries::GetDriftTask.get_query();
-        let result = sqlx::query(&query.sql)
+        let result: Result<Option<TaskRequest>, sqlx::Error> = sqlx::query_as(&query.sql)
             .fetch_optional(&mut **transaction)
-            .await
-            .with_context(|| "Failed to get drift profile from database")?;
+            .await;
 
-        Ok(result)
+        Ok(result.map_err(|e| {
+            error!("Failed to get drift task from database: {:?}", e);
+            anyhow!("Failed to get drift task from database: {:?}", e)
+        })?)
     }
 
     pub async fn update_drift_profile_run_dates(

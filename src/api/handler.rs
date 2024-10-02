@@ -1,8 +1,7 @@
 use crate::api::schema::{
-    DriftAlertRequest, DriftRecordRequest, ProfileRequest, ProfileStatusRequest,
-    ServiceDriftRequest,
+    DriftAlertRequest, DriftRecordRequest, DriftRequest, ProfileRequest, ProfileStatusRequest,
 };
-use crate::sql::postgres::TimeInterval;
+
 use crate::sql::schema::DriftRecord;
 use axum::{
     extract::{Query, State},
@@ -30,22 +29,11 @@ pub async fn health_check() -> impl IntoResponse {
 
 pub async fn get_drift(
     State(data): State<Arc<AppState>>,
-    params: Query<ServiceDriftRequest>,
+    params: Query<DriftRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     // validate time window
 
-    let time_interval = TimeInterval::from_string(&params.time_window).to_minutes();
-
-    let query_result = &data
-        .db
-        .get_binned_drift_records(
-            &params.name,
-            &params.repository,
-            &params.version,
-            &params.max_data_points,
-            &time_interval,
-        )
-        .await;
+    let query_result = &data.db.get_binned_drift_records(&params).await;
 
     match query_result {
         Ok(result) => {

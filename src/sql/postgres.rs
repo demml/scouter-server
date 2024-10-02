@@ -1,6 +1,5 @@
-use crate::sql::query::{
-    Queries, UpdateDriftProfileStatusParams, DRIFT_ALERT_TABLE, DRIFT_PROFILE_TABLE, DRIFT_TABLE,
-};
+use crate::api::schema::DriftRequest;
+use crate::sql::query::Queries;
 use crate::sql::schema::{AlertResult, DriftRecord, FeatureResult, QueryResult, SpcFeatureResult};
 use anyhow::*;
 use chrono::Utc;
@@ -70,9 +69,6 @@ impl TimeInterval {
 #[allow(dead_code)]
 pub struct PostgresClient {
     pub pool: Pool<Postgres>,
-    drift_table_name: String,
-    profile_table_name: String,
-    alert_table_name: String,
 }
 
 impl PostgresClient {
@@ -80,12 +76,7 @@ impl PostgresClient {
     pub fn new(pool: Pool<Postgres>) -> Result<Self, anyhow::Error> {
         // get database url from env or use the provided one
 
-        Ok(Self {
-            pool,
-            drift_table_name: DRIFT_TABLE.to_string(),
-            profile_table_name: DRIFT_PROFILE_TABLE.to_string(),
-            alert_table_name: DRIFT_ALERT_TABLE.to_string(),
-        })
+        Ok(Self { pool })
     }
 
     // Inserts a drift alert into the database
@@ -360,10 +351,8 @@ impl PostgresClient {
         &self,
         records: &[DriftRecord],
     ) -> Result<PgQueryResult, anyhow::Error> {
-        let insert_statement = format!(
-            "INSERT INTO {} (created_at, name, repository, version, feature, value)",
-            self.drift_table_name
-        );
+        let insert_statement =
+            "INSERT INTO scouter.drift (created_at, name, repository, version, feature, value)";
 
         let mut query_builder = QueryBuilder::new(insert_statement);
 
@@ -480,16 +469,16 @@ impl PostgresClient {
     // * A vector of drift records
     pub async fn get_binned_drift_records(
         &self,
-        name: &str,
-        repository: &str,
-        version: &str,
-        max_data_points: &i32,
-        time_window: &i32,
+        params: &DriftRequest,
     ) -> Result<QueryResult, anyhow::Error> {
         // get features
-        let features = self.get_features(name, repository, version).await?;
+        let features = self
+            .get_features(&params.name, &params.repository, &params.version)
+            .await?;
 
-        let bin = *time_window as f64 / *max_data_points as f64;
+        let time_window = TimeInterval::from_string(&params.time_window).to_minutes();
+
+        let bin = time_window as f64 / params.max_data_points as f64;
 
         let async_queries = features
             .iter()
@@ -497,10 +486,10 @@ impl PostgresClient {
                 self.run_binned_feature_query(
                     &bin,
                     feature.to_string(),
-                    version,
-                    time_window,
-                    name,
-                    repository,
+                    &params.version,
+                    &time_window,
+                    &params.name,
+                    &params.repository,
                 )
             })
             .collect::<Vec<_>>();
@@ -628,15 +617,11 @@ impl PostgresClient {
     ) -> Result<(), anyhow::Error> {
         let query = Queries::UpdateDriftProfileStatus.get_query();
 
-        let params = UpdateDriftProfileStatusParams {
-            table: self.profile_table_name.to_string(),
-            name: name.to_string(),
-            repository: repository.to_string(),
-            version: version.to_string(),
-            active: *active,
-        };
-
-        let query_result = sqlx::raw_sql(query.format(&params).as_str())
+        let query_result = sqlx::query(&query.sql)
+            .bind(active)
+            .bind(name)
+            .bind(repository)
+            .bind(version)
             .execute(&self.pool)
             .await;
 

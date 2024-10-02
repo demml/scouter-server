@@ -1,6 +1,7 @@
 use scouter_server::sql::schema::DriftRecord;
 use sqlx::Row;
 
+use scouter_server::api::schema::DriftRequest;
 use scouter_server::sql::postgres::PostgresClient;
 mod test_utils;
 use std::collections::BTreeMap;
@@ -119,15 +120,17 @@ async fn test_postgres_client() {
 
     assert_eq!(result.len(), 1);
 
+    let drift_request = DriftRequest {
+        name: record.name.clone(),
+        repository: record.repository.clone(),
+        version: record.version.clone(),
+        time_window: "30minute".to_string(),
+        max_data_points: 1000,
+    };
+
     //test get_binned_drift_records
     let result = db_client
-        .get_binned_drift_records(
-            &record.name,
-            &record.repository,
-            &record.version,
-            &(1000_i32),
-            &(30_i32),
-        )
+        .get_binned_drift_records(&drift_request)
         .await
         .unwrap();
 

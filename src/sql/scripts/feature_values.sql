@@ -2,10 +2,10 @@ SELECT
 created_at,
 feature,
 value
-FROM $table
+FROM scouter.drift
 WHERE
-    created_at > '$limit_timestamp'
-    AND version = '$version'
-    AND name = '$name'
-    AND repository = '$repository'
-    AND feature = '$feature';
+    created_at > $1
+    AND name = $2
+    AND repository = $3
+    AND version = $4
+    AND feature = $5;

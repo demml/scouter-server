@@ -401,24 +401,24 @@ impl PostgresClient {
     ) -> Result<Vec<String>, anyhow::Error> {
         let query = Queries::GetFeatures.get_query();
 
-        let params = GetFeaturesParams {
-            table: self.drift_table_name.to_string(),
-            name: name.to_string(),
-            repository: repository.to_string(),
-            version: version.to_string(),
-        };
-
-        let result = sqlx::raw_sql(query.format(&params).as_str())
+        let result = sqlx::query(&query.sql)
+            .bind(name)
+            .bind(repository)
+            .bind(version)
             .fetch_all(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| {
+                error!("Failed to get features from database: {:?}", e);
+                anyhow!("Failed to get features from database: {:?}", e)
+            })
+            .map(|result| {
+                result
+                    .iter()
+                    .map(|row| row.get("feature"))
+                    .collect::<Vec<String>>()
+            });
 
-        let mut features = Vec::new();
-
-        for row in result {
-            features.push(row.get("feature"));
-        }
-
-        Ok(features)
+        Ok(result?)
     }
 
     async fn run_feature_query(

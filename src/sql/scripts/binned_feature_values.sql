@@ -1,18 +1,18 @@
 with subquery as (
     SELECT
-    date_bin('$bin minutes', created_at, TIMESTAMP '1970-01-01') as created_at,
+    date_bin('$1 minutes', created_at, TIMESTAMP '1970-01-01') as created_at,
     name,
     repository,
     feature,
     version,
     value
-    from $table
+    from scouter.drift
     WHERE 
-        created_at > timezone('utc', now()) - interval '$time_window' minute
-        AND version = '$version'
-        AND name = '$name'
-        AND repository = '$repository'
-        AND feature = '$feature'
+        created_at > timezone('utc', now()) - interval $2 minute
+        AND name = $3
+        AND repository = $4
+        AND version = $5
+        AND feature = $6
 )
 
 SELECT

@@ -125,12 +125,12 @@ impl SpcDrifter {
         Ok((drift, feature_keys))
     }
 
-    async fn generate_alerts<'a>(
+    pub async fn generate_alerts<'a>(
         &self,
         array: &ArrayView2<'a, f64>,
         features: &[String],
-        mut task_alerts: TaskAlerts,
-    ) -> Result<TaskAlerts, anyhow::Error> {
+    ) -> Result<Option<TaskAlerts>, anyhow::Error> {
+        let mut task_alerts = TaskAlerts::new();
         // Get alerts
         // keys are the feature names that match the order of the drift array columns
         let alert_rule = self.profile.config.alert_config.rule.clone();
@@ -159,7 +159,8 @@ impl SpcDrifter {
                     );
                     anyhow::anyhow!("Error processing alerts")
                 })?;
-            task_alerts.alerts = Some(alerts);
+            task_alerts.alerts = alerts;
+            return Ok(Some(task_alerts));
         } else {
             info!(
                 "No alerts to process for {}/{}/{}",
@@ -167,7 +168,7 @@ impl SpcDrifter {
             );
         }
 
-        Ok(task_alerts)
+        Ok(None)
     }
 
     /// organize alerts so that each alert is mapped to a single entry and feature
@@ -179,24 +180,22 @@ impl SpcDrifter {
     ///
     /// # Returns
     ///
-    fn organize_alerts(&self, alerts: TaskAlerts) -> Option<Vec<BTreeMap<String, String>>> {
-        if let Some(mut alerts) = alerts.alerts {
-            let mut tasks = Vec::new();
-            alerts.features.iter_mut().for_each(|(_, feature)| {
-                feature.alerts.iter().for_each(|alert| {
-                    let alert_map = {
-                        let mut alert_map = BTreeMap::new();
-                        alert_map.insert("zone".to_string(), alert.zone.clone());
-                        alert_map.insert("kind".to_string(), alert.kind.clone());
-                        alert_map.insert("feature".to_string(), feature.feature.clone());
-                        alert_map
-                    };
-                    tasks.push(alert_map);
-                });
+    fn organize_alerts(&self, mut alerts: TaskAlerts) -> Vec<BTreeMap<String, String>> {
+        let mut tasks = Vec::new();
+        alerts.alerts.features.iter_mut().for_each(|(_, feature)| {
+            feature.alerts.iter().for_each(|alert| {
+                let alert_map = {
+                    let mut alert_map = BTreeMap::new();
+                    alert_map.insert("zone".to_string(), alert.zone.clone());
+                    alert_map.insert("kind".to_string(), alert.kind.clone());
+                    alert_map.insert("feature".to_string(), feature.feature.clone());
+                    alert_map
+                };
+                tasks.push(alert_map);
             });
-            return Some(tasks);
-        }
-        None
+        });
+
+        tasks
     }
 
     /// Process a single drift computation task
@@ -212,7 +211,6 @@ impl SpcDrifter {
             "Processing drift task for profile: {}/{}/{}",
             self.repository, self.name, self.version
         );
-        let alerts = TaskAlerts { alerts: None };
 
         // Compute drift
         let (drift_array, keys) = self
@@ -226,8 +224,9 @@ impl SpcDrifter {
             return Ok(None);
         }
 
+        // Generate alerts (if any)
         let alerts = self
-            .generate_alerts(&drift_array.view(), &keys, alerts)
+            .generate_alerts(&drift_array.view(), &keys)
             .await
             .map_err(|e| {
                 error!(
@@ -237,6 +236,12 @@ impl SpcDrifter {
                 anyhow::anyhow!("Error generating alerts")
             })?;
 
-        Ok(self.organize_alerts(alerts))
+        match alerts {
+            Some(alerts) => {
+                let organized_alerts = self.organize_alerts(alerts);
+                Ok(Some(organized_alerts))
+            }
+            None => Ok(None),
+        }
     }
 }

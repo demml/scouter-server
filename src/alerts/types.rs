@@ -5,7 +5,15 @@ use scouter::core::drift::base::DriftType;
 use scouter::core::drift::spc::types::{SpcDriftProfile, SpcFeatureAlerts};
 use std::collections::BTreeMap;
 pub struct TaskAlerts {
-    pub alerts: Option<SpcFeatureAlerts>,
+    pub alerts: SpcFeatureAlerts,
+}
+
+impl TaskAlerts {
+    pub fn new() -> Self {
+        Self {
+            alerts: SpcFeatureAlerts::new(false),
+        }
+    }
 }
 
 pub enum DriftProfile {

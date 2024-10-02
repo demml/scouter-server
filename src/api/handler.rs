@@ -9,7 +9,7 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use scouter::utils::types::DriftProfile;
+use scouter::core::drift::spc::types::SpcDriftProfile;
 use serde_json::json;
 use std::sync::Arc;
 use tracing::error;
@@ -86,7 +86,7 @@ pub async fn insert_drift_profile(
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     // validate profile is correct
     // this will be used to validate different versions of the drift profile in the future
-    let body: Result<DriftProfile, serde_json::Error> = serde_json::from_value(body.clone());
+    let body: Result<SpcDriftProfile, serde_json::Error> = serde_json::from_value(body.clone());
 
     if body.is_err() {
         // future: - validate against older versions of the drift profile
@@ -124,7 +124,7 @@ pub async fn update_drift_profile(
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     // validate profile is correct
     // this will be used to validate different versions of the drift profile in the future
-    let body: Result<DriftProfile, serde_json::Error> = serde_json::from_value(body.clone());
+    let body: Result<SpcDriftProfile, serde_json::Error> = serde_json::from_value(body.clone());
 
     if body.is_err() {
         // future: - validate against older versions of the drift profile

@@ -1,9 +1,10 @@
 use chrono::NaiveDateTime;
-use scouter::core::alert::generate_alerts;
-use scouter::utils::types::DriftProfile;
-use scouter_server::alerts::dispatch::ConsoleAlertDispatcher;
-use scouter_server::alerts::dispatch::Dispatch;
+use scouter::core::dispatch::dispatcher::dispatcher_logic::{ConsoleAlertDispatcher, Dispatch};
+use scouter::core::drift::spc::alert::generate_alerts;
+use scouter::core::drift::spc::types::SpcDriftProfile;
 use scouter_server::alerts::drift::DriftExecutor;
+use scouter_server::alerts::spc::drift::SpcDrifter;
+use scouter_server::alerts::types::TaskAlerts;
 use scouter_server::sql::postgres::PostgresClient;
 use sqlx::{Postgres, Row};
 mod test_utils;
@@ -17,8 +18,6 @@ async fn test_drift_executor_separate() {
     let populate_script = include_str!("scripts/populate.sql");
     sqlx::raw_sql(populate_script).execute(&pool).await.unwrap();
 
-    let drift_executor = DriftExecutor::new(db_client.clone());
-
     let mut transaction: sqlx::Transaction<Postgres> = db_client.pool.begin().await.unwrap();
     let profile = PostgresClient::get_drift_profile_task(&mut transaction)
         .await
@@ -28,28 +27,37 @@ async fn test_drift_executor_separate() {
     assert!(profile.is_some());
 
     let profile = profile.unwrap();
-
-    let drift_profile = serde_json::from_value::<DriftProfile>(profile.get("profile")).unwrap();
+    let drift_profile: SpcDriftProfile = serde_json::from_str(&profile.profile).unwrap();
 
     // assert drift_profile.config.name is "test_app"
     assert_eq!(drift_profile.config.name, "test_app");
     assert_eq!(drift_profile.config.repository, "statworld");
 
     // switch back to previous run
-    let previous_run: NaiveDateTime = profile.get("previous_run");
-    let name: String = profile.get("name");
-    let repository: String = profile.get("repository");
-    let version: String = profile.get("version");
+    let previous_run: NaiveDateTime = profile.previous_run;
+    let name: String = profile.name;
+    let repository: String = profile.repository;
+    let version: String = profile.version;
 
-    let (drift_array, keys) = drift_executor
-        .compute_drift(&drift_profile, &previous_run, &name, &repository, &version)
+    let drifter = SpcDrifter::new(
+        name.clone(),
+        repository.clone(),
+        version.clone(),
+        drift_profile.clone(),
+    );
+
+    let (drift_array, keys) = drifter
+        .compute_drift(&previous_run, &db_client)
         .await
         .unwrap();
 
     assert_eq!(drift_array.shape(), [10, 3] as [usize; 2]);
 
-    let alert_rule = drift_profile.config.alert_config.alert_rule.clone();
-    let alerts = generate_alerts(&drift_array.view(), &keys, &alert_rule).unwrap();
+    let alerts = TaskAlerts { alerts: None };
+    let alerts = drifter
+        .generate_alerts(&drift_array.view(), &keys, alerts)
+        .await
+        .unwrap();
 
     assert_eq!(
         alerts.features.get("col_3").unwrap().alerts[0].zone,

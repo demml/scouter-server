@@ -3,7 +3,7 @@ use sqlx::Row;
 
 use scouter_server::sql::postgres::PostgresClient;
 mod test_utils;
-use scouter::utils::types::FeatureAlerts;
+use std::collections::BTreeMap;
 
 #[tokio::test]
 async fn test_postgres_client() {
@@ -70,11 +70,19 @@ async fn test_postgres_client() {
     assert_eq!(result.features.len(), 1);
 
     // send feature alerts
-    let alerts = FeatureAlerts::new(false);
+    let mut alerts = BTreeMap::new();
+    alerts.insert("zone".to_string(), "test".to_string());
 
-    for _ in 0..3 {
+    for i in 0..3 {
+        let feature_name = format!("test_feature_{}", i);
         db_client
-            .insert_drift_alert(&record.name, &record.repository, &record.version, &alerts)
+            .insert_drift_alert(
+                &record.name,
+                &record.repository,
+                &record.version,
+                &feature_name,
+                &alerts,
+            )
             .await
             .unwrap();
         // sleep for 1 second
@@ -82,8 +90,16 @@ async fn test_postgres_client() {
     }
 
     // get alerts
+    // get alerts
     let result = db_client
-        .get_drift_alerts(&record.name, &record.repository, &record.version, None)
+        .get_drift_alerts(
+            &record.name,
+            &record.repository,
+            &record.version,
+            None,
+            true,
+            None,
+        )
         .await
         .unwrap();
 
@@ -95,6 +111,8 @@ async fn test_postgres_client() {
             &record.repository,
             &record.version,
             Some(&result[0].created_at.to_string()),
+            true,
+            Some(50),
         )
         .await
         .unwrap();

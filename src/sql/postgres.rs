@@ -106,7 +106,8 @@ impl PostgresClient {
         name: &str,
         repository: &str,
         version: &str,
-        alert: &FeatureAlerts,
+        feature: &str,
+        alert: &BTreeMap<String, String>,
     ) -> Result<PgQueryResult, anyhow::Error> {
         let query = Queries::InsertDriftAlert.get_query();
 
@@ -114,6 +115,7 @@ impl PostgresClient {
             .bind(name)
             .bind(repository)
             .bind(version)
+            .bind(feature)
             .bind(serde_json::to_value(alert).unwrap())
             .execute(&self.pool)
             .await
@@ -134,20 +136,38 @@ impl PostgresClient {
         repository: &str,
         version: &str,
         limit_timestamp: Option<&str>,
+        active: bool,
+        limit: Option<i32>,
     ) -> Result<Vec<AlertResult>, anyhow::Error> {
         let query = Queries::GetDriftAlerts.get_query();
 
-        let query = if limit_timestamp.is_some() {
+        // check if active
+        let built_query = if active {
+            format!("{} AND active = true", query.sql)
+        } else {
+            query.sql
+        };
+
+        // check if limit timestamp is provided
+        let built_query = if limit_timestamp.is_some() {
             let limit_timestamp = limit_timestamp.unwrap();
             format!(
                 "{} AND created_at >= '{}' ORDER BY created_at DESC;",
-                query.sql, limit_timestamp
+                built_query, limit_timestamp
             )
         } else {
-            format!("{} ORDER BY created_at DESC LIMIT 5;", query.sql)
+            format!("{} ORDER BY created_at DESC;", built_query)
         };
 
-        let result: Result<Vec<AlertResult>, sqlx::Error> = sqlx::query_as(&query)
+        // check if limit is provided
+        let built_query = if limit.is_some() {
+            let limit = limit.unwrap();
+            format!("{} LIMIT {};", built_query, limit)
+        } else {
+            format!("{};", built_query)
+        };
+
+        let result: Result<Vec<AlertResult>, sqlx::Error> = sqlx::query_as(&built_query)
             .bind(version)
             .bind(name)
             .bind(repository)

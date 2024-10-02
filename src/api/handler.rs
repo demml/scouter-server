@@ -261,6 +261,8 @@ pub async fn get_drift_alerts(
             &params.repository,
             &params.version,
             params.limit_timestamp.as_deref(),
+            params.active.unwrap_or(false),
+            params.limit,
         )
         .await;
 

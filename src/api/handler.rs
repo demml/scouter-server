@@ -193,7 +193,7 @@ pub async fn update_drift_profile_status(
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     let query_result = &data
         .db
-        .update_drift_profile_status(&body.name, &body.repository, &body.version, &body.active)
+        .update_drift_profile_status(&ProfileStatusRequest)
         .await;
 
     match query_result {

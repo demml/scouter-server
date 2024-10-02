@@ -1,4 +1,4 @@
-use crate::api::schema::{BaseRequest, DriftRequest};
+use crate::api::schema::{BaseRequest, DriftRequest, ProfileStatusRequest};
 use crate::sql::query::Queries;
 use crate::sql::schema::{AlertResult, DriftRecord, FeatureResult, QueryResult, SpcFeatureResult};
 use anyhow::*;
@@ -608,18 +608,15 @@ impl PostgresClient {
 
     pub async fn update_drift_profile_status(
         &self,
-        name: &str,
-        repository: &str,
-        version: &str,
-        active: &bool,
+        params: &ProfileStatusRequest,
     ) -> Result<(), anyhow::Error> {
         let query = Queries::UpdateDriftProfileStatus.get_query();
 
         let query_result = sqlx::query(&query.sql)
-            .bind(active)
-            .bind(name)
-            .bind(repository)
-            .bind(version)
+            .bind(&params.active)
+            .bind(&params.name)
+            .bind(&params.repository)
+            .bind(&params.version)
             .execute(&self.pool)
             .await;
 

@@ -143,7 +143,7 @@ impl PostgresClient {
 
         // check if active
         let built_query = if active {
-            format!("{} AND active = true", query.sql)
+            format!("{} AND status = 'active'", query.sql)
         } else {
             query.sql
         };
@@ -152,11 +152,11 @@ impl PostgresClient {
         let built_query = if limit_timestamp.is_some() {
             let limit_timestamp = limit_timestamp.unwrap();
             format!(
-                "{} AND created_at >= '{}' ORDER BY created_at DESC;",
+                "{} AND created_at >= '{}' ORDER BY created_at DESC",
                 built_query, limit_timestamp
             )
         } else {
-            format!("{} ORDER BY created_at DESC;", built_query)
+            format!("{} ORDER BY created_at DESC", built_query)
         };
 
         // check if limit is provided

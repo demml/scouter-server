@@ -431,26 +431,20 @@ impl PostgresClient {
     ) -> Result<Vec<PgRow>, anyhow::Error> {
         let query = Queries::GetFeatureValues.get_query();
 
-        let params = GetFeatureValuesParams {
-            table: self.drift_table_name.to_string(),
-            name: name.to_string(),
-            repository: repository.to_string(),
-            version: version.to_string(),
-            feature: feature.to_string(),
-            limit_timestamp: limit_timestamp.to_string(),
-        };
-
-        let result = sqlx::raw_sql(query.format(&params).as_str())
+        let result = sqlx::query(&query.sql)
+            .bind(limit_timestamp)
+            .bind(name)
+            .bind(repository)
+            .bind(version)
+            .bind(feature)
             .fetch_all(&self.pool)
-            .await;
-
-        match result {
-            Ok(result) => Ok(result),
-            Err(e) => {
+            .await
+            .map_err(|e| {
                 error!("Failed to run query: {:?}", e);
-                Err(anyhow!("Failed to run query: {:?}", e))
-            }
-        }
+                anyhow!("Failed to run query: {:?}", e)
+            });
+
+        Ok(result?)
     }
 
     async fn run_binned_feature_query(

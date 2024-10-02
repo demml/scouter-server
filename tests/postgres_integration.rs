@@ -1,7 +1,7 @@
 use scouter_server::sql::schema::DriftRecord;
 use sqlx::Row;
 
-use scouter_server::api::schema::DriftRequest;
+use scouter_server::api::schema::{DriftAlertRequest, DriftRequest};
 use scouter_server::sql::postgres::PostgresClient;
 mod test_utils;
 use std::collections::BTreeMap;
@@ -91,30 +91,31 @@ async fn test_postgres_client() {
     }
 
     // get alerts
-    // get alerts
+    let drift_alert_request = DriftAlertRequest {
+        name: record.name.clone(),
+        repository: record.repository.clone(),
+        version: record.version.clone(),
+        limit_timestamp: None,
+        active: Some(true),
+        limit: None,
+    };
     let result = db_client
-        .get_drift_alerts(
-            &record.name,
-            &record.repository,
-            &record.version,
-            None,
-            true,
-            None,
-        )
+        .get_drift_alerts(&drift_alert_request)
         .await
         .unwrap();
 
     assert_eq!(result.len(), 3);
 
+    let drift_alert_request = DriftAlertRequest {
+        name: record.name.clone(),
+        repository: record.repository.clone(),
+        version: record.version.clone(),
+        limit_timestamp: Some(result[0].created_at.to_string()),
+        active: Some(true),
+        limit: Some(50),
+    };
     let result = db_client
-        .get_drift_alerts(
-            &record.name,
-            &record.repository,
-            &record.version,
-            Some(&result[0].created_at.to_string()),
-            true,
-            Some(50),
-        )
+        .get_drift_alerts(&drift_alert_request)
         .await
         .unwrap();
 

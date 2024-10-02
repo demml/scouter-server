@@ -1,4 +1,4 @@
-use crate::api::schema::{BaseRequest, DriftRequest, ProfileStatusRequest};
+use crate::api::schema::{BaseRequest, DriftAlertRequest, DriftRequest, ProfileStatusRequest};
 use crate::sql::query::Queries;
 use crate::sql::schema::{AlertResult, DriftRecord, FeatureResult, QueryResult, SpcFeatureResult};
 use anyhow::*;
@@ -119,13 +119,10 @@ impl PostgresClient {
 
     pub async fn get_drift_alerts(
         &self,
-        name: &str,
-        repository: &str,
-        version: &str,
-        limit_timestamp: Option<&str>,
-        active: bool,
-        limit: Option<i32>,
+        params: &DriftAlertRequest,
     ) -> Result<Vec<AlertResult>, anyhow::Error> {
+        let active = params.active.unwrap_or(false);
+
         let query = Queries::GetDriftAlerts.get_query();
 
         // check if active
@@ -136,28 +133,27 @@ impl PostgresClient {
         };
 
         // check if limit timestamp is provided
-        let built_query = if limit_timestamp.is_some() {
-            let limit_timestamp = limit_timestamp.unwrap();
+        let built_query = if params.limit_timestamp.is_some() {
             format!(
                 "{} AND created_at >= '{}' ORDER BY created_at DESC",
-                built_query, limit_timestamp
+                built_query,
+                params.limit_timestamp.as_ref().unwrap()
             )
         } else {
             format!("{} ORDER BY created_at DESC", built_query)
         };
 
         // check if limit is provided
-        let built_query = if limit.is_some() {
-            let limit = limit.unwrap();
-            format!("{} LIMIT {};", built_query, limit)
+        let built_query = if params.limit.is_some() {
+            format!("{} LIMIT {};", built_query, params.limit.unwrap())
         } else {
             format!("{};", built_query)
         };
 
         let result: Result<Vec<AlertResult>, sqlx::Error> = sqlx::query_as(&built_query)
-            .bind(version)
-            .bind(name)
-            .bind(repository)
+            .bind(&params.version)
+            .bind(&params.name)
+            .bind(&params.repository)
             .fetch_all(&self.pool)
             .await;
 
@@ -613,7 +609,7 @@ impl PostgresClient {
         let query = Queries::UpdateDriftProfileStatus.get_query();
 
         let query_result = sqlx::query(&query.sql)
-            .bind(&params.active)
+            .bind(params.active)
             .bind(&params.name)
             .bind(&params.repository)
             .bind(&params.version)

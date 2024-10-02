@@ -1,5 +1,3 @@
-use chrono::NaiveDateTime;
-
 //constants
 
 const INSERT_DRIFT_RECORD: &str = include_str!("scripts/insert_drift_record.sql");
@@ -15,100 +13,6 @@ const UPDATE_DRIFT_PROFILE_RUN_DATES: &str =
     include_str!("scripts/update_drift_profile_run_dates.sql");
 const UPDATE_DRIFT_PROFILE_STATUS: &str = include_str!("scripts/update_drift_profile_status.sql");
 const UPDATE_DRIFT_PROFILE: &str = include_str!("scripts/update_drift_profile.sql");
-
-pub struct UpdateDriftProfileRunDatesParams {
-    pub table: String,
-    pub name: String,
-    pub repository: String,
-    pub version: String,
-    pub next_run: NaiveDateTime,
-}
-
-pub struct UpdateDriftProfileStatusParams {
-    pub table: String,
-    pub name: String,
-    pub repository: String,
-    pub version: String,
-    pub active: bool,
-}
-
-pub struct GetDriftProfileParams {
-    pub table: String,
-    pub name: String,
-    pub repository: String,
-    pub version: String,
-}
-
-pub struct InsertParams {
-    pub table: String,
-    pub name: String,
-    pub repository: String,
-    pub version: String,
-    pub feature: String,
-    pub value: String,
-    pub created_at: NaiveDateTime,
-}
-
-pub struct GetFeaturesParams {
-    pub table: String,
-    pub name: String,
-    pub repository: String,
-    pub version: String,
-}
-
-pub struct GetFeatureValuesParams {
-    pub table: String,
-    pub name: String,
-    pub repository: String,
-    pub version: String,
-    pub feature: String,
-    pub limit_timestamp: String,
-}
-
-pub struct InsertDriftProfileParams {
-    pub table: String,
-    pub name: String,
-    pub repository: String,
-    pub version: String,
-    pub profile: String,
-    pub scouter_version: String,
-    pub active: bool,
-    pub schedule: String,
-    pub next_run: NaiveDateTime,
-    pub previous_run: NaiveDateTime,
-}
-
-pub struct UpdateDriftProfileParams {
-    pub table: String,
-    pub name: String,
-    pub repository: String,
-    pub version: String,
-    pub profile: String,
-}
-
-pub struct InsertDriftAlertParams {
-    pub name: String,
-    pub repository: String,
-    pub version: String,
-    pub alert: String,
-}
-
-pub struct GetDriftAlertsParams {
-    pub table: String,
-    pub name: String,
-    pub repository: String,
-    pub version: String,
-}
-
-pub struct GetBinnedFeatureValuesParams {
-    pub table: String,
-    pub name: String,
-    pub repository: String,
-    pub feature: String,
-    pub version: String,
-    pub time_window: String,
-    pub bin: String,
-}
 
 #[allow(dead_code)]
 pub enum Queries {

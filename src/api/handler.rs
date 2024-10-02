@@ -191,33 +191,28 @@ pub async fn update_drift_profile_status(
     State(data): State<Arc<AppState>>,
     Json(body): Json<ProfileStatusRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
-    let query_result = &data
-        .db
-        .update_drift_profile_status(&ProfileStatusRequest)
-        .await;
+    let query_result = &data.db.update_drift_profile_status(&body).await;
 
     match query_result {
-        Ok(_) => {
-            let message = format!(
+        Ok(_) => Ok(Json(json!({
+            "status": "success",
+            "message": format!(
                 "Monitor profile status updated to {} for {} {} {}",
                 &body.active, &body.name, &body.repository, &body.version
-            );
-            let json_response = json!({
-                "status": "success",
-                "message": message
-            });
-            Ok(Json(json_response))
-        }
+            )
+        }))),
         Err(e) => {
             error!(
                 "Failed to update drift profile status for {} {} {} : {:?}",
                 &body.name, &body.repository, &body.version, e
             );
-            let json_response = json!({
-                "status": "error",
-                "message": format!("{:?}", e)
-            });
-            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "status": "error",
+                    "message": format!("{:?}", e)
+                })),
+            ))
         }
     }
 }
@@ -226,17 +221,7 @@ pub async fn get_drift_alerts(
     State(data): State<Arc<AppState>>,
     params: Query<DriftAlertRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
-    let query_result = &data
-        .db
-        .get_drift_alerts(
-            &params.name,
-            &params.repository,
-            &params.version,
-            params.limit_timestamp.as_deref(),
-            params.active.unwrap_or(false),
-            params.limit,
-        )
-        .await;
+    let query_result = &data.db.get_drift_alerts(&params).await;
 
     match query_result {
         Ok(result) => {

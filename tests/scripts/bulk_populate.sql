@@ -57,7 +57,7 @@ BEGIN
         );
 
         INSERT INTO scouter.drift_profile (
-            created_at, updated_at, name, repository, version, profile, active, schedule, next_run, previous_run
+            created_at, updated_at, name, repository, version, profile, type, active, schedule, next_run, previous_run
         )
         VALUES (
             timezone('utc', now()),
@@ -66,6 +66,7 @@ BEGIN
             'ml-platform-' || i,
             '0.1.0',
             profile_json,
+            'spc',
             true,
             '0 0 0 * * *',
             timezone('utc', now() - interval '1 days'),

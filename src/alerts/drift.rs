@@ -2,13 +2,14 @@ use crate::sql::postgres::PostgresClient;
 use crate::sql::schema::QueryResult;
 use anyhow::{Context, Result};
 use chrono::NaiveDateTime;
-use scouter::core::alert::generate_alerts;
-use scouter::core::monitor::Monitor;
-use scouter::utils::types::DriftProfile;
+use scouter::core::dispatch::dispatcher::dispatcher_logic::AlertDispatcher;
+use scouter::core::drift::spc::alert::generate_alerts;
+use scouter::core::drift::spc::monitor::SpcMonitor;
+use scouter::core::drift::spc::types::SpcDriftProfile;
+
 use tracing::error;
 use tracing::info;
 
-use crate::alerts::dispatch::AlertDispatcher;
 use crate::alerts::types::TaskAlerts;
 use ndarray::Array2;
 use sqlx::Row;

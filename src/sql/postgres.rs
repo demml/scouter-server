@@ -1,4 +1,4 @@
-use crate::api::schema::DriftRequest;
+use crate::api::schema::{BaseRequest, DriftRequest};
 use crate::sql::query::Queries;
 use crate::sql::schema::{AlertResult, DriftRecord, FeatureResult, QueryResult, SpcFeatureResult};
 use anyhow::*;
@@ -274,16 +274,14 @@ impl PostgresClient {
 
     pub async fn get_drift_profile(
         &self,
-        name: &str,
-        repository: &str,
-        version: &str,
+        params: &BaseRequest,
     ) -> Result<Option<Value>, anyhow::Error> {
         let query = Queries::GetDriftProfile.get_query();
 
         let result = sqlx::query(&query.sql)
-            .bind(name)
-            .bind(repository)
-            .bind(version)
+            .bind(&params.name)
+            .bind(&params.repository)
+            .bind(&params.version)
             .fetch_optional(&self.pool)
             .await
             .with_context(|| "Failed to get drift profile from database")?;

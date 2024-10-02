@@ -1,5 +1,5 @@
 use crate::api::schema::{
-    DriftAlertRequest, DriftRecordRequest, DriftRequest, ProfileRequest, ProfileStatusRequest,
+    BaseRequest, DriftAlertRequest, DriftRecordRequest, DriftRequest, ProfileStatusRequest,
 };
 
 use crate::sql::schema::DriftRecord;
@@ -63,20 +63,19 @@ pub async fn insert_drift(
     let query_result = &data.db.insert_drift_record(&record).await;
 
     match query_result {
-        Ok(_) => {
-            let json_response = json!({
-                "status": "success",
-                "message": "Record inserted successfully"
-            });
-            Ok(Json(json_response))
-        }
+        Ok(_) => Ok(Json(json!({
+            "status": "success",
+            "message": "Record inserted successfully"
+        }))),
         Err(e) => {
             error!("Failed to insert drift record: {:?}", e);
-            let json_response = json!({
-                "status": "error",
-                "message": format!("{:?}", e)
-            });
-            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "status": "error",
+                    "message": format!("{:?}", e)
+                })),
+            ))
         }
     }
 }
@@ -159,11 +158,11 @@ pub async fn update_drift_profile(
 
 pub async fn get_profile(
     State(data): State<Arc<AppState>>,
-    params: Query<ProfileRequest>,
+    params: Query<BaseRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     let profile = &data
         .db
-        .get_drift_profile(&params.name, &params.repository, &params.version)
+        .get_drift_profile($params)
         .await;
 
     match profile {

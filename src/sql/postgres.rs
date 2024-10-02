@@ -1,8 +1,7 @@
 use crate::sql::query::{
     GetBinnedFeatureValuesParams, GetDriftProfileParams, GetDriftProfileTaskParams,
-    GetFeatureValuesParams, GetFeaturesParams, Queries, UpdateDriftProfileParams,
-    UpdateDriftProfileRunDatesParams, UpdateDriftProfileStatusParams, DRIFT_ALERT_TABLE,
-    DRIFT_PROFILE_TABLE, DRIFT_TABLE,
+    GetFeatureValuesParams, GetFeaturesParams, Queries, UpdateDriftProfileRunDatesParams,
+    UpdateDriftProfileStatusParams, DRIFT_ALERT_TABLE, DRIFT_PROFILE_TABLE, DRIFT_TABLE,
 };
 use crate::sql::schema::{AlertResult, DriftRecord, FeatureResult, QueryResult};
 use anyhow::*;
@@ -249,7 +248,7 @@ impl PostgresClient {
             .bind(next_run.naive_utc())
             .execute(&self.pool)
             .await
-            .with_context(|| "Failed to insert alert into database");
+            .with_context(|| "Failed to insert profile into database");
 
         match query_result {
             Ok(result) => Ok(result),
@@ -266,18 +265,14 @@ impl PostgresClient {
     ) -> Result<PgQueryResult, anyhow::Error> {
         let query = Queries::UpdateDriftProfile.get_query();
 
-        let params = UpdateDriftProfileParams {
-            table: "scouter.drift_profile".to_string(),
-            name: drift_profile.config.name.clone(),
-            repository: drift_profile.config.repository.clone(),
-            version: drift_profile.config.version.clone(),
-            profile: serde_json::to_string(&drift_profile).unwrap(),
-        };
-
-        let query_result: std::prelude::v1::Result<sqlx::postgres::PgQueryResult, sqlx::Error> =
-            sqlx::raw_sql(query.format(&params).as_str())
-                .execute(&self.pool)
-                .await;
+        let query_result = sqlx::query(&query.sql)
+            .bind(serde_json::to_value(drift_profile).unwrap())
+            .bind(drift_profile.config.name.clone())
+            .bind(drift_profile.config.repository.clone())
+            .bind(drift_profile.config.version.clone())
+            .execute(&self.pool)
+            .await
+            .with_context(|| "Failed to insert profile into database");
 
         match query_result {
             Ok(result) => Ok(result),

@@ -1,8 +1,8 @@
+use crate::api::schema::DriftRecordRequest;
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgRow;
 use sqlx::{Error, FromRow, Row};
-
 use std::collections::BTreeMap;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -13,6 +13,22 @@ pub struct DriftRecord {
     pub version: String,
     pub feature: String,
     pub value: f64,
+}
+
+impl DriftRecord {
+    //static method
+    pub fn from_request(request: DriftRecordRequest) -> Self {
+        DriftRecord {
+            created_at: request
+                .created_at
+                .unwrap_or_else(|| chrono::Utc::now().naive_utc()),
+            name: request.name,
+            repository: request.repository,
+            version: request.version,
+            feature: request.feature,
+            value: request.value,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

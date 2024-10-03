@@ -1,4 +1,4 @@
-use crate::api::schema::{BaseRequest, DriftAlertRequest, DriftRequest, ProfileStatusRequest};
+use crate::api::schema::{DriftAlertRequest, DriftRequest, ProfileStatusRequest, ScouterData};
 use crate::sql::query::Queries;
 use crate::sql::schema::{
     AlertResult, DriftRecord, FeatureResult, QueryResult, SpcFeatureResult, TaskRequest,
@@ -92,18 +92,16 @@ impl PostgresClient {
     //
     pub async fn insert_drift_alert(
         &self,
-        repository: &str,
-        name: &str,
-        version: &str,
+        scouter_data: &ScouterData,
         feature: &str,
         alert: &BTreeMap<String, String>,
     ) -> Result<PgQueryResult, anyhow::Error> {
         let query = Queries::InsertDriftAlert.get_query();
 
         let query_result = sqlx::query(&query.sql)
-            .bind(name)
-            .bind(repository)
-            .bind(version)
+            .bind(&scouter_data.name)
+            .bind(&scouter_data.repository)
+            .bind(&scouter_data.version)
             .bind(feature)
             .bind(serde_json::to_value(alert).unwrap())
             .execute(&self.pool)
@@ -271,7 +269,7 @@ impl PostgresClient {
 
     pub async fn get_drift_profile(
         &self,
-        params: &BaseRequest,
+        params: &ScouterData,
     ) -> Result<Option<Value>, anyhow::Error> {
         let query = Queries::GetDriftProfile.get_query();
 

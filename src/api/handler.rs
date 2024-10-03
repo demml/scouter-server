@@ -1,6 +1,6 @@
 use crate::api::schema::{
-    BaseRequest, DriftAlertRequest, DriftRecordRequest, DriftRequest, ProfileRequest,
-    ProfileStatusRequest,
+    DriftAlertRequest, DriftRecordRequest, DriftRequest, ProfileRequest, ProfileStatusRequest,
+    ScouterData,
 };
 use scouter::core::drift::base::DriftProfile;
 
@@ -172,14 +172,14 @@ pub async fn update_drift_profile(
 /// # Arguments
 ///
 /// * `data` - Arc<AppState> - Application state
-/// * `params` - Query<BaseRequest> - Query parameters
+/// * `params` - Query<ScouterData> - Query parameters
 ///
 /// # Returns
 ///
 /// * `Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)>` - Result of the request
 pub async fn get_profile(
     State(data): State<Arc<AppState>>,
-    params: Query<BaseRequest>,
+    params: Query<ScouterData>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     let profile = &data.db.get_drift_profile(&params).await;
 

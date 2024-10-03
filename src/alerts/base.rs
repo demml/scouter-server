@@ -1,5 +1,6 @@
 use crate::alerts::spc::drift::SpcDrifter;
 use crate::alerts::types::Drifter;
+use crate::api::schema::ScouterData;
 use crate::sql::postgres::PostgresClient;
 
 use chrono::NaiveDateTime;
@@ -96,6 +97,12 @@ impl DriftExecutor {
             return Ok(());
         };
 
+        let scouter_data = ScouterData {
+            repository: task.repository.clone(),
+            name: task.name.clone(),
+            version: task.version.clone(),
+        };
+
         // match drift_type
         match DriftType::from_str(&task.profile_type) {
             // match drift_profile
@@ -112,9 +119,7 @@ impl DriftExecutor {
                                 if let Err(e) = self
                                     .db_client
                                     .insert_drift_alert(
-                                        &task.repository,
-                                        &task.name,
-                                        &task.version,
+                                        &scouter_data,
                                         alert.get("feature").unwrap_or(&"NA".to_string()),
                                         &alert,
                                     )

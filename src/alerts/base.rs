@@ -174,8 +174,6 @@ impl DriftExecutor {
             DriftProfile::from_type(DriftType::from_str(&task.profile_type), task.profile)
                 .context("error converting drift profile to DriftProfile");
 
-        println!("{:?}", profile);
-
         if let Ok(profile) = profile {
             match self
                 .process_task(

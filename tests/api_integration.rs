@@ -185,11 +185,7 @@ async fn test_api_profile() {
         .await
         .unwrap();
 
-    // get message from response body
-    let body = response.into_body().collect().await.unwrap().to_bytes();
-    let body: Value = serde_json::from_slice(&body).unwrap();
-    println!("{:?}", body);
-    //assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.status(), StatusCode::OK);
 
     test_utils::teardown().await.unwrap();
 }

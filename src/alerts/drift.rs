@@ -1,5 +1,5 @@
-use crate::alerts::types::DriftProfile;
 use crate::sql::postgres::PostgresClient;
+use crate::utils::types::DriftProfile;
 use anyhow::{Context, Result};
 use chrono::NaiveDateTime;
 use scouter::core::drift::base::DriftType;

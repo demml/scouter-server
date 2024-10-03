@@ -103,11 +103,13 @@ pub struct TaskRequest {
 
 impl<'r> FromRow<'r, PgRow> for TaskRequest {
     fn from_row(row: &'r PgRow) -> Result<Self, Error> {
+        let profile = serde_json::Value::from(row.try_get::<String, &str>("profile")?);
+
         Ok(TaskRequest {
             name: row.try_get("name")?,
             repository: row.try_get("repository")?,
             version: row.try_get("version")?,
-            profile: row.try_get("profile")?,
+            profile: profile.to_string(),
             profile_type: row.try_get("profile_type")?,
             previous_run: row.try_get("previous_run")?,
             schedule: row.try_get("schedule")?,

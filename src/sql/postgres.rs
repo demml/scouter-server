@@ -301,10 +301,10 @@ impl PostgresClient {
             .fetch_optional(&mut **transaction)
             .await;
 
-        Ok(result.map_err(|e| {
+        result.map_err(|e| {
             error!("Failed to get drift task from database: {:?}", e);
             anyhow!("Failed to get drift task from database: {:?}", e)
-        })?)
+        })
     }
 
     pub async fn update_drift_profile_run_dates(

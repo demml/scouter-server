@@ -152,11 +152,11 @@ impl SpcDrifter {
         array: &ArrayView2<'a, f64>,
         features: &[String],
     ) -> Result<Option<TaskAlerts>, anyhow::Error> {
-        let mut task_alerts = TaskAlerts::new();
+        let mut task_alerts = TaskAlerts::default();
         // Get alerts
         // keys are the feature names that match the order of the drift array columns
         let alert_rule = self.profile.config.alert_config.rule.clone();
-        let alerts = generate_alerts(&array, &features, &alert_rule)
+        let alerts = generate_alerts(array, features, &alert_rule)
             .with_context(|| "error generating drift alerts")?;
 
         // Get dispatcher, will default to console if env vars are not found for 3rd party service

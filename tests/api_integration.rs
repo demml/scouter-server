@@ -15,7 +15,7 @@ use std::collections::HashMap;
 use tower::Service;
 use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
 mod test_utils;
-use scouter_server::alerts::drift::DriftExecutor;
+use scouter_server::alerts::base::DriftExecutor;
 use scouter_server::sql::postgres::PostgresClient;
 use scouter_server::sql::schema::AlertResult;
 use sqlx::Row;

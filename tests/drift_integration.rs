@@ -2,7 +2,7 @@ use chrono::NaiveDateTime;
 use scouter::core::dispatch::dispatcher::dispatcher_logic::{ConsoleAlertDispatcher, Dispatch};
 
 use scouter::core::drift::spc::types::SpcDriftProfile;
-use scouter_server::alerts::drift::DriftExecutor;
+use scouter_server::alerts::base::DriftExecutor;
 use scouter_server::alerts::spc::drift::SpcDrifter;
 use scouter_server::sql::postgres::PostgresClient;
 use sqlx::{Postgres, Row};

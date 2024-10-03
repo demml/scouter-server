@@ -3,7 +3,6 @@ use crate::sql::postgres::PostgresClient;
 use chrono::NaiveDateTime;
 use scouter::core::drift::spc::types::SpcFeatureAlerts;
 use std::collections::BTreeMap;
-
 pub struct TaskAlerts {
     pub alerts: SpcFeatureAlerts,
 }

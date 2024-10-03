@@ -4,14 +4,12 @@ pub mod kafka_consumer {
 
     use anyhow::*;
     use rdkafka::config::ClientConfig;
-    use rdkafka::consumer::Consumer;
-    use scouter::core::drift::base::ServerRecords;
-
-    use futures::StreamExt;
     use rdkafka::consumer::CommitMode;
+    use rdkafka::consumer::Consumer;
     use rdkafka::consumer::StreamConsumer;
     use rdkafka::message::BorrowedMessage;
     use rdkafka::message::Message;
+    use scouter::core::drift::base::ServerRecords;
     use std::collections::HashMap;
     use std::result::Result::Ok;
     use tracing::error;

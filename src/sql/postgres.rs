@@ -344,7 +344,7 @@ impl PostgresClient {
 
     //func batch insert drift records
     #[allow(dead_code)]
-    pub async fn insert_drift_records(
+    pub async fn insert_spc_drift_records(
         &self,
         records: &[DriftRecord],
     ) -> Result<PgQueryResult, anyhow::Error> {

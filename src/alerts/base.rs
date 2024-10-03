@@ -145,9 +145,7 @@ impl DriftExecutor {
 
         if let Err(e) = PostgresClient::update_drift_profile_run_dates(
             &mut transaction,
-            &task.repository,
-            &task.name,
-            &task.version,
+            &scouter_data,
             &task.schedule,
         )
         .await

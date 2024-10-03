@@ -306,9 +306,7 @@ impl PostgresClient {
 
     pub async fn update_drift_profile_run_dates(
         transaction: &mut Transaction<'_, Postgres>,
-        repository: &str,
-        name: &str,
-        version: &str,
+        scouter_data: &ScouterData,
         schedule: &str,
     ) -> Result<(), Error> {
         let query = Queries::UpdateDriftProfileRunDates.get_query();
@@ -325,9 +323,9 @@ impl PostgresClient {
 
         let query_result = sqlx::query(&query.sql)
             .bind(next_run.naive_utc())
-            .bind(name)
-            .bind(repository)
-            .bind(version)
+            .bind(&scouter_data.name)
+            .bind(&scouter_data.repository)
+            .bind(&scouter_data.version)
             .execute(&mut **transaction)
             .await;
 

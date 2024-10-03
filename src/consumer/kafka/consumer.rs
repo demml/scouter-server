@@ -70,16 +70,16 @@ pub mod kafka_consumer {
         message_handler: &MessageHandler,
         consumer: &StreamConsumer,
     ) -> Result<()> {
-        // start stream
+        // start the stream
         let mut stream = consumer.stream();
 
-        // get next message. If no message is received, log error
-        if let Some(message) = stream.next().await {
+        // Get the next message from the stream
+        while let Some(message) = stream.next().await {
+            // Process the message. If the message is an error, log the error
             match message {
                 Ok(msg) => {
-                    // extract payload from message. If no payload is received, log error
+                    // Extract the payload from the message. If no payload is found, log the error
                     if let Some(payload) = extract_payload(&msg) {
-                        // deserialize payload. If deserialization fails, log error
                         if let Some(records) = deserialize_payload(payload) {
                             if let Err(e) =
                                 insert_and_commit(message_handler, consumer, &msg, &records).await
@@ -91,8 +91,6 @@ pub mod kafka_consumer {
                 }
                 Err(e) => error!("Failed to receive message: {:?}", e),
             }
-        } else {
-            error!("No message received");
         }
 
         Ok(())

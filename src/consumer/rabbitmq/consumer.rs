@@ -105,7 +105,9 @@ pub mod rabbitmq_consumer {
         let mut consumer = create_rabbitmq_consumer(&address, &prefetch_count).await?;
 
         loop {
-            stream_from_rabbit_queue(&message_handler, &mut consumer).await?;
+            if let Err(e) = stream_from_rabbit_queue(&message_handler, &mut consumer).await {
+                error!("Error in stream_from_rabbit_queue: {:?}", e);
+            }
         }
     }
 }

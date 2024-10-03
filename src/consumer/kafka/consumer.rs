@@ -70,68 +70,54 @@ pub mod kafka_consumer {
         message_handler: &MessageHandler,
         consumer: &StreamConsumer,
     ) -> Result<()> {
-        // start the stream
-        let mut stream = consumer.stream();
-
-        // Get the next message from the stream
-        while let Some(message) = stream.next().await {
-            // Process the message. If the message is an error, log the error
-            match message {
-                Ok(msg) => {
-                    // Extract the payload from the message. If no payload is found, log the error
-                    if let Some(payload) = extract_payload(&msg) {
-                        if let Some(records) = deserialize_payload(payload) {
-                            if let Err(e) =
-                                insert_and_commit(message_handler, consumer, &msg, &records).await
-                            {
-                                error!("Failed to insert and commit: {:?}", e);
-                            }
-                        }
+        loop {
+            match consumer.recv().await {
+                Err(e) => error!("Kafka error: {}", e),
+                Ok(message) => {
+                    if let Err(e) = process_kafka_message(message_handler, consumer, &message).await
+                    {
+                        error!("Error processing Kafka message: {:?}", e);
                     }
                 }
-                Err(e) => error!("Failed to receive message: {:?}", e),
+            }
+        }
+    }
+
+    async fn process_kafka_message(
+        message_handler: &MessageHandler,
+        consumer: &StreamConsumer,
+        message: &BorrowedMessage<'_>,
+    ) -> Result<()> {
+        let payload = match message.payload_view::<str>() {
+            None => {
+                error!("No payload received");
+                return Ok(());
+            }
+            Some(Ok(s)) => s,
+            Some(Err(e)) => {
+                error!("Error while deserializing message payload: {:?}", e);
+                return Ok(());
+            }
+        };
+
+        let records: ServerRecords = match serde_json::from_str(payload) {
+            Ok(records) => records,
+            Err(e) => {
+                error!("Failed to deserialize message: {:?}", e);
+                return Ok(());
+            }
+        };
+
+        match message_handler.insert_server_records(&records).await {
+            Ok(_) => {
+                consumer.commit_message(message, CommitMode::Async).unwrap();
+            }
+            Err(e) => {
+                error!("Failed to insert drift record: {:?}", e);
             }
         }
 
         Ok(())
-    }
-
-    fn extract_payload<'a>(msg: &'a BorrowedMessage<'a>) -> Option<&'a [u8]> {
-        match msg.payload() {
-            Some(payload) => Some(payload),
-            None => {
-                error!("No payload received");
-                None
-            }
-        }
-    }
-
-    fn deserialize_payload(payload: &[u8]) -> Option<ServerRecords> {
-        match serde_json::from_slice(payload) {
-            Ok(records) => Some(records),
-            Err(e) => {
-                error!("Failed to deserialize message: {:?}", e);
-                None
-            }
-        }
-    }
-
-    async fn insert_and_commit<'a>(
-        message_handler: &MessageHandler,
-        consumer: &StreamConsumer,
-        msg: &'a BorrowedMessage<'a>,
-        records: &ServerRecords,
-    ) -> Result<()> {
-        match message_handler.insert_server_records(records).await {
-            Ok(_) => {
-                consumer.commit_message(msg, CommitMode::Async).unwrap();
-                Ok(())
-            }
-            Err(e) => {
-                error!("Failed to insert drift record: {:?}", e);
-                Ok(())
-            }
-        }
     }
 
     // Start background task to poll kafka topic
@@ -179,7 +165,9 @@ pub mod kafka_consumer {
         .unwrap();
 
         loop {
-            stream_from_kafka_topic(&message_handler, &consumer).await?;
+            if let Err(e) = stream_from_kafka_topic(&message_handler, &consumer).await {
+                error!("Error in stream_from_kafka_topic: {:?}", e);
+            }
         }
     }
 }

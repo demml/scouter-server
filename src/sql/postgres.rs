@@ -1,3 +1,4 @@
+use crate::alerts::base::DriftProfile;
 use crate::api::schema::{BaseRequest, DriftAlertRequest, DriftRequest, ProfileStatusRequest};
 use crate::sql::query::Queries;
 use crate::sql::schema::{
@@ -8,7 +9,6 @@ use chrono::Utc;
 use cron::Schedule;
 use futures::future::join_all;
 use include_dir::{include_dir, Dir};
-use scouter::core::drift::spc::types::SpcDriftProfile;
 use serde_json::Value;
 use sqlx::{
     postgres::{PgQueryResult, PgRow},
@@ -204,33 +204,30 @@ impl PostgresClient {
 
     pub async fn insert_drift_profile(
         &self,
-        drift_profile: &SpcDriftProfile,
+        drift_profile: &DriftProfile,
     ) -> Result<PgQueryResult, anyhow::Error> {
         let query = Queries::InsertDriftProfile.get_query();
+        let base_args = drift_profile.get_base_args();
 
-        let schedule = Schedule::from_str(&drift_profile.config.alert_config.schedule)
-            .with_context(|| {
-                format!(
-                    "Failed to parse cron expression: {}",
-                    &drift_profile.config.alert_config.schedule
-                )
-            })?;
+        let schedule = Schedule::from_str(&base_args.schedule)
+            .with_context(|| format!("Failed to parse cron expression: {}", base_args.schedule))?;
 
         let next_run = schedule.upcoming(Utc).take(1).next().with_context(|| {
             format!(
                 "Failed to get next run time for cron expression: {}",
-                &drift_profile.config.alert_config.schedule
+                base_args.schedule
             )
         })?;
 
         let query_result = sqlx::query(&query.sql)
-            .bind(drift_profile.config.name.clone())
-            .bind(drift_profile.config.repository.clone())
-            .bind(drift_profile.config.version.clone())
-            .bind(drift_profile.scouter_version.clone())
-            .bind(serde_json::to_value(drift_profile).unwrap())
+            .bind(base_args.name)
+            .bind(base_args.repository)
+            .bind(base_args.version)
+            .bind(base_args.scouter_version)
+            .bind(drift_profile.to_value())
+            .bind(base_args.profile_type)
             .bind(false)
-            .bind(drift_profile.config.alert_config.schedule.clone())
+            .bind(base_args.schedule)
             .bind(next_run.naive_utc())
             .bind(next_run.naive_utc())
             .execute(&self.pool)
@@ -248,15 +245,17 @@ impl PostgresClient {
 
     pub async fn update_drift_profile(
         &self,
-        drift_profile: &SpcDriftProfile,
+        drift_profile: &DriftProfile,
     ) -> Result<PgQueryResult, anyhow::Error> {
         let query = Queries::UpdateDriftProfile.get_query();
+        let base_args = drift_profile.get_base_args();
 
         let query_result = sqlx::query(&query.sql)
-            .bind(serde_json::to_value(drift_profile).unwrap())
-            .bind(drift_profile.config.name.clone())
-            .bind(drift_profile.config.repository.clone())
-            .bind(drift_profile.config.version.clone())
+            .bind(drift_profile.to_value())
+            .bind(base_args.profile_type)
+            .bind(base_args.name)
+            .bind(base_args.repository)
+            .bind(base_args.version)
             .execute(&self.pool)
             .await
             .with_context(|| "Failed to insert profile into database");

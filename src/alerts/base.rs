@@ -23,11 +23,31 @@ impl DriftTypeTrait for DriftType {
     }
 }
 
+pub struct ProfileArgs {
+    pub name: String,
+    pub repository: String,
+    pub version: String,
+    pub schedule: String,
+    pub scouter_version: String,
+    pub profile_type: String,
+}
+
 pub enum DriftProfile {
     SpcDriftProfile(SpcDriftProfile),
 }
 
 impl DriftProfile {
+    /// Create a new DriftProfile from a DriftType and a profile string
+    /// This function will map the drift type to the correct profile type to load
+    ///
+    /// # Arguments
+    ///
+    /// * `drift_type` - DriftType enum
+    /// * `profile` - Profile string
+    ///
+    /// # Returns
+    ///
+    /// * `Result<Self>` - Result of DriftProfile
     pub fn from_type(drift_type: DriftType, profile: String) -> Result<Self, anyhow::Error> {
         match drift_type {
             DriftType::SPC => {
@@ -38,6 +58,18 @@ impl DriftProfile {
             DriftType::NONE => todo!(),
         }
     }
+
+    /// Get a Drifter for processing drift profile tasks
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Name of the drift profile
+    /// * `repository` - Repository of the drift profile
+    /// * `version` - Version of the drift profile
+    ///
+    /// # Returns
+    ///
+    /// * `Drifter` - Drifter enum
     pub fn get_drifter(&self, name: String, repository: String, version: String) -> Drifter {
         match self {
             DriftProfile::SpcDriftProfile(profile) => {
@@ -46,10 +78,33 @@ impl DriftProfile {
         }
     }
 
-    pub fn profile_type(&self) -> String {
+    /// Get the base arguments for a drift profile
+    pub fn get_base_args(&self) -> ProfileArgs {
         match self {
-            DriftProfile::SpcDriftProfile(_) => DriftType::SPC.value(),
+            DriftProfile::SpcDriftProfile(profile) => ProfileArgs {
+                name: profile.config.name.clone(),
+                repository: profile.config.repository.clone(),
+                version: profile.config.version.clone(),
+                schedule: profile.config.alert_config.schedule.clone(),
+                scouter_version: profile.scouter_version.clone(),
+                profile_type: DriftType::SPC.value(),
+            },
         }
+    }
+
+    /// Convert the drift profile to a string
+    pub fn to_value(&self) -> serde_json::Value {
+        match self {
+            DriftProfile::SpcDriftProfile(profile) => serde_json::to_value(profile).unwrap(),
+        }
+    }
+
+    pub fn from_request(body: serde_json::Value) -> Result<DriftProfile, anyhow::Error> {
+        // try load to spc drift profile
+        let body: SpcDriftProfile = serde_json::from_value(body.clone())
+            .context("Failed to deserialize SpcDriftProfile")?;
+
+        Ok(DriftProfile::SpcDriftProfile(body))
     }
 }
 

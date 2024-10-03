@@ -1,5 +1,5 @@
 -- Insert initial data into scouter.drift_profile
-INSERT INTO scouter.drift_profile (created_at, updated_at, name, repository, version, profile, type, active, schedule, next_run, previous_run)
+INSERT INTO scouter.drift_profile (created_at, updated_at, name, repository, version, profile, profile_type, active, schedule, next_run, previous_run)
 VALUES
   (
     timezone('utc', now()),
@@ -61,11 +61,11 @@ VALUES
         },
         "feature_map": null,
         "targets": [],
-        "drift_type": "spc"
+        "drift_type": "SPC"
       },
 	"scouter_version": "0.1.0"
     }',
-    'spc',
+    'SPC',
     true,
     '0 0 0 * * *',
     timezone('utc', now() - interval '1 days'),
@@ -131,11 +131,11 @@ VALUES
         },
         "feature_map": null,
         "targets": [],
-        "drift_type": "spc"
+        "drift_type": "SPC"
       },
 	  "scouter_version": "0.1.0"
       }',
-      'spc',
+      'SPC',
       false,
       '0 0 0 * * *',
        timezone('utc', now() - interval '1 days'),
@@ -201,11 +201,11 @@ VALUES
         },
         "feature_map": null,
         "targets": [],
-        "drift_type": "spc"
+        "drift_type": "SPC"
       },
 	 "scouter_version": "0.1.0"
     }',
-    'spc',
+    'SPC',
     true,
     '0 0 0 * * *',
     timezone('utc', now() - interval '1 days'),
@@ -271,11 +271,11 @@ VALUES
         },
         "feature_map": null,
         "targets": [],
-        "drift_type": "spc"
+        "drift_type": "SPC"
       },
       "scouter_version": "0.1.0"
       }',
-      'spc',
+      'SPC',
       false,
       '0 0 0 * * *',
       timezone('utc', now() - interval '1 days'),

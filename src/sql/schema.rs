@@ -1,8 +1,8 @@
 use crate::api::schema::DriftRecordRequest;
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
-use sqlx::postgres::PgRow;
-use sqlx::{Error, FromRow, Row};
+use sqlx::{postgres::PgRow, Error, FromRow, Row};
+
 use std::collections::BTreeMap;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -103,7 +103,7 @@ pub struct TaskRequest {
 
 impl<'r> FromRow<'r, PgRow> for TaskRequest {
     fn from_row(row: &'r PgRow) -> Result<Self, Error> {
-        let profile = serde_json::Value::from(row.try_get::<String, &str>("profile")?);
+        let profile: serde_json::Value = row.try_get("profile")?;
 
         Ok(TaskRequest {
             name: row.try_get("name")?,

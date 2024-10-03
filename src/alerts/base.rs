@@ -15,9 +15,11 @@ pub trait DriftTypeTrait {
 
 impl DriftTypeTrait for DriftType {
     fn from_str(value: &str) -> DriftType {
-        match value {
+        let uppercase_value = value.to_uppercase();
+        match uppercase_value.as_str() {
             "SPC" => DriftType::SPC,
             "PSI" => DriftType::PSI,
+            "NONE" => DriftType::NONE,
             _ => DriftType::NONE,
         }
     }
@@ -32,6 +34,7 @@ pub struct ProfileArgs {
     pub profile_type: String,
 }
 
+#[derive(Debug, Clone)]
 pub enum DriftProfile {
     SpcDriftProfile(SpcDriftProfile),
 }
@@ -170,6 +173,8 @@ impl DriftExecutor {
         let profile =
             DriftProfile::from_type(DriftType::from_str(&task.profile_type), task.profile)
                 .context("error converting drift profile to DriftProfile");
+
+        println!("{:?}", profile);
 
         if let Ok(profile) = profile {
             match self

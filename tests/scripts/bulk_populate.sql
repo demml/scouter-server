@@ -49,7 +49,7 @@ BEGIN
                 ),
                 'feature_map', null,
                 'targets', '[]'::JSONB,
-                'drift_type': 'spc',
+                'drift_type': 'SPC',
             ),
             'scouter_version', '0.1.0'
         );
@@ -64,7 +64,7 @@ BEGIN
             'ml-platform-' || i,
             '0.1.0',
             profile_json,
-            'spc',
+            'SPC',
             true,
             '0 0 0 * * *',
             timezone('utc', now() - interval '1 days'),

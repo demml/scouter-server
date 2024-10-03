@@ -58,8 +58,8 @@ impl SpcDrifter {
     ) -> Result<QueryResult> {
         let records = db_client
             .get_drift_records(
-                &self.name,
                 &self.repository,
+                &self.name,
                 &self.version,
                 limit_timestamp,
                 features_to_monitor,

@@ -112,8 +112,8 @@ impl DriftExecutor {
                                 if let Err(e) = self
                                     .db_client
                                     .insert_drift_alert(
-                                        &task.name,
                                         &task.repository,
+                                        &task.name,
                                         &task.version,
                                         alert.get("feature").unwrap_or(&"NA".to_string()),
                                         &alert,
@@ -140,8 +140,8 @@ impl DriftExecutor {
 
         if let Err(e) = PostgresClient::update_drift_profile_run_dates(
             &mut transaction,
-            &task.name,
             &task.repository,
+            &task.name,
             &task.version,
             &task.schedule,
         )

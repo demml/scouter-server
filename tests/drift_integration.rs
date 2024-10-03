@@ -39,8 +39,8 @@ async fn test_drift_executor_separate() {
     let version: String = profile.version;
 
     let drifter = SpcDrifter::new(
-        name.clone(),
         repository.clone(),
+        name.clone(),
         version.clone(),
         drift_profile.clone(),
     );

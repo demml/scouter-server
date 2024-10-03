@@ -92,8 +92,8 @@ impl PostgresClient {
     //
     pub async fn insert_drift_alert(
         &self,
-        name: &str,
         repository: &str,
+        name: &str,
         version: &str,
         feature: &str,
         alert: &BTreeMap<String, String>,
@@ -308,8 +308,8 @@ impl PostgresClient {
 
     pub async fn update_drift_profile_run_dates(
         transaction: &mut Transaction<'_, Postgres>,
-        name: &str,
         repository: &str,
+        name: &str,
         version: &str,
         schedule: &str,
     ) -> Result<(), Error> {
@@ -374,8 +374,8 @@ impl PostgresClient {
     // Private method that'll be used to run drift retrieval in parallel
     async fn get_features(
         &self,
-        name: &str,
         repository: &str,
+        name: &str,
         version: &str,
     ) -> Result<Vec<String>, anyhow::Error> {
         let query = Queries::GetFeatures.get_query();
@@ -401,8 +401,8 @@ impl PostgresClient {
     async fn run_spc_feature_query(
         &self,
         feature: &str,
-        name: &str,
         repository: &str,
+        name: &str,
         version: &str,
         limit_timestamp: &str,
     ) -> Result<SpcFeatureResult, anyhow::Error> {
@@ -430,8 +430,8 @@ impl PostgresClient {
         feature: String,
         version: &str,
         time_window: &i32,
-        name: &str,
         repository: &str,
+        name: &str,
     ) -> Result<SpcFeatureResult, anyhow::Error> {
         let query = Queries::GetBinnedFeatureValues.get_query();
 
@@ -470,7 +470,7 @@ impl PostgresClient {
     ) -> Result<QueryResult, anyhow::Error> {
         // get features
         let features = self
-            .get_features(&params.name, &params.repository, &params.version)
+            .get_features(&params.repository, &params.name, &params.version)
             .await?;
 
         let time_window = TimeInterval::from_string(&params.time_window).to_minutes();
@@ -485,8 +485,8 @@ impl PostgresClient {
                     feature.to_string(),
                     &params.version,
                     &time_window,
-                    &params.name,
                     &params.repository,
+                    &params.name,
                 )
             })
             .collect::<Vec<_>>();
@@ -518,13 +518,13 @@ impl PostgresClient {
 
     pub async fn get_drift_records(
         &self,
-        name: &str,
         repository: &str,
+        name: &str,
         version: &str,
         limit_timestamp: &str,
         features_to_monitor: &[String],
     ) -> Result<QueryResult, anyhow::Error> {
-        let mut features = self.get_features(name, repository, version).await?;
+        let mut features = self.get_features(repository, name, version).await?;
 
         if !features_to_monitor.is_empty() {
             features.retain(|feature| features_to_monitor.contains(feature));
@@ -534,7 +534,7 @@ impl PostgresClient {
             features
                 .iter()
                 .map(|feature| {
-                    self.run_spc_feature_query(feature, name, repository, version, limit_timestamp)
+                    self.run_spc_feature_query(feature, repository, name, version, limit_timestamp)
                 })
                 .collect::<Vec<_>>(),
         )

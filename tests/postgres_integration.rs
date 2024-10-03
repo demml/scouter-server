@@ -59,8 +59,8 @@ async fn test_postgres_client() {
 
     let result = db_client
         .get_drift_records(
-            "test_app",
             "test",
+            "test_app",
             "1.0.0",
             limit_timestamp.to_string().as_str(),
             &[],
@@ -78,8 +78,8 @@ async fn test_postgres_client() {
         let feature_name = format!("test_feature_{}", i);
         db_client
             .insert_drift_alert(
-                &record.name,
                 &record.repository,
+                &record.name,
                 &record.version,
                 &feature_name,
                 &alerts,

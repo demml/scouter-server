@@ -14,7 +14,6 @@ description = "Scouter server for model monitoring"
 anyhow = "1.0.86"
 axum = "0.7.5"
 chrono = { version = "0.4.24", features = ["serde"] }
-futures = "0.3.30"
 include_dir = "0.7.3"
 serde = { version = "1.0.159", features = ["derive"] }
 serde_json = "1.0.95"
@@ -27,13 +26,13 @@ tracing-subscriber = {version = "0.3.18", features = ["json", "time"]}
 rdkafka = { version = "0.36.2", features = ["cmake-build", "ssl"] }
 cron = "0.12.1"
 ndarray = "0.15.6"
-scouter = { version = "= 0.3.0-rc.3" }
-reqwest = { version = "0.12.5", features = ["json"] }
+scouter = { version = "= 0.3.0-rc.7" , features = ["dispatch"]}
 metrics-exporter-prometheus = "0.15.1"
 metrics = "0.23.0"
 async-trait = "0.1.81"
 colored = "2.1.0"
 lapin = "2.5.0"
+futures = "0.3.30"
 
 [dev-dependencies]
 approx = "0.5.1"

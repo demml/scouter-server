@@ -1,8 +1,8 @@
 use crate::api::schema::DriftRecordRequest;
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
-use sqlx::postgres::PgRow;
-use sqlx::{Error, FromRow, Row};
+use sqlx::{postgres::PgRow, Error, FromRow, Row};
+
 use std::collections::BTreeMap;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -86,6 +86,33 @@ impl<'r> FromRow<'r, PgRow> for AlertResult {
             feature: row.try_get("feature")?,
             id: row.try_get("id")?,
             status: row.try_get("status")?,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskRequest {
+    pub name: String,
+    pub repository: String,
+    pub version: String,
+    pub profile: String,
+    pub profile_type: String,
+    pub previous_run: NaiveDateTime,
+    pub schedule: String,
+}
+
+impl<'r> FromRow<'r, PgRow> for TaskRequest {
+    fn from_row(row: &'r PgRow) -> Result<Self, Error> {
+        let profile: serde_json::Value = row.try_get("profile")?;
+
+        Ok(TaskRequest {
+            name: row.try_get("name")?,
+            repository: row.try_get("repository")?,
+            version: row.try_get("version")?,
+            profile: profile.to_string(),
+            profile_type: row.try_get("profile_type")?,
+            previous_run: row.try_get("previous_run")?,
+            schedule: row.try_get("schedule")?,
         })
     }
 }

@@ -1,12 +1,14 @@
+use crate::alerts::base::DriftProfile;
 use crate::api::schema::{BaseRequest, DriftAlertRequest, DriftRequest, ProfileStatusRequest};
 use crate::sql::query::Queries;
-use crate::sql::schema::{AlertResult, DriftRecord, FeatureResult, QueryResult, SpcFeatureResult};
+use crate::sql::schema::{
+    AlertResult, DriftRecord, FeatureResult, QueryResult, SpcFeatureResult, TaskRequest,
+};
 use anyhow::*;
 use chrono::Utc;
 use cron::Schedule;
 use futures::future::join_all;
 use include_dir::{include_dir, Dir};
-use scouter::utils::types::DriftProfile;
 use serde_json::Value;
 use sqlx::{
     postgres::{PgQueryResult, PgRow},
@@ -205,30 +207,27 @@ impl PostgresClient {
         drift_profile: &DriftProfile,
     ) -> Result<PgQueryResult, anyhow::Error> {
         let query = Queries::InsertDriftProfile.get_query();
+        let base_args = drift_profile.get_base_args();
 
-        let schedule = Schedule::from_str(&drift_profile.config.alert_config.schedule)
-            .with_context(|| {
-                format!(
-                    "Failed to parse cron expression: {}",
-                    &drift_profile.config.alert_config.schedule
-                )
-            })?;
+        let schedule = Schedule::from_str(&base_args.schedule)
+            .with_context(|| format!("Failed to parse cron expression: {}", base_args.schedule))?;
 
         let next_run = schedule.upcoming(Utc).take(1).next().with_context(|| {
             format!(
                 "Failed to get next run time for cron expression: {}",
-                &drift_profile.config.alert_config.schedule
+                base_args.schedule
             )
         })?;
 
         let query_result = sqlx::query(&query.sql)
-            .bind(drift_profile.config.name.clone())
-            .bind(drift_profile.config.repository.clone())
-            .bind(drift_profile.config.version.clone())
-            .bind(drift_profile.scouter_version.clone())
-            .bind(serde_json::to_value(drift_profile).unwrap())
+            .bind(base_args.name)
+            .bind(base_args.repository)
+            .bind(base_args.version)
+            .bind(base_args.scouter_version)
+            .bind(drift_profile.to_value())
+            .bind(base_args.profile_type)
             .bind(false)
-            .bind(drift_profile.config.alert_config.schedule.clone())
+            .bind(base_args.schedule)
             .bind(next_run.naive_utc())
             .bind(next_run.naive_utc())
             .execute(&self.pool)
@@ -249,12 +248,14 @@ impl PostgresClient {
         drift_profile: &DriftProfile,
     ) -> Result<PgQueryResult, anyhow::Error> {
         let query = Queries::UpdateDriftProfile.get_query();
+        let base_args = drift_profile.get_base_args();
 
         let query_result = sqlx::query(&query.sql)
-            .bind(serde_json::to_value(drift_profile).unwrap())
-            .bind(drift_profile.config.name.clone())
-            .bind(drift_profile.config.repository.clone())
-            .bind(drift_profile.config.version.clone())
+            .bind(drift_profile.to_value())
+            .bind(base_args.profile_type)
+            .bind(base_args.name)
+            .bind(base_args.repository)
+            .bind(base_args.version)
             .execute(&self.pool)
             .await
             .with_context(|| "Failed to insert profile into database");
@@ -293,14 +294,16 @@ impl PostgresClient {
 
     pub async fn get_drift_profile_task(
         transaction: &mut Transaction<'_, Postgres>,
-    ) -> Result<Option<PgRow>, Error> {
+    ) -> Result<Option<TaskRequest>, Error> {
         let query = Queries::GetDriftTask.get_query();
-        let result = sqlx::query(&query.sql)
+        let result: Result<Option<TaskRequest>, sqlx::Error> = sqlx::query_as(&query.sql)
             .fetch_optional(&mut **transaction)
-            .await
-            .with_context(|| "Failed to get drift profile from database")?;
+            .await;
 
-        Ok(result)
+        result.map_err(|e| {
+            error!("Failed to get drift task from database: {:?}", e);
+            anyhow!("Failed to get drift task from database: {:?}", e)
+        })
     }
 
     pub async fn update_drift_profile_run_dates(

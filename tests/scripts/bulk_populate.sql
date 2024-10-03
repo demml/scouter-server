@@ -38,26 +38,24 @@ BEGIN
                 'repository', 'ml-platform-' || i,
                 'version', '0.1.0',
                 'alert_config', jsonb_build_object(
-                    'alert_dispatch_type', 'Console',
+                    'dispatch_type', 'Console',
                     'schedule', '0 0 0 * * *',
-                    'alert_rule', jsonb_build_object(
-                        'process', jsonb_build_object(
+                    'rule', jsonb_build_object(
                             'rule', '8 16 4 8 2 4 1 1',
-                            'zones_to_monitor', ARRAY['Zone 1', 'Zone 2', 'Zone 3', 'Zone 4']
-                        ),
-                        'percentage', null
+                            'zones_to_monitor', ARRAY['Zone 1', 'Zone 2', 'Zone 3', 'Zone 4'],
                     ),
                     'features_to_monitor', '[]'::JSONB,
-                    'alert_kwargs', '{}'::JSONB
+                    'dispatch_kwargs', '{}'::JSONB
                 ),
                 'feature_map', null,
-                'targets', '[]'::JSONB
+                'targets', '[]'::JSONB,
+                'drift_type': 'SPC',
             ),
             'scouter_version', '0.1.0'
         );
 
         INSERT INTO scouter.drift_profile (
-            created_at, updated_at, name, repository, version, profile, active, schedule, next_run, previous_run
+            created_at, updated_at, name, repository, version, profile, profile_type, active, schedule, next_run, previous_run
         )
         VALUES (
             timezone('utc', now()),
@@ -66,6 +64,7 @@ BEGIN
             'ml-platform-' || i,
             '0.1.0',
             profile_json,
+            'SPC',
             true,
             '0 0 0 * * *',
             timezone('utc', now() - interval '1 days'),

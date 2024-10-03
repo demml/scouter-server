@@ -25,7 +25,7 @@ pub struct DriftRecordRequest {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ProfileRequest {
     pub drift_type: DriftType,
-    pub body: serde_json::Value,
+    pub profile: serde_json::Value,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

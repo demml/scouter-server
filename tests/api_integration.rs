@@ -8,7 +8,7 @@ use scouter::core::drift::base::DriftType;
 use scouter::core::drift::spc::types::{
     SpcAlertConfig, SpcAlertRule, SpcDriftConfig, SpcDriftProfile, SpcFeatureDriftProfile,
 };
-use scouter_server::api::schema::{DriftRecordRequest, ProfileStatusRequest};
+use scouter_server::api::schema::{DriftRecordRequest, ProfileRequest, ProfileStatusRequest};
 use scouter_server::sql::schema::QueryResult;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -170,7 +170,12 @@ async fn test_api_profile() {
         scouter_version: "1.0.0".to_string(),
     };
 
-    let body = serde_json::to_string(&monitor_profile).unwrap();
+    let body = serde_json::to_value(&monitor_profile).unwrap();
+
+    let request = ProfileRequest {
+        drift_type: DriftType::SPC,
+        profile: body,
+    };
 
     // insert data for new version
     let response = app
@@ -179,7 +184,7 @@ async fn test_api_profile() {
                 .uri("/scouter/profile")
                 .header(http::header::CONTENT_TYPE, "application/json")
                 .method("POST")
-                .body(Body::from(body))
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
                 .unwrap(),
         )
         .await
@@ -365,14 +370,18 @@ async fn test_api_update_profile() {
         zones_to_monitor: Vec::new(),
     };
 
-    let body = serde_json::to_string(&new_profile).unwrap();
+    let request = ProfileRequest {
+        drift_type: DriftType::SPC,
+        profile: serde_json::to_value(&new_profile).unwrap(),
+    };
+
     let response = updated_app
         .oneshot(
             Request::builder()
                 .uri("/scouter/profile")
                 .header(http::header::CONTENT_TYPE, "application/json")
                 .method("PUT")
-                .body(Body::from(body))
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
                 .unwrap(),
         )
         .await

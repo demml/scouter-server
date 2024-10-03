@@ -89,7 +89,7 @@ pub async fn insert_drift_profile(
     // validate profile is correct
     // this will be used to validate different versions of the drift profile in the future
 
-    let body = DriftProfile::from_value(body.body, &body.drift_type.value());
+    let body = DriftProfile::from_value(body.profile, &body.drift_type.value());
 
     if body.is_err() {
         // future: - validate against older versions of the drift profile
@@ -121,13 +121,21 @@ pub async fn insert_drift_profile(
     }
 }
 
+/// Route to update a drift profile
+/// This route will update a drift profile in the database
+///
+/// # Arguments
+///
+/// * `data` - Arc<AppState> - Application state
+/// * `body` - Json<ProfileRequest> - Profile request
+///
 pub async fn update_drift_profile(
     State(data): State<Arc<AppState>>,
     Json(body): Json<ProfileRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     // validate profile is correct
     // this will be used to validate different versions of the drift profile in the future
-    let body = DriftProfile::from_value(body.body, &body.drift_type.value());
+    let body = DriftProfile::from_value(body.profile, &body.drift_type.value());
 
     if body.is_err() {
         // future: - validate against older versions of the drift profile
@@ -159,6 +167,16 @@ pub async fn update_drift_profile(
     }
 }
 
+/// Retrieve a drift profile from the database
+///
+/// # Arguments
+///
+/// * `data` - Arc<AppState> - Application state
+/// * `params` - Query<BaseRequest> - Query parameters
+///
+/// # Returns
+///
+/// * `Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)>` - Result of the request
 pub async fn get_profile(
     State(data): State<Arc<AppState>>,
     params: Query<BaseRequest>,
@@ -190,6 +208,16 @@ pub async fn get_profile(
     }
 }
 
+/// Update drift profile status
+///
+/// # Arguments
+///
+/// * `data` - Arc<AppState> - Application state
+/// * `body` - Json<ProfileStatusRequest> - Profile status request
+///
+/// # Returns
+///
+/// * `Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)>` - Result of the request
 pub async fn update_drift_profile_status(
     State(data): State<Arc<AppState>>,
     Json(body): Json<ProfileStatusRequest>,
@@ -220,6 +248,16 @@ pub async fn update_drift_profile_status(
     }
 }
 
+/// Retrieve drift alerts from the database
+///
+/// # Arguments
+///
+/// * `data` - Arc<AppState> - Application state
+/// * `params` - Query<DriftAlertRequest> - Query parameters
+///
+/// # Returns
+///
+/// * `Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)>` - Result of the request
 pub async fn get_drift_alerts(
     State(data): State<Arc<AppState>>,
     params: Query<DriftAlertRequest>,

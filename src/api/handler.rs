@@ -1,7 +1,8 @@
-use crate::alerts::base::DriftProfile;
 use crate::api::schema::{
-    BaseRequest, DriftAlertRequest, DriftRecordRequest, DriftRequest, ProfileStatusRequest,
+    BaseRequest, DriftAlertRequest, DriftRecordRequest, DriftRequest, ProfileRequest,
+    ProfileStatusRequest,
 };
+use scouter::core::drift::base::DriftProfile;
 
 use crate::sql::schema::DriftRecord;
 use axum::{
@@ -83,12 +84,12 @@ pub async fn insert_drift(
 
 pub async fn insert_drift_profile(
     State(data): State<Arc<AppState>>,
-    Json(body): Json<serde_json::Value>,
+    Json(body): Json<ProfileRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     // validate profile is correct
     // this will be used to validate different versions of the drift profile in the future
 
-    let body = DriftProfile::from_request(body);
+    let body = DriftProfile::from_value(body.body, &body.drift_type.value());
 
     if body.is_err() {
         // future: - validate against older versions of the drift profile
@@ -122,11 +123,11 @@ pub async fn insert_drift_profile(
 
 pub async fn update_drift_profile(
     State(data): State<Arc<AppState>>,
-    Json(body): Json<serde_json::Value>,
+    Json(body): Json<ProfileRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     // validate profile is correct
     // this will be used to validate different versions of the drift profile in the future
-    let body = DriftProfile::from_request(body);
+    let body = DriftProfile::from_value(body.body, &body.drift_type.value());
 
     if body.is_err() {
         // future: - validate against older versions of the drift profile

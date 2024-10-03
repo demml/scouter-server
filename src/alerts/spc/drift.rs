@@ -18,22 +18,22 @@ use ndarray::Array2;
 // Defines the SpcDrifter struct
 // This is used to process drift alerts for spc style profiles
 pub struct SpcDrifter {
-    name: String,
     repository: String,
+    name: String,
     version: String,
     profile: SpcDriftProfile,
 }
 
 impl SpcDrifter {
     pub fn new(
-        name: String,
         repository: String,
+        name: String,
         version: String,
         profile: SpcDriftProfile,
     ) -> Self {
         Self {
-            name,
             repository,
+            name,
             version,
             profile,
         }

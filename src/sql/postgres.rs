@@ -1,4 +1,3 @@
-use crate::alerts::base::DriftProfile;
 use crate::api::schema::{BaseRequest, DriftAlertRequest, DriftRequest, ProfileStatusRequest};
 use crate::sql::query::Queries;
 use crate::sql::schema::{
@@ -9,6 +8,7 @@ use chrono::Utc;
 use cron::Schedule;
 use futures::future::join_all;
 use include_dir::{include_dir, Dir};
+use scouter::core::drift::base::DriftProfile;
 use serde_json::Value;
 use sqlx::{
     postgres::{PgQueryResult, PgRow},
@@ -225,7 +225,7 @@ impl PostgresClient {
             .bind(base_args.version)
             .bind(base_args.scouter_version)
             .bind(drift_profile.to_value())
-            .bind(base_args.profile_type)
+            .bind(base_args.profile_type.value())
             .bind(false)
             .bind(base_args.schedule)
             .bind(next_run.naive_utc())
@@ -252,7 +252,7 @@ impl PostgresClient {
 
         let query_result = sqlx::query(&query.sql)
             .bind(drift_profile.to_value())
-            .bind(base_args.profile_type)
+            .bind(base_args.profile_type.value())
             .bind(base_args.name)
             .bind(base_args.repository)
             .bind(base_args.version)

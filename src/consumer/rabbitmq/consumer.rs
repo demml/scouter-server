@@ -47,18 +47,29 @@ pub mod rabbitmq_consumer {
         message_handler: &MessageHandler,
         consumer: &mut Consumer,
     ) -> Result<()> {
+        // start consumer. The `start` method returns a future that resolves to a `Result` once the consumer has started.
         while let Some(delivery) = consumer.next().await {
-            if let Ok(delivery) = delivery {
-                let records: ServerRecords = serde_json::from_slice(&delivery.data).unwrap();
-                let inserted = message_handler.insert_server_records(&records).await;
-                match inserted {
-                    Ok(_) => {
-                        // Acknowledge the message
-                        delivery.ack(BasicAckOptions::default()).await?;
-                    }
+            match delivery {
+                // try loading the message from the delivery. if message serialization fails, log the error
+                Ok(delivery) => match serde_json::from_slice::<ServerRecords>(&delivery.data) {
+                    // insert the records into the database. If insertion fails, log the error
+                    Ok(records) => match message_handler.insert_server_records(&records).await {
+                        // acknowledge the message. If acknowledgment fails, log the error
+                        Ok(_) => {
+                            if let Err(e) = delivery.ack(BasicAckOptions::default()).await {
+                                error!("Failed to acknowledge message: {:?}", e);
+                            }
+                        }
+                        Err(e) => {
+                            error!("Failed to insert drift record: {:?}", e);
+                        }
+                    },
                     Err(e) => {
-                        error!("Failed to insert drift record: {:?}", e);
+                        error!("Failed to deserialize message: {:?}", e);
                     }
+                },
+                Err(e) => {
+                    error!("Failed to receive delivery: {:?}", e);
                 }
             }
         }

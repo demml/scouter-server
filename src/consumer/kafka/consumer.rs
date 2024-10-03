@@ -10,7 +10,8 @@ pub mod kafka_consumer {
     use futures::StreamExt;
     use rdkafka::consumer::CommitMode;
     use rdkafka::consumer::StreamConsumer;
-    use rdkafka::Message;
+    use rdkafka::message::BorrowedMessage;
+    use rdkafka::message::Message;
     use std::collections::HashMap;
     use std::result::Result::Ok;
     use tracing::error;
@@ -68,32 +69,71 @@ pub mod kafka_consumer {
     pub async fn stream_from_kafka_topic(
         message_handler: &MessageHandler,
         consumer: &StreamConsumer,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<()> {
+        // start stream
         let mut stream = consumer.stream();
-        let message = stream.next().await;
-        match message {
-            Some(Ok(msg)) => {
-                let payload = msg.payload().unwrap();
-                let records: ServerRecords = serde_json::from_slice(payload).unwrap();
-                let inserted = message_handler.insert_server_records(&records).await;
-                match inserted {
-                    Ok(_) => {
-                        consumer.commit_message(&msg, CommitMode::Async).unwrap();
-                    }
-                    Err(e) => {
-                        error!("Failed to insert drift record: {:?}", e);
+
+        // get next message. If no message is received, log error
+        if let Some(message) = stream.next().await {
+            match message {
+                Ok(msg) => {
+                    // extract payload from message. If no payload is received, log error
+                    if let Some(payload) = extract_payload(&msg) {
+                        // deserialize payload. If deserialization fails, log error
+                        if let Some(records) = deserialize_payload(payload) {
+                            if let Err(e) =
+                                insert_and_commit(message_handler, consumer, &msg, &records).await
+                            {
+                                error!("Failed to insert and commit: {:?}", e);
+                            }
+                        }
                     }
                 }
+                Err(e) => error!("Failed to receive message: {:?}", e),
             }
-            Some(Err(e)) => {
-                error!("Failed to receive message: {:?}", e);
-            }
-            None => {
-                error!("No message received");
-            }
+        } else {
+            error!("No message received");
         }
 
         Ok(())
+    }
+
+    fn extract_payload<'a>(msg: &'a BorrowedMessage<'a>) -> Option<&'a [u8]> {
+        match msg.payload() {
+            Some(payload) => Some(payload),
+            None => {
+                error!("No payload received");
+                None
+            }
+        }
+    }
+
+    fn deserialize_payload(payload: &[u8]) -> Option<ServerRecords> {
+        match serde_json::from_slice(payload) {
+            Ok(records) => Some(records),
+            Err(e) => {
+                error!("Failed to deserialize message: {:?}", e);
+                None
+            }
+        }
+    }
+
+    async fn insert_and_commit<'a>(
+        message_handler: &MessageHandler,
+        consumer: &StreamConsumer,
+        msg: &'a BorrowedMessage<'a>,
+        records: &ServerRecords,
+    ) -> Result<()> {
+        match message_handler.insert_server_records(records).await {
+            Ok(_) => {
+                consumer.commit_message(msg, CommitMode::Async).unwrap();
+                Ok(())
+            }
+            Err(e) => {
+                error!("Failed to insert drift record: {:?}", e);
+                Ok(())
+            }
+        }
     }
 
     // Start background task to poll kafka topic

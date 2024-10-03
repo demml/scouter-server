@@ -6,11 +6,12 @@ use rdkafka::config::ClientConfig;
 use rdkafka::producer::FutureProducer;
 use rdkafka::producer::FutureRecord;
 use rdkafka::producer::Producer;
+use scouter::core::drift::base::{ServerRecord, ServerRecords};
+use scouter::core::drift::spc::types::SpcServerRecord;
 use scouter_server::api::route::create_router;
 use scouter_server::api::route::AppState;
 use scouter_server::api::setup::create_db_pool;
 use scouter_server::sql::postgres::PostgresClient;
-use scouter_server::sql::schema::DriftRecord;
 use sqlx::Pool;
 use sqlx::Postgres;
 use std::env;
@@ -37,16 +38,23 @@ pub async fn populate_topic(topic_name: &str) -> Result<(), Error> {
         let feature_names = vec!["feature0", "feature1", "feature2"];
 
         for feature_name in feature_names {
-            let record = DriftRecord {
-                created_at: chrono::Utc::now().naive_utc(),
-                name: "test_app".to_string(),
-                repository: "test".to_string(),
-                feature: feature_name.to_string(),
-                value: i as f64,
-                version: "1.0.0".to_string(),
+            let record = ServerRecord::DRIFT {
+                record: SpcServerRecord {
+                    created_at: chrono::Utc::now().naive_utc(),
+                    name: "test_app".to_string(),
+                    repository: "test".to_string(),
+                    feature: feature_name.to_string(),
+                    value: i as f64,
+                    version: "1.0.0".to_string(),
+                },
             };
 
-            let record_string = serde_json::to_string(&record).unwrap();
+            let server_records = ServerRecords {
+                record_type: scouter::core::drift::base::RecordType::DRIFT,
+                records: vec![record],
+            };
+
+            let record_string = serde_json::to_string(&server_records).unwrap();
 
             let produce_future = producer.send(
                 FutureRecord::to(topic_name)
@@ -88,16 +96,24 @@ pub async fn populate_rabbit_queue() -> Result<(), Error> {
         let feature_names = vec!["feature0", "feature1", "feature2"];
 
         for feature_name in feature_names {
-            let record = DriftRecord {
-                created_at: chrono::Utc::now().naive_utc(),
-                name: "test_app".to_string(),
-                repository: "test".to_string(),
-                feature: feature_name.to_string(),
-                value: i as f64,
-                version: "1.0.0".to_string(),
+            let record = ServerRecord::DRIFT {
+                record: SpcServerRecord {
+                    created_at: chrono::Utc::now().naive_utc(),
+                    name: "test_app".to_string(),
+                    repository: "test".to_string(),
+                    feature: feature_name.to_string(),
+                    value: i as f64,
+                    version: "1.0.0".to_string(),
+                },
             };
 
-            let record_string = serde_json::to_string(&record).unwrap().into_bytes();
+            // treat each record as a separate message
+            let server_records = ServerRecords {
+                record_type: scouter::core::drift::base::RecordType::DRIFT,
+                records: vec![record],
+            };
+
+            let record_string = serde_json::to_string(&server_records).unwrap().into_bytes();
 
             let _confirm = channel
                 .basic_publish(

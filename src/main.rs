@@ -1,20 +1,23 @@
 mod alerts;
 mod api;
-mod kafka;
-mod rabbitmq;
+mod consumer;
 mod sql;
 
 use crate::alerts::base::DriftExecutor;
 use crate::api::metrics::metrics_app;
 use crate::api::route::AppState;
 use crate::api::setup::{create_db_pool, setup_logging};
-use crate::kafka::startup::startup_kafka;
-use crate::rabbitmq::startup::startup_rabbitmq;
 use crate::sql::postgres::PostgresClient;
 use anyhow::Context;
 use api::route::create_router;
 use std::sync::Arc;
 use tracing::{error, info};
+
+#[cfg(feature = "kafka")]
+use crate::consumer::kafka::startup::kafka_startup::startup_kafka;
+
+#[cfg(feature = "rabbitmq")]
+use crate::consumer::rabbitmq::startup::rabbitmq_startup::startup_rabbitmq;
 
 async fn start_metrics_server() -> Result<(), anyhow::Error> {
     let app = metrics_app().with_context(|| "Failed to setup metrics app")?;
@@ -45,10 +48,12 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
     sqlx::migrate!().run(&pool).await?;
 
     // setup background kafka task if kafka is enabled
+    #[cfg(feature = "kafka")]
     if std::env::var("KAFKA_BROKERS").is_ok() {
         startup_kafka(pool.clone()).await?;
     }
 
+    #[cfg(feature = "rabbitmq")]
     if std::env::var("RABBITMQ_ADDR").is_ok() {
         startup_rabbitmq(pool.clone()).await?;
     }

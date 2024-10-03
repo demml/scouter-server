@@ -1,8 +1,11 @@
 use crate::test_utils::*;
-use scouter_server::rabbitmq::startup::startup_rabbitmq;
 use scouter_server::sql::postgres::PostgresClient;
 mod test_utils;
 
+#[cfg(feature = "rabbitmq")]
+use scouter_server::consumer::rabbitmq::startup::rabbitmq_startup::startup_rabbitmq;
+
+#[cfg(feature = "rabbitmq")]
 #[tokio::test]
 #[ignore]
 async fn test_api_with_rabbitmq() {

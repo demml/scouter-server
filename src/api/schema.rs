@@ -1,4 +1,5 @@
 use chrono::NaiveDateTime;
+use scouter::core::drift::base::DriftType;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -22,6 +23,12 @@ pub struct DriftRecordRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ProfileRequest {
+    pub drift_type: DriftType,
+    pub profile: serde_json::Value,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ProfileStatusRequest {
     pub name: String,
     pub repository: String,
@@ -40,8 +47,8 @@ pub struct DriftAlertRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct BaseRequest {
-    pub name: String,
+pub struct ServiceInfo {
     pub repository: String,
+    pub name: String,
     pub version: String,
 }

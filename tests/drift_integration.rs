@@ -38,12 +38,7 @@ async fn test_drift_executor_separate() {
     let repository: String = profile.repository;
     let version: String = profile.version;
 
-    let drifter = SpcDrifter::new(
-        name.clone(),
-        repository.clone(),
-        version.clone(),
-        drift_profile.clone(),
-    );
+    let drifter = SpcDrifter::new(drift_profile.clone());
 
     let (drift_array, keys) = drifter
         .compute_drift(&previous_run, &db_client)

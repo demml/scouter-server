@@ -7,15 +7,15 @@ format:
 
 .PHONY: lints
 lints:
-	cargo clippy --workspace --all-targets -- -D warnings
+	cargo clippy --workspace --all-targets --features "rabbitmq,kafka" -- -D warnings
 
 .PHONY: test
 test:
-	cargo test -- --nocapture  --test-threads=1
+	cargo test --features rabbitmq,kafka -- --nocapture  --test-threads=1
 
 .PHONY: test.ignored
 test.ignored:
-	cargo test -- --nocapture  --test-threads=1 --ignored
+	cargo test --features rabbitmq,kafka -- --nocapture  --test-threads=1 --ignored
 
 .PHONY: setup.local
 setup.local:

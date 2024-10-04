@@ -96,7 +96,7 @@ pub struct TaskRequest {
     pub repository: String,
     pub version: String,
     pub profile: String,
-    pub profile_type: String,
+    pub drift_type: String,
     pub previous_run: NaiveDateTime,
     pub schedule: String,
 }
@@ -110,7 +110,7 @@ impl<'r> FromRow<'r, PgRow> for TaskRequest {
             repository: row.try_get("repository")?,
             version: row.try_get("version")?,
             profile: profile.to_string(),
-            profile_type: row.try_get("profile_type")?,
+            drift_type: row.try_get("drift_type")?,
             previous_run: row.try_get("previous_run")?,
             schedule: row.try_get("schedule")?,
         })

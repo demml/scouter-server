@@ -2,7 +2,7 @@
 
 UPDATE scouter.drift_profile
 SET profile = $1,
-    profile_type = $2
+    drift_type = $2
 WHERE name = $3
   and repository = $4
   and version = $5;

@@ -23,9 +23,13 @@ pub struct SpcDrifter {
 }
 
 impl SpcDrifter {
-    pub fn new(service_info: ServiceInfo, profile: SpcDriftProfile) -> Self {
+    pub fn new(profile: SpcDriftProfile) -> Self {
         Self {
-            service_info,
+            service_info: ServiceInfo {
+                name: profile.config.name.clone(),
+                repository: profile.config.repository.clone(),
+                version: profile.config.version.clone(),
+            },
             profile,
         }
     }

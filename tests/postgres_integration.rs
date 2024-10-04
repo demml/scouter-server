@@ -4,6 +4,7 @@ use sqlx::Row;
 use scouter_server::api::schema::{DriftAlertRequest, DriftRequest};
 use scouter_server::sql::postgres::PostgresClient;
 mod test_utils;
+use scouter_server::api::schema::ServiceInfo;
 use std::collections::BTreeMap;
 
 #[tokio::test]
@@ -56,15 +57,14 @@ async fn test_postgres_client() {
     // test querying drift records
     // subtract 1 minute from created at
     let limit_timestamp = record.created_at - chrono::Duration::minutes(1);
+    let service_info = ServiceInfo {
+        name: "test_app".to_string(),
+        repository: "test".to_string(),
+        version: "1.0.0".to_string(),
+    };
 
     let result = db_client
-        .get_drift_records(
-            "test",
-            "test_app",
-            "1.0.0",
-            limit_timestamp.to_string().as_str(),
-            &[],
-        )
+        .get_drift_records(&service_info, limit_timestamp.to_string().as_str(), &[])
         .await
         .unwrap();
 
@@ -77,13 +77,7 @@ async fn test_postgres_client() {
     for i in 0..3 {
         let feature_name = format!("test_feature_{}", i);
         db_client
-            .insert_drift_alert(
-                &record.repository,
-                &record.name,
-                &record.version,
-                &feature_name,
-                &alerts,
-            )
+            .insert_drift_alert(&service_info, &feature_name, &alerts)
             .await
             .unwrap();
         // sleep for 1 second

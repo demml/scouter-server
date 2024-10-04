@@ -30,12 +30,9 @@ impl GetDrifter for DriftProfile {
     /// * `Drifter` - Drifter enum
     fn get_drifter(&self) -> Drifter {
         match self {
-            DriftProfile::SpcDriftProfile(profile) => Drifter::SpcDrifter(SpcDrifter::new(
-                profile.config.repository.clone(),
-                profile.config.name.clone(),
-                profile.config.version.clone(),
-                profile.clone(),
-            )),
+            DriftProfile::SpcDriftProfile(profile) => {
+                Drifter::SpcDrifter(SpcDrifter::new(profile.clone()))
+            }
         }
     }
 }

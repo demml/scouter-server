@@ -1,6 +1,6 @@
 use crate::alerts::spc::drift::SpcDrifter;
 use crate::alerts::types::Drifter;
-use crate::api::schema::ScouterData;
+use crate::api::schema::ServiceInfo;
 use crate::sql::postgres::PostgresClient;
 
 use chrono::NaiveDateTime;
@@ -97,7 +97,7 @@ impl DriftExecutor {
             return Ok(());
         };
 
-        let scouter_data = ScouterData {
+        let service_info = ServiceInfo {
             repository: task.repository.clone(),
             name: task.name.clone(),
             version: task.version.clone(),
@@ -119,7 +119,7 @@ impl DriftExecutor {
                                 if let Err(e) = self
                                     .db_client
                                     .insert_drift_alert(
-                                        &scouter_data,
+                                        &service_info,
                                         alert.get("feature").unwrap_or(&"NA".to_string()),
                                         &alert,
                                     )
@@ -145,7 +145,7 @@ impl DriftExecutor {
 
         if let Err(e) = PostgresClient::update_drift_profile_run_dates(
             &mut transaction,
-            &scouter_data,
+            &service_info,
             &task.schedule,
         )
         .await

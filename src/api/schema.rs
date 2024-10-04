@@ -47,7 +47,7 @@ pub struct DriftAlertRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ScouterData {
+pub struct ServiceInfo {
     pub repository: String,
     pub name: String,
     pub version: String,

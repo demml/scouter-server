@@ -6,6 +6,7 @@ use scouter_server::alerts::base::DriftExecutor;
 use scouter_server::alerts::spc::drift::SpcDrifter;
 use scouter_server::sql::postgres::PostgresClient;
 use sqlx::{Postgres, Row};
+use tower::Service;
 mod test_utils;
 
 #[tokio::test]
@@ -32,18 +33,19 @@ async fn test_drift_executor_separate() {
     assert_eq!(drift_profile.config.name, "test_app");
     assert_eq!(drift_profile.config.repository, "statworld");
 
+    let service_info = ServiceInfo {
+        name: profile.name,
+        repository: profile.repository,
+        version: profile.version,
+    };
+
     // switch back to previous run
     let previous_run: NaiveDateTime = profile.previous_run;
     let name: String = profile.name;
     let repository: String = profile.repository;
     let version: String = profile.version;
 
-    let drifter = SpcDrifter::new(
-        repository.clone(),
-        name.clone(),
-        version.clone(),
-        drift_profile.clone(),
-    );
+    let drifter = SpcDrifter::new(service_info, drift_profile.clone());
 
     let (drift_array, keys) = drifter
         .compute_drift(&previous_run, &db_client)

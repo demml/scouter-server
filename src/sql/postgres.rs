@@ -1,4 +1,4 @@
-use crate::api::schema::{DriftAlertRequest, DriftRequest, ProfileStatusRequest, ScouterData};
+use crate::api::schema::{DriftAlertRequest, DriftRequest, ProfileStatusRequest, ServiceInfo};
 use crate::sql::query::Queries;
 use crate::sql::schema::{
     AlertResult, DriftRecord, FeatureResult, QueryResult, SpcFeatureResult, TaskRequest,
@@ -92,16 +92,16 @@ impl PostgresClient {
     //
     pub async fn insert_drift_alert(
         &self,
-        scouter_data: &ScouterData,
+        service_info: &ServiceInfo,
         feature: &str,
         alert: &BTreeMap<String, String>,
     ) -> Result<PgQueryResult, anyhow::Error> {
         let query = Queries::InsertDriftAlert.get_query();
 
         let query_result = sqlx::query(&query.sql)
-            .bind(&scouter_data.name)
-            .bind(&scouter_data.repository)
-            .bind(&scouter_data.version)
+            .bind(&service_info.name)
+            .bind(&service_info.repository)
+            .bind(&service_info.version)
             .bind(feature)
             .bind(serde_json::to_value(alert).unwrap())
             .execute(&self.pool)
@@ -269,7 +269,7 @@ impl PostgresClient {
 
     pub async fn get_drift_profile(
         &self,
-        params: &ScouterData,
+        params: &ServiceInfo,
     ) -> Result<Option<Value>, anyhow::Error> {
         let query = Queries::GetDriftProfile.get_query();
 
@@ -306,7 +306,7 @@ impl PostgresClient {
 
     pub async fn update_drift_profile_run_dates(
         transaction: &mut Transaction<'_, Postgres>,
-        scouter_data: &ScouterData,
+        service_info: &ServiceInfo,
         schedule: &str,
     ) -> Result<(), Error> {
         let query = Queries::UpdateDriftProfileRunDates.get_query();
@@ -323,9 +323,9 @@ impl PostgresClient {
 
         let query_result = sqlx::query(&query.sql)
             .bind(next_run.naive_utc())
-            .bind(&scouter_data.name)
-            .bind(&scouter_data.repository)
-            .bind(&scouter_data.version)
+            .bind(&service_info.name)
+            .bind(&service_info.repository)
+            .bind(&service_info.version)
             .execute(&mut **transaction)
             .await;
 
@@ -368,13 +368,13 @@ impl PostgresClient {
 
     // Queries the database for all features under a service
     // Private method that'll be used to run drift retrieval in parallel
-    async fn get_features(&self, scouter_data: &ScouterData) -> Result<Vec<String>, anyhow::Error> {
+    async fn get_features(&self, service_info: &ServiceInfo) -> Result<Vec<String>, anyhow::Error> {
         let query = Queries::GetFeatures.get_query();
 
         sqlx::query(&query.sql)
-            .bind(&scouter_data.name)
-            .bind(&scouter_data.repository)
-            .bind(&scouter_data.version)
+            .bind(&service_info.name)
+            .bind(&service_info.repository)
+            .bind(&service_info.version)
             .fetch_all(&self.pool)
             .await
             .map_err(|e| {
@@ -392,16 +392,16 @@ impl PostgresClient {
     async fn run_spc_feature_query(
         &self,
         feature: &str,
-        scouter_data: &ScouterData,
+        service_info: &ServiceInfo,
         limit_timestamp: &str,
     ) -> Result<SpcFeatureResult, anyhow::Error> {
         let query = Queries::GetFeatureValues.get_query();
 
         let feature_values: Result<SpcFeatureResult, anyhow::Error> = sqlx::query_as(&query.sql)
             .bind(limit_timestamp)
-            .bind(&scouter_data.name)
-            .bind(&scouter_data.repository)
-            .bind(&scouter_data.version)
+            .bind(&service_info.name)
+            .bind(&service_info.repository)
+            .bind(&service_info.version)
             .bind(feature)
             .fetch_one(&self.pool)
             .await
@@ -457,13 +457,13 @@ impl PostgresClient {
         &self,
         params: &DriftRequest,
     ) -> Result<QueryResult, anyhow::Error> {
-        let scouter_data = ScouterData {
+        let service_info = ServiceInfo {
             repository: params.repository.clone(),
             name: params.name.clone(),
             version: params.version.clone(),
         };
         // get features
-        let features = self.get_features(&scouter_data).await?;
+        let features = self.get_features(&service_info).await?;
 
         let time_window = TimeInterval::from_string(&params.time_window).to_minutes();
 
@@ -510,11 +510,11 @@ impl PostgresClient {
 
     pub async fn get_drift_records(
         &self,
-        scouter_data: &ScouterData,
+        service_info: &ServiceInfo,
         limit_timestamp: &str,
         features_to_monitor: &[String],
     ) -> Result<QueryResult, anyhow::Error> {
-        let mut features = self.get_features(scouter_data).await?;
+        let mut features = self.get_features(service_info).await?;
 
         if !features_to_monitor.is_empty() {
             features.retain(|feature| features_to_monitor.contains(feature));
@@ -523,7 +523,7 @@ impl PostgresClient {
         let query_results = join_all(
             features
                 .iter()
-                .map(|feature| self.run_spc_feature_query(feature, scouter_data, limit_timestamp))
+                .map(|feature| self.run_spc_feature_query(feature, service_info, limit_timestamp))
                 .collect::<Vec<_>>(),
         )
         .await;
@@ -545,7 +545,7 @@ impl PostgresClient {
         if feature_sizes.windows(2).any(|w| w[0] != w[1]) {
             warn!(
                     "Feature values have different lengths for drift profile: {}/{}/{}, Timestamp: {:?}, feature sizes: {:?}",
-                    scouter_data.repository, scouter_data.name, scouter_data.version, limit_timestamp, feature_sizes
+                    service_info.repository, service_info.name, service_info.version, limit_timestamp, feature_sizes
                 );
         }
 

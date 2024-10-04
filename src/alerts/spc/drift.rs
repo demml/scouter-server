@@ -1,4 +1,4 @@
-use crate::api::schema::ScouterData;
+use crate::api::schema::ServiceInfo;
 use crate::sql::postgres::PostgresClient;
 use crate::sql::schema::QueryResult;
 use anyhow::{Context, Result};
@@ -18,14 +18,14 @@ use ndarray::Array2;
 // Defines the SpcDrifter struct
 // This is used to process drift alerts for spc style profiles
 pub struct SpcDrifter {
-    scouter_data: ScouterData,
+    service_info: ServiceInfo,
     profile: SpcDriftProfile,
 }
 
 impl SpcDrifter {
-    pub fn new(scouter_data: ScouterData, profile: SpcDriftProfile) -> Self {
+    pub fn new(service_info: ServiceInfo, profile: SpcDriftProfile) -> Self {
         Self {
-            scouter_data,
+            service_info,
             profile,
         }
     }
@@ -48,7 +48,7 @@ impl SpcDrifter {
         features_to_monitor: &[String],
     ) -> Result<QueryResult> {
         let records = db_client
-            .get_drift_records(&self.scouter_data, limit_timestamp, features_to_monitor)
+            .get_drift_records(&self.service_info, limit_timestamp, features_to_monitor)
             .await?;
         Ok(records)
     }
@@ -150,7 +150,7 @@ impl SpcDrifter {
         let alert_dispatcher = AlertDispatcher::new(&self.profile.config).map_err(|e| {
             error!(
                 "Error creating alert dispatcher for {}/{}/{}: {}",
-                self.scouter_data.repository, self.scouter_data.name, self.scouter_data.version, e
+                self.service_info.repository, self.service_info.name, self.service_info.version, e
             );
             anyhow::anyhow!("Error creating alert dispatcher")
         })?;
@@ -162,9 +162,9 @@ impl SpcDrifter {
                 .map_err(|e| {
                     error!(
                         "Error processing alerts for {}/{}/{}: {}",
-                        self.scouter_data.repository,
-                        self.scouter_data.name,
-                        self.scouter_data.version,
+                        self.service_info.repository,
+                        self.service_info.name,
+                        self.service_info.version,
                         e
                     );
                     anyhow::anyhow!("Error processing alerts")
@@ -174,7 +174,7 @@ impl SpcDrifter {
         } else {
             info!(
                 "No alerts to process for {}/{}/{}",
-                self.scouter_data.repository, self.scouter_data.name, self.scouter_data.version
+                self.service_info.repository, self.service_info.name, self.service_info.version
             );
         }
 
@@ -219,7 +219,7 @@ impl SpcDrifter {
     ) -> Result<Option<Vec<BTreeMap<String, String>>>, anyhow::Error> {
         info!(
             "Processing drift task for profile: {}/{}/{}",
-            self.scouter_data.repository, self.scouter_data.name, self.scouter_data.version
+            self.service_info.repository, self.service_info.name, self.service_info.version
         );
 
         // Compute drift
@@ -241,9 +241,9 @@ impl SpcDrifter {
             .map_err(|e| {
                 error!(
                     "Error generating alerts for {}/{}/{}: {}",
-                    self.scouter_data.repository,
-                    self.scouter_data.name,
-                    self.scouter_data.version,
+                    self.service_info.repository,
+                    self.service_info.name,
+                    self.service_info.version,
                     e
                 );
                 anyhow::anyhow!("Error generating alerts")

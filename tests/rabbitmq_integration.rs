@@ -36,7 +36,7 @@ mod rabbit_integration {
             let feature_names = vec!["feature0", "feature1", "feature2"];
 
             for feature_name in feature_names {
-                let record = ServerRecord::DRIFT {
+                let record = ServerRecord::SPC {
                     record: SpcServerRecord {
                         created_at: chrono::Utc::now().naive_utc(),
                         name: "test_app".to_string(),
@@ -49,7 +49,7 @@ mod rabbit_integration {
 
                 // treat each record as a separate message
                 let server_records = ServerRecords {
-                    record_type: scouter::core::drift::base::RecordType::DRIFT,
+                    record_type: scouter::core::drift::base::RecordType::SPC,
                     records: vec![record],
                 };
 

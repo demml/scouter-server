@@ -25,7 +25,7 @@ tracing = "0.1.40"
 tracing-subscriber = {version = "0.3.18", features = ["json", "time"]}
 cron = "0.12.1"
 ndarray = "0.15.6"
-scouter = { version = "= 0.3.0-rc.8" , features = ["dispatch"]}
+scouter = { version = "= 0.3.0-rc.9" , features = ["dispatch"]}
 metrics-exporter-prometheus = "0.15.1"
 metrics = "0.23.0"
 async-trait = "0.1.81"

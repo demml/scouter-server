@@ -11,26 +11,31 @@ pub trait ToDriftRecords {
 impl ToDriftRecords for ServerRecords {
     fn to_spc_drift_records(&self) -> Result<Vec<DriftRecord>> {
         match self.record_type {
-            RecordType::DRIFT => {
+            RecordType::SPC => {
                 let mut records = Vec::new();
                 for record in self.records.iter() {
-                    let ServerRecord::DRIFT {
-                        record: inner_record,
-                    } = record;
-                    {
-                        records.push(DriftRecord {
-                            repository: inner_record.repository.clone(),
-                            name: inner_record.name.clone(),
-                            version: inner_record.version.clone(),
-                            created_at: inner_record.created_at,
-                            feature: inner_record.feature.clone(),
-                            value: inner_record.value,
-                        });
+                    match record {
+                        ServerRecord::SPC {
+                            record: inner_record,
+                        } => {
+                            records.push(DriftRecord {
+                                repository: inner_record.repository.clone(),
+                                name: inner_record.name.clone(),
+                                version: inner_record.version.clone(),
+                                created_at: inner_record.created_at,
+                                feature: inner_record.feature.clone(),
+                                value: inner_record.value,
+                            });
+                        }
+                        _ => {
+                            error!("Unexpected record type");
+                        }
                     }
                 }
                 Ok(records)
             }
             RecordType::OBSERVABILITY => todo!(),
+            RecordType::PSI => todo!(),
         }
     }
 }
@@ -44,7 +49,7 @@ impl MessageHandler {
         match self {
             Self::Postgres(client) => {
                 match records.record_type {
-                    RecordType::DRIFT => {
+                    RecordType::SPC => {
                         let records = records.to_spc_drift_records()?;
                         for record in records.iter() {
                             let _ = client.insert_drift_record(record).await.map_err(|e| {
@@ -53,6 +58,7 @@ impl MessageHandler {
                         }
                     }
                     RecordType::OBSERVABILITY => todo!(),
+                    RecordType::PSI => todo!(),
                 };
             }
         }

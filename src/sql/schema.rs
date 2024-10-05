@@ -1,5 +1,6 @@
 use crate::api::schema::DriftRecordRequest;
 use chrono::NaiveDateTime;
+use scouter::core::observe::observer::RouteMetrics;
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, Error, FromRow, Row};
 
@@ -13,6 +14,16 @@ pub struct DriftRecord {
     pub version: String,
     pub feature: String,
     pub value: f64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ObservabilityRecord {
+    pub repository: String,
+    pub name: String,
+    pub version: String,
+    pub request_count: i64,
+    pub error_count: i64,
+    pub route_metrics: Vec<RouteMetrics>,
 }
 
 impl DriftRecord {

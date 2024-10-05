@@ -6,7 +6,8 @@ CREATE TABLE IF NOT exists scouter.observability_metrics (
   version varchar(256) not null,
   request_count integer not null default 0,
   error_count integer not null default 0,
-  route_metrics jsonb not null default '{}',
+  route_metrics jsonb not null default '[]',
+  UNIQUE (created_at,name,repository,version)
 )
 PARTITION BY RANGE (created_at);
 
@@ -18,4 +19,4 @@ SELECT scouter.create_parent(
     '1 day'
 );
 
-UPDATE scouter.part_config SET retention = '21 days' WHERE parent_table = 'scouter.observability_metrics';
+UPDATE scouter.part_config SET retention = '14 days' WHERE parent_table = 'scouter.observability_metrics';

@@ -6,6 +6,7 @@ const GET_BINNED_FEATURE_VALUES: &str = include_str!("scripts/binned_feature_val
 const GET_FEATURE_VALUES: &str = include_str!("scripts/feature_values.sql");
 const INSERT_DRIFT_PROFILE: &str = include_str!("scripts/insert_drift_profile.sql");
 const INSERT_DRIFT_ALERT: &str = include_str!("scripts/insert_drift_alert.sql");
+const INSERT_OBSERVABILITY_RECORD: &str = include_str!("scripts/insert_observability_record.sql");
 const GET_DRIFT_TASK: &str = include_str!("scripts/poll_for_drift_task.sql");
 const GET_DRIFT_ALERTS: &str = include_str!("scripts/get_drift_alerts.sql");
 const GET_DRIFT_PROFILE: &str = include_str!("scripts/get_drift_profile.sql");
@@ -20,6 +21,7 @@ pub enum Queries {
     InsertDriftRecord,
     InsertDriftProfile,
     InsertDriftAlert,
+    InsertObservabilityRecord,
     GetDriftAlerts,
     GetBinnedFeatureValues,
     GetFeatureValues,
@@ -40,6 +42,7 @@ impl Queries {
             Queries::GetFeatureValues => SqlQuery::new(GET_FEATURE_VALUES),
             Queries::InsertDriftProfile => SqlQuery::new(INSERT_DRIFT_PROFILE),
             Queries::InsertDriftAlert => SqlQuery::new(INSERT_DRIFT_ALERT),
+            Queries::InsertObservabilityRecord => SqlQuery::new(INSERT_OBSERVABILITY_RECORD),
             Queries::GetDriftAlerts => SqlQuery::new(GET_DRIFT_ALERTS),
             Queries::GetDriftTask => SqlQuery::new(GET_DRIFT_TASK),
             Queries::UpdateDriftProfileRunDates => SqlQuery::new(UPDATE_DRIFT_PROFILE_RUN_DATES),

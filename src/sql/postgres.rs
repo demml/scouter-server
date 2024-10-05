@@ -1,7 +1,8 @@
 use crate::api::schema::{DriftAlertRequest, DriftRequest, ProfileStatusRequest, ServiceInfo};
 use crate::sql::query::Queries;
 use crate::sql::schema::{
-    AlertResult, DriftRecord, FeatureResult, QueryResult, SpcFeatureResult, TaskRequest,
+    AlertResult, DriftRecord, FeatureResult, ObservabilityRecord, QueryResult, SpcFeatureResult,
+    TaskRequest,
 };
 use anyhow::*;
 use chrono::Utc;
@@ -196,6 +197,50 @@ impl PostgresClient {
             Err(e) => {
                 error!("Failed to insert record into database: {:?}", e);
                 Err(anyhow!("Failed to insert record into database: {:?}", e))
+            }
+        }
+    }
+
+    // Inserts a drift record into the database
+    //
+    // # Arguments
+    //
+    // * `record` - A drift record to insert into the database
+    // * `table_name` - The name of the table to insert the record into
+    //
+    pub async fn insert_observability_record(
+        &self,
+        record: &ObservabilityRecord,
+    ) -> Result<PgQueryResult, anyhow::Error> {
+        let query = Queries::InsertObservabilityRecord.get_query();
+        let route_metrics = serde_json::to_value(&record.route_metrics).map_err(|e| {
+            error!("Failed to serialize route metrics: {:?}", e);
+            anyhow!("Failed to serialize route metrics: {:?}", e)
+        })?;
+
+        let query_result = sqlx::query(&query.sql)
+            .bind(&record.repository)
+            .bind(&record.name)
+            .bind(&record.version)
+            .bind(&record.request_count)
+            .bind(record.error_count)
+            .bind(route_metrics)
+            .execute(&self.pool)
+            .await
+            .with_context(|| "Failed to insert observability metrics into database");
+
+        //drop params
+        match query_result {
+            Ok(result) => Ok(result),
+            Err(e) => {
+                error!(
+                    "Failed to insert observability record into database: {:?}",
+                    e
+                );
+                Err(anyhow!(
+                    "Failed to insert observability record into database: {:?}",
+                    e
+                ))
             }
         }
     }

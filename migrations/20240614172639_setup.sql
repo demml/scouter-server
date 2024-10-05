@@ -11,7 +11,6 @@ CREATE TABLE IF NOT exists scouter.drift (
 )
 PARTITION BY RANGE (created_at);
 
-
 CREATE INDEX ON scouter.drift (name, repository, version, created_at);
 
 SELECT scouter.create_parent(

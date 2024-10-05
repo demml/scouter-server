@@ -1,5 +1,65 @@
 CREATE EXTENSION IF NOT EXISTS tablefunc;
 
+CREATE OR REPLACE FUNCTION insert_observability_data(num_records INTEGER)
+RETURNS VOID AS $$
+DECLARE
+    start_time TIMESTAMP := timezone('utc', now());
+    interval_seconds INTEGER := 2 * 60 * 60 / num_records; -- 2 hours divided by num_records
+    i INTEGER;
+BEGIN
+    FOR i IN 0..(num_records - 1) LOOP
+        INSERT INTO scouter.observability_metrics (
+            created_at, repository, name, version, request_count, error_count, route_metrics
+        ) VALUES (
+            start_time + (i * interval_seconds) * INTERVAL '1 second',
+            'example-repo-' || i,
+            'example-service-' || i,
+            '1.0.0',
+            100 + i,
+            5 + i,
+            '[
+                {
+                    "route_name": "route1",
+                    "metrics": {
+                        "p5": 10.5,
+                        "p25": 20.5,
+                        "p50": 30.5,
+                        "p95": 40.5,
+                        "p99": 50.5
+                    },
+                    "request_count": 50,
+                    "error_count": 2,
+                    "error_latency": 5.5,
+                    "status_codes": {
+                        "200": 45,
+                        "500": 2,
+                        "404": 3
+                    }
+                },
+                {
+                    "route_name": "route2",
+                    "metrics": {
+                        "p5": 15.5,
+                        "p25": 25.5,
+                        "p50": 35.5,
+                        "p95": 45.5,
+                        "p99": 55.5
+                    },
+                    "request_count": 50,
+                    "error_count": 3,
+                    "error_latency": 6.5,
+                    "status_codes": {
+                        "200": 47,
+                        "500": 1,
+                        "404": 2
+                    }
+                }
+            ]'::jsonb
+        );
+    END LOOP;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE OR REPLACE FUNCTION insert_sample_data(num_records INTEGER)
 RETURNS VOID AS $$
 DECLARE
@@ -86,6 +146,9 @@ BEGIN
                 VALUES %s', drift_values);
         END LOOP;
     END LOOP;
+
+    -- Call the insert_observability_data function
+    PERFORM insert_observability_data(num_records);
 END;
 $$ LANGUAGE plpgsql;
 

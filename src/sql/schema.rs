@@ -145,9 +145,14 @@ pub struct ObservabilityResult {
 
 impl<'r> FromRow<'r, PgRow> for ObservabilityResult {
     fn from_row(row: &'r PgRow) -> Result<Self, Error> {
-        let status_counts: serde_json::Value = row.try_get("status_counts")?;
-        let status_counts: Vec<HashMap<String, i64>> =
-            serde_json::from_value(status_counts).unwrap_or_default();
+        // decode status counts to vec of jsonb
+        let status_counts: Vec<serde_json::Value> = row.try_get("status_counts")?;
+
+        // convert vec of jsonb to vec of hashmaps
+        let status_counts: Vec<HashMap<String, i64>> = status_counts
+            .into_iter()
+            .map(|value| serde_json::from_value(value).unwrap_or_default())
+            .collect();
 
         Ok(ObservabilityResult {
             route_name: row.try_get("route_name")?,

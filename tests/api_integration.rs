@@ -9,7 +9,7 @@ use scouter::core::drift::spc::types::{
     SpcAlertConfig, SpcAlertRule, SpcDriftConfig, SpcDriftProfile, SpcFeatureDriftProfile,
 };
 use scouter_server::api::schema::{DriftRecordRequest, ProfileRequest, ProfileStatusRequest};
-use scouter_server::sql::schema::QueryResult;
+use scouter_server::sql::schema::{ObservabilityResult, QueryResult};
 use serde_json::Value;
 use std::collections::HashMap;
 use tower::Service;
@@ -430,7 +430,7 @@ async fn test_observability_metrics() {
     let response = app
         .oneshot(
             Request::builder()
-                .uri("/scouter/observability/metrics?name=example-repo-1&repository=example-service-1&version=1.0.0&time_window=5minute&max_data_points=1000")
+                .uri("/scouter/observability/metrics?name=example-service-1&repository=example-repo-1&version=1.0.0&time_window=5minute&max_data_points=1000")
                 .method("GET")
                 .body(Body::empty())
                 .unwrap(),
@@ -438,7 +438,14 @@ async fn test_observability_metrics() {
         .await
         .unwrap();
 
-    println!("{:?}", response);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let body: Value = serde_json::from_slice(&body).unwrap();
+    let data = body.get("data").unwrap();
+
+    let metrics = serde_json::from_value::<Vec<ObservabilityResult>>(data.clone()).unwrap();
+
+    assert!(!metrics.is_empty());
+    assert_eq!(metrics.len(), 2);
 
     test_utils::teardown().await.unwrap();
 }

@@ -119,7 +119,7 @@ SELECT
     array_agg(total_request_count ORDER BY created_at DESC) as total_request_count,
     array_agg(total_error_count ORDER BY created_at DESC) as total_error_count,
     array_agg(avg_error_latency ORDER BY created_at DESC) as error_latency,
-    array_agg(status_counts ORDER BY created_at DESC) as agg_status_counts
+    array_agg(status_counts ORDER BY created_at DESC) as status_counts
 FROM joined
 GROUP BY 
     route_name;

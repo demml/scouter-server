@@ -3,8 +3,8 @@ use chrono::NaiveDateTime;
 use scouter::core::observe::observer::RouteMetrics;
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, Error, FromRow, Row};
-
 use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DriftRecord {
@@ -124,6 +124,43 @@ impl<'r> FromRow<'r, PgRow> for TaskRequest {
             drift_type: row.try_get("drift_type")?,
             previous_run: row.try_get("previous_run")?,
             schedule: row.try_get("schedule")?,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ObservabilityResult {
+    pub route_name: String,
+    pub created_at: Vec<chrono::NaiveDateTime>,
+    pub p5: Vec<f64>,
+    pub p25: Vec<f64>,
+    pub p50: Vec<f64>,
+    pub p95: Vec<f64>,
+    pub p99: Vec<f64>,
+    pub total_request_count: Vec<i64>,
+    pub total_error_count: Vec<i64>,
+    pub error_latency: Vec<f64>,
+    pub status_counts: Vec<HashMap<String, i64>>,
+}
+
+impl<'r> FromRow<'r, PgRow> for ObservabilityResult {
+    fn from_row(row: &'r PgRow) -> Result<Self, Error> {
+        let status_counts: serde_json::Value = row.try_get("status_counts")?;
+        let status_counts: Vec<HashMap<String, i64>> =
+            serde_json::from_value(status_counts).unwrap_or_default();
+
+        Ok(ObservabilityResult {
+            route_name: row.try_get("route_name")?,
+            created_at: row.try_get("created_at")?,
+            p5: row.try_get("p5")?,
+            p25: row.try_get("p25")?,
+            p50: row.try_get("p50")?,
+            p95: row.try_get("p95")?,
+            p99: row.try_get("p99")?,
+            total_request_count: row.try_get("total_request_count")?,
+            total_error_count: row.try_get("total_error_count")?,
+            error_latency: row.try_get("error_latency")?,
+            status_counts: status_counts,
         })
     }
 }

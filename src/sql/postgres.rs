@@ -1,8 +1,8 @@
 use crate::api::schema::{DriftAlertRequest, DriftRequest, ProfileStatusRequest, ServiceInfo};
 use crate::sql::query::Queries;
 use crate::sql::schema::{
-    AlertResult, DriftRecord, FeatureResult, ObservabilityRecord, QueryResult, SpcFeatureResult,
-    TaskRequest,
+    AlertResult, DriftRecord, FeatureResult, ObservabilityRecord, ObservabilityResult, QueryResult,
+    SpcFeatureResult, TaskRequest,
 };
 use anyhow::*;
 use chrono::Utc;
@@ -456,6 +456,30 @@ impl PostgresClient {
             });
 
         feature_values
+    }
+
+    async fn get_binned_observability_metrics(
+        &self,
+        service_info: &ServiceInfo,
+        bin: &f64,
+        time_window: &i32,
+    ) -> Result<Vec<ObservabilityResult>, anyhow::Error> {
+        let query = Queries::GetBinnedObservabilityMetrics.get_query();
+
+        let observability_metrics: Result<Vec<ObservabilityResult>, sqlx::Error> =
+            sqlx::query_as(&query.sql)
+                .bind(bin)
+                .bind(time_window)
+                .bind(&service_info.name)
+                .bind(&service_info.repository)
+                .bind(&service_info.version)
+                .fetch_all(&self.pool)
+                .await;
+
+        observability_metrics.map_err(|e| {
+            error!("Failed to run query: {:?}", e);
+            anyhow!("Failed to run query: {:?}", e)
+        })
     }
 
     async fn run_binned_feature_query(

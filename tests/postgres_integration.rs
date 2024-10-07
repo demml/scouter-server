@@ -121,6 +121,7 @@ async fn test_postgres_client() {
         version: record.version.clone(),
         time_window: "30minute".to_string(),
         max_data_points: 1000,
+        feature: None,
     };
 
     //test get_binned_drift_records

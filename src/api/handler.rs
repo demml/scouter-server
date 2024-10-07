@@ -1,10 +1,8 @@
 use crate::api::schema::{
-    AlertMetricRequest, DriftAlertRequest, DriftRequest, FeatureDriftDistributionRequest,
-    ObservabilityMetricRequest, ProfileRequest, ProfileStatusRequest, ServiceInfo,
-    UpdateAlertRequest,
+    AlertMetricRequest, DriftAlertRequest, DriftRequest, ObservabilityMetricRequest,
+    ProfileRequest, ProfileStatusRequest, ServiceInfo, UpdateAlertRequest,
 };
 use crate::consumer::base::ToDriftRecords;
-use crate::sql::postgres::TimeInterval;
 use scouter::core::drift::base::DriftProfile;
 use scouter::core::drift::base::ServerRecords;
 
@@ -368,6 +366,31 @@ pub async fn update_drift_alerts(
         }
         Err(e) => {
             error!("Failed to update drift alert: {:?}", e);
+            let json_response = json!({
+                "status": "error",
+                "message": format!("{:?}", e)
+            });
+            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
+        }
+    }
+}
+
+pub async fn get_alert_metrics(
+    State(data): State<Arc<AppState>>,
+    params: Query<AlertMetricRequest>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    let query_result = &data.db.get_alert_metrics(&params).await;
+
+    match query_result {
+        Ok(result) => {
+            let json_response = json!({
+                "status": "success",
+                "data": result
+            });
+            Ok(Json(json_response))
+        }
+        Err(e) => {
+            error!("Failed to query alert metrics: {:?}", e);
             let json_response = json!({
                 "status": "error",
                 "message": format!("{:?}", e)

@@ -198,3 +198,11 @@ impl<'r> FromRow<'r, PgRow> for FeatureDistribution {
         })
     }
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AlertMetricsResult {
+    pub created_at: Vec<chrono::NaiveDateTime>,
+    pub alert_count: Vec<i64>,
+    pub active: Vec<i64>,
+    pub acknowledged: Vec<i64>,
+}

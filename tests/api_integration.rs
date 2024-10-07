@@ -10,6 +10,7 @@ use scouter::core::drift::spc::types::{
 };
 use scouter::core::{dispatch::types::AlertDispatchType, drift::spc::types::SpcServerRecord};
 use scouter_server::api::schema::{ProfileRequest, ProfileStatusRequest};
+use scouter_server::sql::schema::FeatureDistribution;
 use scouter_server::sql::schema::{ObservabilityResult, QueryResult};
 use serde_json::Value;
 use std::collections::HashMap;

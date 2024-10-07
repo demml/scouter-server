@@ -1,10 +1,11 @@
 use crate::api::schema::{
-    DriftAlertRequest, DriftRequest, ObservabilityMetricRequest, ProfileStatusRequest, ServiceInfo,
+    AlertMetricRequest, DriftAlertRequest, DriftRequest, ObservabilityMetricRequest,
+    ProfileStatusRequest, ServiceInfo,
 };
 use crate::sql::query::Queries;
 use crate::sql::schema::{
-    AlertResult, FeatureDistribution, FeatureResult, ObservabilityResult, QueryResult,
-    SpcFeatureResult, TaskRequest,
+    AlertMetricsResult, AlertResult, FeatureDistribution, FeatureResult, ObservabilityResult,
+    QueryResult, SpcFeatureResult, TaskRequest,
 };
 use anyhow::*;
 use chrono::Utc;
@@ -582,26 +583,33 @@ impl PostgresClient {
         &self,
         params: &DriftRequest,
     ) -> Result<FeatureDistribution, anyhow::Error> {
+        let feature = match &params.feature {
+            Some(feature) => feature.clone(),
+            None => "".to_string(),
+        };
+
         let query = Queries::GetFeatureDistribution.get_query();
 
         let time_window = TimeInterval::from_string(&params.time_window).to_minutes() as f64;
 
         let bin = time_window / params.max_data_points as f64;
-        
+
         let binned: Result<FeatureDistribution, sqlx::Error> = sqlx::query_as(&query.sql)
             .bind(bin)
             .bind(time_window)
-            .bind(params.name)
-            .bind(params.repository)
-            .bind(params.version)
-            .bind(params.feature)
+            .bind(&params.name)
+            .bind(&params.repository)
+            .bind(&params.version)
+            .bind(feature)
             .fetch_one(&self.pool)
-            .await.map_err(|e| {
-                error!("Failed to run query: {:?}", e);
-                anyhow!("Failed to run query: {:?}", e)
-            });
+            .await;
 
-        binned
+        match binned {
+            Ok(result) => Ok(result),
+            Err(e) => {
+                error!("Failed to run query: {:?}", e);
+                Err(anyhow!("Failed to run query: {:?}", e))
+            }
         }
     }
 
@@ -676,25 +684,18 @@ impl PostgresClient {
 
     pub async fn get_alert_metrics(
         &self,
-        name: &str,
-        repository: &str,
-        version: &str,
-        max_data_points: &i32,
-        time_window: &i32,
+        params: &AlertMetricRequest,
     ) -> Result<AlertMetricsResult, anyhow::Error> {
         let query = Queries::GetAlertMetrics.get_query();
-        let bin = *time_window as f64 / *max_data_points as f64;
+        let time_window = TimeInterval::from_string(&params.time_window).to_minutes() as f64;
+        let bin = time_window / params.max_data_points as f64;
 
-        let params = GetAlertMetricsParams {
-            table: self.alert_table_name.to_string(),
-            name: name.to_string(),
-            repository: repository.to_string(),
-            version: version.to_string(),
-            time_window: time_window.to_string(),
-            bin: bin.to_string(),
-        };
-
-        let result = sqlx::raw_sql(query.format(&params).as_str())
+        let result: Result<Vec<PgRow>, sqlx::Error> = sqlx::query(&query.sql)
+            .bind(bin)
+            .bind(time_window)
+            .bind(&params.name)
+            .bind(&params.repository)
+            .bind(&params.version)
             .fetch_all(&self.pool)
             .await;
 

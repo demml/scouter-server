@@ -1,6 +1,6 @@
 with subquery as (
     SELECT
-    date_bin('$bin minutes', created_at, TIMESTAMP '1970-01-01') as created_at,
+    date_bin('$1 minutes', created_at, TIMESTAMP '1970-01-01') as created_at,
     name,
     repository,
     version,
@@ -9,10 +9,10 @@ with subquery as (
     case when status = 'acknowledged' then 1 else 0 end acknowledged
     from $table
     WHERE 
-        created_at > timezone('utc', now()) - interval '$time_window' minute
-        AND version = '$version'
-        AND name = '$name'
-        AND repository = '$repository'
+        created_at > timezone('utc', now()) - interval '$2' minute
+        AND name = $3
+        AND repository = $4
+        AND version = $5
 )
 
 SELECT

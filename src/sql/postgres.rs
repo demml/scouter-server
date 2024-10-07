@@ -3,8 +3,8 @@ use crate::api::schema::{
 };
 use crate::sql::query::Queries;
 use crate::sql::schema::{
-    AlertResult, DriftRecord, FeatureResult, ObservabilityRecord, ObservabilityResult, QueryResult,
-    SpcFeatureResult, TaskRequest,
+    AlertResult, DriftRecord, FeatureResult, ObservabilityResult, QueryResult, SpcFeatureResult,
+    TaskRequest,
 };
 use anyhow::*;
 use chrono::Utc;
@@ -12,6 +12,8 @@ use cron::Schedule;
 use futures::future::join_all;
 use include_dir::{include_dir, Dir};
 use scouter::core::drift::base::DriftProfile;
+use scouter::core::drift::spc::types::SpcServerRecord;
+use scouter::core::observe::observer::ObservabilityMetrics;
 use serde_json::Value;
 use sqlx::{
     postgres::{PgQueryResult, PgRow},
@@ -176,9 +178,9 @@ impl PostgresClient {
     // * `record` - A drift record to insert into the database
     // * `table_name` - The name of the table to insert the record into
     //
-    pub async fn insert_drift_record(
+    pub async fn insert_spc_drift_record(
         &self,
-        record: &DriftRecord,
+        record: &SpcServerRecord,
     ) -> Result<PgQueryResult, anyhow::Error> {
         let query = Queries::InsertDriftRecord.get_query();
 
@@ -212,7 +214,7 @@ impl PostgresClient {
     //
     pub async fn insert_observability_record(
         &self,
-        record: &ObservabilityRecord,
+        record: &ObservabilityMetrics,
     ) -> Result<PgQueryResult, anyhow::Error> {
         let query = Queries::InsertObservabilityRecord.get_query();
         let route_metrics = serde_json::to_value(&record.route_metrics).map_err(|e| {

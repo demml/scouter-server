@@ -154,7 +154,7 @@ impl<'r> FromRow<'r, PgRow> for ObservabilityResult {
             total_request_count: row.try_get("total_request_count")?,
             total_error_count: row.try_get("total_error_count")?,
             error_latency: row.try_get("error_latency")?,
-            status_counts: status_counts,
+            status_counts,
         })
     }
 }

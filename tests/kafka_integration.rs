@@ -41,14 +41,14 @@ mod kafka_integration {
             // The send operation on the topic returns a future, which will be
             // completed once the result or failure from Kafka is received.
             let mut status_codes = HashMap::new();
-            status_codes.insert(200 as usize, 10 as i64);
+            status_codes.insert(200_usize, 10_i64);
 
             let latency = LatencyMetrics {
-                p5: 0 as f64,
-                p25: 0 as f64,
-                p50: 0.25 as f64,
-                p95: 0.25 as f64,
-                p99: 0.25 as f64,
+                p5: 0_f64,
+                p25: 0_f64,
+                p50: 0.25_f64,
+                p95: 0.25_f64,
+                p99: 0.25_f64,
             };
 
             let route_metrics = RouteMetrics {
@@ -57,7 +57,7 @@ mod kafka_integration {
                 request_count: 10,
                 error_count: 0,
                 error_latency: 0 as f64,
-                status_codes: status_codes,
+                status_codes,
             };
             let record = ObservabilityMetrics {
                 name: "test_app".to_string(),
@@ -68,7 +68,7 @@ mod kafka_integration {
                 route_metrics: vec![route_metrics],
             };
 
-            let server_record = ServerRecord::OBSERVABILITY { record: record };
+            let server_record = ServerRecord::OBSERVABILITY { record };
 
             let server_records = ServerRecords {
                 record_type: scouter::core::drift::base::RecordType::OBSERVABILITY,

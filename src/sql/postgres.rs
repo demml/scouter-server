@@ -226,7 +226,7 @@ impl PostgresClient {
             .bind(&record.repository)
             .bind(&record.name)
             .bind(&record.version)
-            .bind(&record.request_count)
+            .bind(record.request_count)
             .bind(record.error_count)
             .bind(route_metrics)
             .execute(&self.pool)

@@ -130,7 +130,9 @@ pub async fn insert_drift_profile(
     // validate profile is correct
     // this will be used to validate different versions of the drift profile in the future
 
-    let body = DriftProfile::from_value(body.profile, &body.drift_type.value());
+    info!("Inserting drift profile");
+
+    let body = DriftProfile::from_value(body.profile, &body.drift_type);
 
     if body.is_err() {
         // future: - validate against older versions of the drift profile
@@ -176,7 +178,7 @@ pub async fn update_drift_profile(
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     // validate profile is correct
     // this will be used to validate different versions of the drift profile in the future
-    let body = DriftProfile::from_value(body.profile, &body.drift_type.value());
+    let body = DriftProfile::from_value(body.profile, &body.drift_type);
 
     if body.is_err() {
         // future: - validate against older versions of the drift profile

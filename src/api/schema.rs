@@ -23,7 +23,7 @@ pub struct AlertMetricRequest {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ProfileRequest {
-    pub drift_type: DriftType,
+    pub drift_type: String,
     pub profile: serde_json::Value,
 }
 

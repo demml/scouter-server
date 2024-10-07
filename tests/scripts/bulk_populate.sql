@@ -1,5 +1,65 @@
 CREATE EXTENSION IF NOT EXISTS tablefunc;
 
+CREATE OR REPLACE FUNCTION insert_observability_data(num_records INTEGER)
+RETURNS VOID AS $$
+DECLARE
+    start_time TIMESTAMP := timezone('utc', now());
+    interval_seconds INTEGER := 2 * 60 * 60 / num_records; -- 2 hours divided by num_records
+    i INTEGER;
+BEGIN
+    FOR i IN 0..(num_records - 1) LOOP
+        INSERT INTO scouter.observability_metrics (
+            created_at, repository, name, version, request_count, error_count, route_metrics
+        ) VALUES (
+            start_time + (i * interval_seconds) * INTERVAL '1 second',
+            'example-repo-1',
+            'example-service-1',
+            '1.0.0',
+            100 + i,
+            5 + i,
+            '[
+                {
+                    "route_name": "route1",
+                    "metrics": {
+                        "p5": 10.5,
+                        "p25": 20.5,
+                        "p50": 30.5,
+                        "p95": 40.5,
+                        "p99": 50.5
+                    },
+                    "request_count": 50,
+                    "error_count": 2,
+                    "error_latency": 5.5,
+                    "status_codes": {
+                        "200": 45,
+                        "500": 2,
+                        "404": 3
+                    }
+                },
+                {
+                    "route_name": "route2",
+                    "metrics": {
+                        "p5": 15.5,
+                        "p25": 25.5,
+                        "p50": 35.5,
+                        "p95": 45.5,
+                        "p99": 55.5
+                    },
+                    "request_count": 50,
+                    "error_count": 3,
+                    "error_latency": 6.5,
+                    "status_codes": {
+                        "200": 47,
+                        "500": 1,
+                        "404": 2
+                    }
+                }
+            ]'::jsonb
+        );
+    END LOOP;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE OR REPLACE FUNCTION insert_sample_data(num_records INTEGER)
 RETURNS VOID AS $$
 DECLARE
@@ -28,34 +88,33 @@ BEGIN
             );
         END LOOP;
 
-        -- Construct the full profile JSON
         profile_json := jsonb_build_object(
-            'features', feature_json,
-            'config', jsonb_build_object(
-                'sample_size', 25,
-                'sample', true,
-                'name', 'model-' || i,
-                'repository', 'ml-platform-' || i,
-                'version', '0.1.0',
-                'alert_config', jsonb_build_object(
-                    'dispatch_type', 'Console',
-                    'schedule', '0 0 0 * * *',
-                    'rule', jsonb_build_object(
-                            'rule', '8 16 4 8 2 4 1 1',
-                            'zones_to_monitor', ARRAY['Zone 1', 'Zone 2', 'Zone 3', 'Zone 4'],
-                    ),
-                    'features_to_monitor', '[]'::JSONB,
-                    'dispatch_kwargs', '{}'::JSONB
-                ),
-                'feature_map', null,
-                'targets', '[]'::JSONB,
-                'drift_type': 'SPC',
-            ),
-            'scouter_version', '0.1.0'
-        );
+		    'features', feature_json,
+		    'config', jsonb_build_object(
+		        'sample_size', 25,
+		        'sample', true,
+		        'name', 'model-' || i,
+		        'repository', 'ml-platform-' || i,
+		        'version', '0.1.0',
+		        'alert_config', jsonb_build_object(
+		            'dispatch_type', 'Console',
+		            'schedule', '0 0 0 * * *',
+		            'rule', jsonb_build_object(
+		                'rule', '8 16 4 8 2 4 1 1',
+		                'zones_to_monitor', ARRAY['Zone 1', 'Zone 2', 'Zone 3', 'Zone 4']
+		            ),
+		            'features_to_monitor', '[]'::JSONB,
+		            'dispatch_kwargs', '{}'::JSONB
+		        ),
+		        'feature_map', null,
+		        'targets', '[]'::JSONB,
+		        'drift_type', 'SPC'
+		    ),
+		    'scouter_version', '0.1.0'
+		);
 
         INSERT INTO scouter.drift_profile (
-            created_at, updated_at, name, repository, version, profile, profile_type, active, schedule, next_run, previous_run
+            created_at, updated_at, name, repository, version, profile, drift_type, active, schedule, next_run, previous_run
         )
         VALUES (
             timezone('utc', now()),
@@ -86,6 +145,9 @@ BEGIN
                 VALUES %s', drift_values);
         END LOOP;
     END LOOP;
+
+    -- Call the insert_observability_data function
+    PERFORM insert_observability_data(1000);
 END;
 $$ LANGUAGE plpgsql;
 

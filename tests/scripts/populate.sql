@@ -1,5 +1,5 @@
 -- Insert initial data into scouter.drift_profile
-INSERT INTO scouter.drift_profile (created_at, updated_at, name, repository, version, profile, profile_type, active, schedule, next_run, previous_run)
+INSERT INTO scouter.drift_profile (created_at, updated_at, name, repository, version, profile, drift_type, active, schedule, next_run, previous_run)
 VALUES
   (
     timezone('utc', now()),

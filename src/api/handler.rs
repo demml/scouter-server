@@ -1,10 +1,11 @@
 use crate::api::schema::{
-    DriftAlertRequest, DriftRecordRequest, DriftRequest, ProfileRequest, ProfileStatusRequest,
-    ServiceInfo,
+    DriftAlertRequest, DriftRequest, ObservabilityMetricRequest, ProfileRequest,
+    ProfileStatusRequest, ServiceInfo,
 };
+use crate::consumer::base::ToDriftRecords;
 use scouter::core::drift::base::DriftProfile;
+use scouter::core::drift::base::ServerRecords;
 
-use crate::sql::schema::DriftRecord;
 use axum::{
     extract::{Query, State},
     http::StatusCode,
@@ -58,11 +59,24 @@ pub async fn get_drift(
 
 pub async fn insert_drift(
     State(data): State<Arc<AppState>>,
-    Json(body): Json<DriftRecordRequest>,
+    Json(body): Json<ServerRecords>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
-    // set default if missing
-    let record = DriftRecord::from_request(body);
-    let query_result = &data.db.insert_drift_record(&record).await;
+    let record = body.to_spc_drift_records().map_err(|e| {
+        error!("Failed to convert drift records: {:?}", e);
+        (
+            StatusCode::BAD_REQUEST,
+            json!({ "status": "error", "message": format!("{:?}", e) }),
+        )
+    });
+
+    if record.is_err() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "status": "error", "message": "Invalid drift record" })),
+        ));
+    }
+
+    let query_result = &data.db.insert_spc_drift_record(&record.unwrap()[0]).await;
 
     match query_result {
         Ok(_) => Ok(Json(json!({
@@ -274,6 +288,31 @@ pub async fn get_drift_alerts(
         }
         Err(e) => {
             error!("Failed to query drift alerts: {:?}", e);
+            let json_response = json!({
+                "status": "error",
+                "message": format!("{:?}", e)
+            });
+            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
+        }
+    }
+}
+
+pub async fn get_observability_metrics(
+    State(data): State<Arc<AppState>>,
+    params: Query<ObservabilityMetricRequest>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    let query_result = &data.db.get_binned_observability_metrics(&params).await;
+
+    match query_result {
+        Ok(result) => {
+            let json_response = serde_json::json!({
+                "status": "success",
+                "data": result
+            });
+            Ok(Json(json_response))
+        }
+        Err(e) => {
+            error!("Failed to query observability_metrics: {:?}", e);
             let json_response = json!({
                 "status": "error",
                 "message": format!("{:?}", e)

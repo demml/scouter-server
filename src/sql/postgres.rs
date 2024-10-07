@@ -1,7 +1,9 @@
-use crate::api::schema::{DriftAlertRequest, DriftRequest, ProfileStatusRequest, ServiceInfo};
+use crate::api::schema::{
+    DriftAlertRequest, DriftRequest, ObservabilityMetricRequest, ProfileStatusRequest, ServiceInfo,
+};
 use crate::sql::query::Queries;
 use crate::sql::schema::{
-    AlertResult, DriftRecord, FeatureResult, QueryResult, SpcFeatureResult, TaskRequest,
+    AlertResult, FeatureResult, ObservabilityResult, QueryResult, SpcFeatureResult, TaskRequest,
 };
 use anyhow::*;
 use chrono::Utc;
@@ -9,10 +11,12 @@ use cron::Schedule;
 use futures::future::join_all;
 use include_dir::{include_dir, Dir};
 use scouter::core::drift::base::DriftProfile;
+use scouter::core::drift::spc::types::SpcServerRecord;
+use scouter::core::observe::observer::ObservabilityMetrics;
 use serde_json::Value;
 use sqlx::{
     postgres::{PgQueryResult, PgRow},
-    Pool, Postgres, QueryBuilder, Row, Transaction,
+    Pool, Postgres, Row, Transaction,
 };
 use std::collections::BTreeMap;
 use std::result::Result::Ok;
@@ -173,9 +177,9 @@ impl PostgresClient {
     // * `record` - A drift record to insert into the database
     // * `table_name` - The name of the table to insert the record into
     //
-    pub async fn insert_drift_record(
+    pub async fn insert_spc_drift_record(
         &self,
-        record: &DriftRecord,
+        record: &SpcServerRecord,
     ) -> Result<PgQueryResult, anyhow::Error> {
         let query = Queries::InsertDriftRecord.get_query();
 
@@ -196,6 +200,50 @@ impl PostgresClient {
             Err(e) => {
                 error!("Failed to insert record into database: {:?}", e);
                 Err(anyhow!("Failed to insert record into database: {:?}", e))
+            }
+        }
+    }
+
+    // Inserts a drift record into the database
+    //
+    // # Arguments
+    //
+    // * `record` - A drift record to insert into the database
+    // * `table_name` - The name of the table to insert the record into
+    //
+    pub async fn insert_observability_record(
+        &self,
+        record: &ObservabilityMetrics,
+    ) -> Result<PgQueryResult, anyhow::Error> {
+        let query = Queries::InsertObservabilityRecord.get_query();
+        let route_metrics = serde_json::to_value(&record.route_metrics).map_err(|e| {
+            error!("Failed to serialize route metrics: {:?}", e);
+            anyhow!("Failed to serialize route metrics: {:?}", e)
+        })?;
+
+        let query_result = sqlx::query(&query.sql)
+            .bind(&record.repository)
+            .bind(&record.name)
+            .bind(&record.version)
+            .bind(record.request_count)
+            .bind(record.error_count)
+            .bind(route_metrics)
+            .execute(&self.pool)
+            .await
+            .with_context(|| "Failed to insert observability metrics into database");
+
+        //drop params
+        match query_result {
+            Ok(result) => Ok(result),
+            Err(e) => {
+                error!(
+                    "Failed to insert observability record into database: {:?}",
+                    e
+                );
+                Err(anyhow!(
+                    "Failed to insert observability record into database: {:?}",
+                    e
+                ))
             }
         }
     }
@@ -223,7 +271,7 @@ impl PostgresClient {
             .bind(base_args.version)
             .bind(base_args.scouter_version)
             .bind(drift_profile.to_value())
-            .bind(base_args.profile_type.value())
+            .bind(base_args.drift_type.value())
             .bind(false)
             .bind(base_args.schedule)
             .bind(next_run.naive_utc())
@@ -250,7 +298,7 @@ impl PostgresClient {
 
         let query_result = sqlx::query(&query.sql)
             .bind(drift_profile.to_value())
-            .bind(base_args.profile_type.value())
+            .bind(base_args.drift_type.value())
             .bind(base_args.name)
             .bind(base_args.repository)
             .bind(base_args.version)
@@ -338,34 +386,6 @@ impl PostgresClient {
         }
     }
 
-    //func batch insert drift records
-    #[allow(dead_code)]
-    pub async fn insert_spc_drift_records(
-        &self,
-        records: &[DriftRecord],
-    ) -> Result<PgQueryResult, anyhow::Error> {
-        let insert_statement =
-            "INSERT INTO scouter.drift (created_at, name, repository, version, feature, value)";
-
-        let mut query_builder = QueryBuilder::new(insert_statement);
-
-        query_builder.push_values(records.iter(), |mut b, record| {
-            b.push_bind(record.created_at)
-                .push_bind(&record.name)
-                .push_bind(&record.repository)
-                .push_bind(&record.version)
-                .push_bind(&record.feature)
-                .push_bind(record.value);
-        });
-
-        let query = query_builder.build();
-
-        query.execute(&self.pool).await.map_err(|e| {
-            error!("Failed to insert record into database: {:?}", e);
-            anyhow!("Failed to insert record into database: {:?}", e)
-        })
-    }
-
     // Queries the database for all features under a service
     // Private method that'll be used to run drift retrieval in parallel
     async fn get_features(&self, service_info: &ServiceInfo) -> Result<Vec<String>, anyhow::Error> {
@@ -413,7 +433,33 @@ impl PostgresClient {
         feature_values
     }
 
-    async fn run_binned_feature_query(
+    pub async fn get_binned_observability_metrics(
+        &self,
+        params: &ObservabilityMetricRequest,
+    ) -> Result<Vec<ObservabilityResult>, anyhow::Error> {
+        let query = Queries::GetBinnedObservabilityMetrics.get_query();
+
+        let time_window = TimeInterval::from_string(&params.time_window).to_minutes();
+
+        let bin = time_window as f64 / params.max_data_points as f64;
+
+        let observability_metrics: Result<Vec<ObservabilityResult>, sqlx::Error> =
+            sqlx::query_as(&query.sql)
+                .bind(bin)
+                .bind(time_window)
+                .bind(&params.name)
+                .bind(&params.repository)
+                .bind(&params.version)
+                .fetch_all(&self.pool)
+                .await;
+
+        observability_metrics.map_err(|e| {
+            error!("Failed to run query: {:?}", e);
+            anyhow!("Failed to run query: {:?}", e)
+        })
+    }
+
+    async fn get_spc_binned_feature_values(
         &self,
         bin: &f64,
         feature: String,
@@ -472,7 +518,7 @@ impl PostgresClient {
         let async_queries = features
             .iter()
             .map(|feature| {
-                self.run_binned_feature_query(
+                self.get_spc_binned_feature_values(
                     &bin,
                     feature.to_string(),
                     &params.version,

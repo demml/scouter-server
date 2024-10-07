@@ -1,9 +1,9 @@
-use scouter_server::sql::schema::DriftRecord;
 use sqlx::Row;
 
 use scouter_server::api::schema::{DriftAlertRequest, DriftRequest};
 use scouter_server::sql::postgres::PostgresClient;
 mod test_utils;
+use scouter::core::drift::spc::types::SpcServerRecord;
 use scouter_server::api::schema::ServiceInfo;
 use std::collections::BTreeMap;
 
@@ -13,7 +13,7 @@ async fn test_postgres_client() {
     let db_client = PostgresClient::new(pool.clone()).unwrap();
 
     // test inserting record
-    let record = DriftRecord {
+    let record = SpcServerRecord {
         created_at: chrono::Utc::now().naive_utc(),
         name: "test_app".to_string(),
         repository: "test".to_string(),
@@ -22,7 +22,7 @@ async fn test_postgres_client() {
         version: "1.0.0".to_string(),
     };
 
-    db_client.insert_drift_record(&record).await.unwrap();
+    db_client.insert_spc_drift_record(&record).await.unwrap();
 
     let result = db_client
         .raw_query(
@@ -38,7 +38,7 @@ async fn test_postgres_client() {
 
     // iterate over the result and create DriftRecord
     for row in result {
-        let record = DriftRecord {
+        let record = SpcServerRecord {
             created_at: row.get("created_at"),
             name: row.get("name"),
             repository: row.get("repository"),

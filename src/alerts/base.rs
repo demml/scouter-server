@@ -101,7 +101,7 @@ impl DriftExecutor {
         };
 
         // match drift_type
-        match DriftType::from_str(&task.profile_type) {
+        match DriftType::from_str(&task.drift_type) {
             // match drift_profile
             Ok(drift_type) => match DriftProfile::from_str(drift_type, task.profile) {
                 // process drift profile task

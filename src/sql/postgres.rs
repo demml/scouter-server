@@ -3,8 +3,7 @@ use crate::api::schema::{
 };
 use crate::sql::query::Queries;
 use crate::sql::schema::{
-    AlertResult, DriftRecord, FeatureResult, ObservabilityResult, QueryResult, SpcFeatureResult,
-    TaskRequest,
+    AlertResult, FeatureResult, ObservabilityResult, QueryResult, SpcFeatureResult, TaskRequest,
 };
 use anyhow::*;
 use chrono::Utc;
@@ -17,7 +16,7 @@ use scouter::core::observe::observer::ObservabilityMetrics;
 use serde_json::Value;
 use sqlx::{
     postgres::{PgQueryResult, PgRow},
-    Pool, Postgres, QueryBuilder, Row, Transaction,
+    Pool, Postgres, Row, Transaction,
 };
 use std::collections::BTreeMap;
 use std::result::Result::Ok;
@@ -385,34 +384,6 @@ impl PostgresClient {
                 e
             )),
         }
-    }
-
-    //func batch insert drift records
-    #[allow(dead_code)]
-    pub async fn insert_spc_drift_records(
-        &self,
-        records: &[DriftRecord],
-    ) -> Result<PgQueryResult, anyhow::Error> {
-        let insert_statement =
-            "INSERT INTO scouter.drift (created_at, name, repository, version, feature, value)";
-
-        let mut query_builder = QueryBuilder::new(insert_statement);
-
-        query_builder.push_values(records.iter(), |mut b, record| {
-            b.push_bind(record.created_at)
-                .push_bind(&record.name)
-                .push_bind(&record.repository)
-                .push_bind(&record.version)
-                .push_bind(&record.feature)
-                .push_bind(record.value);
-        });
-
-        let query = query_builder.build();
-
-        query.execute(&self.pool).await.map_err(|e| {
-            error!("Failed to insert record into database: {:?}", e);
-            anyhow!("Failed to insert record into database: {:?}", e)
-        })
     }
 
     // Queries the database for all features under a service

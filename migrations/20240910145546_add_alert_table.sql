@@ -20,7 +20,7 @@ SELECT scouter.create_parent(
     '1 day'
 );
 
-UPDATE scouter.part_config SET retention = '7 days' WHERE parent_table = 'scouter.alerts';
+UPDATE scouter.part_config SET retention = '21 days' WHERE parent_table = 'scouter.alerts';
 
 -- Add scouter_version column to drift_profile, this can be used for backward compatibility checks down the road
 -- Add type column to drift_profile, this can be used to differentiate between different types of drift profiles

@@ -52,3 +52,12 @@ pub struct ServiceInfo {
     pub name: String,
     pub version: String,
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ObservabilityMetricRequest {
+    pub name: String,
+    pub repository: String,
+    pub version: String,
+    pub time_window: String,
+    pub max_data_points: i32,
+}

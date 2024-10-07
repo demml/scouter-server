@@ -12,8 +12,8 @@ BEGIN
             created_at, repository, name, version, request_count, error_count, route_metrics
         ) VALUES (
             start_time + (i * interval_seconds) * INTERVAL '1 second',
-            'example-repo-' || i,
-            'example-service-' || i,
+            'example-repo-1',
+            'example-service-1',
             '1.0.0',
             100 + i,
             5 + i,
@@ -88,31 +88,30 @@ BEGIN
             );
         END LOOP;
 
-        -- Construct the full profile JSON
         profile_json := jsonb_build_object(
-            'features', feature_json,
-            'config', jsonb_build_object(
-                'sample_size', 25,
-                'sample', true,
-                'name', 'model-' || i,
-                'repository', 'ml-platform-' || i,
-                'version', '0.1.0',
-                'alert_config', jsonb_build_object(
-                    'dispatch_type', 'Console',
-                    'schedule', '0 0 0 * * *',
-                    'rule', jsonb_build_object(
-                            'rule', '8 16 4 8 2 4 1 1',
-                            'zones_to_monitor', ARRAY['Zone 1', 'Zone 2', 'Zone 3', 'Zone 4'],
-                    ),
-                    'features_to_monitor', '[]'::JSONB,
-                    'dispatch_kwargs', '{}'::JSONB
-                ),
-                'feature_map', null,
-                'targets', '[]'::JSONB,
-                'drift_type': 'SPC',
-            ),
-            'scouter_version', '0.1.0'
-        );
+		    'features', feature_json,
+		    'config', jsonb_build_object(
+		        'sample_size', 25,
+		        'sample', true,
+		        'name', 'model-' || i,
+		        'repository', 'ml-platform-' || i,
+		        'version', '0.1.0',
+		        'alert_config', jsonb_build_object(
+		            'dispatch_type', 'Console',
+		            'schedule', '0 0 0 * * *',
+		            'rule', jsonb_build_object(
+		                'rule', '8 16 4 8 2 4 1 1',
+		                'zones_to_monitor', ARRAY['Zone 1', 'Zone 2', 'Zone 3', 'Zone 4']
+		            ),
+		            'features_to_monitor', '[]'::JSONB,
+		            'dispatch_kwargs', '{}'::JSONB
+		        ),
+		        'feature_map', null,
+		        'targets', '[]'::JSONB,
+		        'drift_type', 'SPC'
+		    ),
+		    'scouter_version', '0.1.0'
+		);
 
         INSERT INTO scouter.drift_profile (
             created_at, updated_at, name, repository, version, profile, drift_type, active, schedule, next_run, previous_run
@@ -148,7 +147,7 @@ BEGIN
     END LOOP;
 
     -- Call the insert_observability_data function
-    PERFORM insert_observability_data(num_records);
+    PERFORM insert_observability_data(1000);
 END;
 $$ LANGUAGE plpgsql;
 

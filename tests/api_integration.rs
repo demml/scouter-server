@@ -417,3 +417,28 @@ async fn test_api_update_profile() {
 
     test_utils::teardown().await.unwrap();
 }
+
+#[tokio::test]
+async fn test_observability_metrics() {
+    let app = test_utils::setup_api(true).await.unwrap();
+    let pool = test_utils::setup_db(true).await.unwrap();
+
+    // populate the database
+    let populate_script = include_str!("scripts/bulk_populate.sql");
+    sqlx::raw_sql(populate_script).execute(&pool).await.unwrap();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/scouter/observability/metrics?name=example-repo-1&repository=example-service-1&version=1.0.0&time_window=5minute&max_data_points=1000")
+                .method("GET")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    println!("{:?}", response);
+
+    test_utils::teardown().await.unwrap();
+}

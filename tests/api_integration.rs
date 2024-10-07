@@ -3,12 +3,13 @@ use axum::{
     http::{self, Request, StatusCode},
 };
 use http_body_util::BodyExt;
-use scouter::core::dispatch::types::AlertDispatchType;
-use scouter::core::drift::base::DriftType;
+use scouter::core::drift::base::ServerRecords;
+use scouter::core::drift::base::{DriftType, ServerRecord};
 use scouter::core::drift::spc::types::{
     SpcAlertConfig, SpcAlertRule, SpcDriftConfig, SpcDriftProfile, SpcFeatureDriftProfile,
 };
-use scouter_server::api::schema::{DriftRecordRequest, ProfileRequest, ProfileStatusRequest};
+use scouter::core::{dispatch::types::AlertDispatchType, drift::spc::types::SpcServerRecord};
+use scouter_server::api::schema::{ProfileRequest, ProfileStatusRequest};
 use scouter_server::sql::schema::{ObservabilityResult, QueryResult};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -26,8 +27,8 @@ async fn test_api_drift() {
 
     // create 3 records and insert
     for i in 0..3 {
-        let record = DriftRecordRequest {
-            created_at: None,
+        let record = SpcServerRecord {
+            created_at: chrono::Utc::now().naive_utc(),
             name: "test_app".to_string(),
             repository: "test".to_string(),
             feature: format!("feature{}", i),
@@ -35,7 +36,12 @@ async fn test_api_drift() {
             version: "1.0.0".to_string(),
         };
 
-        let body = serde_json::to_string(&record).unwrap();
+        let server_records = ServerRecords {
+            record_type: scouter::core::drift::base::RecordType::SPC,
+            records: vec![ServerRecord::SPC { record }],
+        };
+
+        let body = serde_json::to_string(&server_records).unwrap();
 
         let response = app
             .call(
@@ -72,8 +78,8 @@ async fn test_api_drift() {
 
     assert_eq!(data.features.len(), 3);
 
-    let record = DriftRecordRequest {
-        created_at: None,
+    let record = SpcServerRecord {
+        created_at: chrono::Utc::now().naive_utc(),
         name: "test_app".to_string(),
         repository: "test".to_string(),
         feature: "feature1".to_string(),
@@ -81,7 +87,12 @@ async fn test_api_drift() {
         version: "2.0.0".to_string(),
     };
 
-    let body = serde_json::to_string(&record).unwrap();
+    let server_records = ServerRecords {
+        record_type: scouter::core::drift::base::RecordType::SPC,
+        records: vec![ServerRecord::SPC { record }],
+    };
+
+    let body = serde_json::to_string(&server_records).unwrap();
 
     // insert data for new version
     let response = app

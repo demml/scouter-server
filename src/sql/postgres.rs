@@ -3,7 +3,8 @@ use crate::api::schema::{
 };
 use crate::sql::query::Queries;
 use crate::sql::schema::{
-    AlertResult, FeatureResult, ObservabilityResult, QueryResult, SpcFeatureResult, TaskRequest,
+    AlertResult, FeatureDistribution, FeatureResult, ObservabilityResult, QueryResult,
+    SpcFeatureResult, TaskRequest,
 };
 use anyhow::*;
 use chrono::Utc;
@@ -250,7 +251,7 @@ impl PostgresClient {
 
     pub async fn insert_drift_profile(
         &self,
-        drift_profile: &SpcDriftProfile,
+        drift_profile: &DriftProfile,
     ) -> Result<PgQueryResult, anyhow::Error> {
         let query = Queries::InsertDriftProfile.get_query();
         let base_args = drift_profile.get_base_args();
@@ -291,7 +292,7 @@ impl PostgresClient {
 
     pub async fn update_drift_profile(
         &self,
-        drift_profile: &SpcDriftProfile,
+        drift_profile: &DriftProfile,
     ) -> Result<PgQueryResult, anyhow::Error> {
         let query = Queries::UpdateDriftProfile.get_query();
         let base_args = drift_profile.get_base_args();
@@ -322,16 +323,12 @@ impl PostgresClient {
     ) -> Result<PgQueryResult, anyhow::Error> {
         let query = Queries::UpdateDriftAlert.get_query();
 
-        let params = UpdateDriftAlertParams {
-            table: self.alert_table_name.to_string(),
-            id,
-            status,
-        };
-
-        let query_result: std::prelude::v1::Result<sqlx::postgres::PgQueryResult, sqlx::Error> =
-            sqlx::raw_sql(query.format(&params).as_str())
-                .execute(&self.pool)
-                .await;
+        let query_result = sqlx::query(&query.sql)
+            .bind(id)
+            .bind(status)
+            .execute(&self.pool)
+            .await
+            .with_context(|| "Failed to update drift alert in database");
 
         match query_result {
             Ok(result) => Ok(result),
@@ -583,74 +580,28 @@ impl PostgresClient {
 
     pub async fn get_feature_distribution(
         &self,
-        name: &str,
-        repository: &str,
-        version: &str,
-        max_data_points: &i32,
-        time_window: &i32,
-        feature: &str,
+        params: &DriftRequest,
     ) -> Result<FeatureDistribution, anyhow::Error> {
         let query = Queries::GetFeatureDistribution.get_query();
 
-        let bin = *time_window as f64 / *max_data_points as f64;
+        let time_window = TimeInterval::from_string(&params.time_window).to_minutes() as f64;
 
-        let params = GetBinnedFeatureValuesParams {
-            table: self.drift_table_name.to_string(),
-            name: name.to_string(),
-            repository: repository.to_string(),
-            feature: feature.to_string(),
-            version: version.to_string(),
-            time_window: time_window.to_string(),
-            bin: bin.to_string(),
-        };
-
-        let result: Result<Vec<PgRow>, sqlx::Error> = sqlx::raw_sql(query.format(&params).as_str())
-            .fetch_all(&self.pool)
-            .await;
-
-        match result {
-            Ok(result) => {
-                // load to FeatureDistribution
-
-                // check if data is empty
-                if result.is_empty() {
-                    return Err(anyhow!("No data found for feature distribution"));
-                }
-
-                let record = &result[0];
-
-                let feature = FeatureDistribution {
-                    name: record.get("name"),
-                    repository: record.get("repository"),
-                    version: record.get("version"),
-                    percentile_10: record.get("percentile_10"),
-                    percentile_20: record.get("percentile_20"),
-                    percentile_30: record.get("percentile_30"),
-                    percentile_40: record.get("percentile_40"),
-                    percentile_50: record.get("percentile_50"),
-                    percentile_60: record.get("percentile_60"),
-                    percentile_70: record.get("percentile_70"),
-                    percentile_80: record.get("percentile_80"),
-                    percentile_90: record.get("percentile_90"),
-                    percentile_100: record.get("percentile_100"),
-                    val_10: record.get("val_10"),
-                    val_20: record.get("val_20"),
-                    val_30: record.get("val_30"),
-                    val_40: record.get("val_40"),
-                    val_50: record.get("val_50"),
-                    val_60: record.get("val_60"),
-                    val_70: record.get("val_70"),
-                    val_80: record.get("val_80"),
-                    val_90: record.get("val_90"),
-                    val_100: record.get("val_100"),
-                };
-
-                Ok(feature)
-            }
-            Err(e) => {
+        let bin = time_window / params.max_data_points as f64;
+        
+        let binned: Result<FeatureDistribution, sqlx::Error> = sqlx::query_as(&query.sql)
+            .bind(bin)
+            .bind(time_window)
+            .bind(params.name)
+            .bind(params.repository)
+            .bind(params.version)
+            .bind(params.feature)
+            .fetch_one(&self.pool)
+            .await.map_err(|e| {
                 error!("Failed to run query: {:?}", e);
-                Err(anyhow!("Failed to run query: {:?}", e))
-            }
+                anyhow!("Failed to run query: {:?}", e)
+            });
+
+        binned
         }
     }
 

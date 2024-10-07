@@ -4,6 +4,7 @@ use crate::api::schema::{
     UpdateAlertRequest,
 };
 use crate::consumer::base::ToDriftRecords;
+use crate::sql::postgres::TimeInterval;
 use scouter::core::drift::base::DriftProfile;
 use scouter::core::drift::base::ServerRecords;
 
@@ -60,23 +61,11 @@ pub async fn get_drift(
 
 pub async fn get_feature_distributions(
     State(data): State<Arc<AppState>>,
-    params: Query<FeatureDriftDistributionRequest>,
+    params: Query<DriftRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     // validate time window
 
-    let time_window = TimeInterval::from_string(&params.time_window).to_minutes();
-
-    let query_result = &data
-        .db
-        .get_feature_distribution(
-            &params.name,
-            &params.repository,
-            &params.version,
-            &params.max_data_points,
-            &time_window,
-            &params.feature,
-        )
-        .await;
+    let query_result = &data.db.get_feature_distribution(&params).await;
 
     match query_result {
         Ok(result) => {
@@ -353,6 +342,32 @@ pub async fn get_observability_metrics(
         }
         Err(e) => {
             error!("Failed to query observability_metrics: {:?}", e);
+            let json_response = json!({
+                "status": "error",
+                "message": format!("{:?}", e)
+            });
+            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
+        }
+    }
+}
+
+pub async fn update_drift_alerts(
+    State(data): State<Arc<AppState>>,
+    Json(body): Json<UpdateAlertRequest>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    info!("Updating drift alert: {:?}", body);
+    let query_result = &data.db.update_drift_alert(body.id, body.status).await;
+
+    match query_result {
+        Ok(_) => {
+            let json_response = json!({
+                "status": "success",
+                "message": "Drift alert updated successfully"
+            });
+            Ok(Json(json_response))
+        }
+        Err(e) => {
+            error!("Failed to update drift alert: {:?}", e);
             let json_response = json!({
                 "status": "error",
                 "message": format!("{:?}", e)

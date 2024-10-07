@@ -141,3 +141,60 @@ impl<'r> FromRow<'r, PgRow> for ObservabilityResult {
         })
     }
 }
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct FeatureDistribution {
+    pub name: String,
+    pub repository: String,
+    pub version: String,
+    pub percentile_10: f64,
+    pub percentile_20: f64,
+    pub percentile_30: f64,
+    pub percentile_40: f64,
+    pub percentile_50: f64,
+    pub percentile_60: f64,
+    pub percentile_70: f64,
+    pub percentile_80: f64,
+    pub percentile_90: f64,
+    pub percentile_100: f64,
+    pub val_10: f64,
+    pub val_20: f64,
+    pub val_30: f64,
+    pub val_40: f64,
+    pub val_50: f64,
+    pub val_60: f64,
+    pub val_70: f64,
+    pub val_80: f64,
+    pub val_90: f64,
+    pub val_100: f64,
+}
+
+impl<'r> FromRow<'r, PgRow> for FeatureDistribution {
+    fn from_row(row: &'r PgRow) -> Result<Self, Error> {
+        Ok(FeatureDistribution {
+            name: row.try_get("name")?,
+            repository: row.try_get("repository")?,
+            version: row.try_get("version")?,
+            percentile_10: row.try_get("percentile_10")?,
+            percentile_20: row.try_get("percentile_20")?,
+            percentile_30: row.try_get("percentile_30")?,
+            percentile_40: row.try_get("percentile_40")?,
+            percentile_50: row.try_get("percentile_50")?,
+            percentile_60: row.try_get("percentile_60")?,
+            percentile_70: row.try_get("percentile_70")?,
+            percentile_80: row.try_get("percentile_80")?,
+            percentile_90: row.try_get("percentile_90")?,
+            percentile_100: row.try_get("percentile_100")?,
+            val_10: row.try_get("val_10")?,
+            val_20: row.try_get("val_20")?,
+            val_30: row.try_get("val_30")?,
+            val_40: row.try_get("val_40")?,
+            val_50: row.try_get("val_50")?,
+            val_60: row.try_get("val_60")?,
+            val_70: row.try_get("val_70")?,
+            val_80: row.try_get("val_80")?,
+            val_90: row.try_get("val_90")?,
+            val_100: row.try_get("val_100")?,
+        })
+    }
+}

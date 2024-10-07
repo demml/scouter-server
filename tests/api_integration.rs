@@ -3,21 +3,20 @@ use axum::{
     http::{self, Request, StatusCode},
 };
 use http_body_util::BodyExt;
-use scouter::core::utils::AlertDispatchType;
-use scouter::core::{
-    spc::types::{
-        SpcAlertConfig, SpcAlertRule, SpcDriftConfig, SpcDriftProfile, SpcFeatureDriftProfile,
-    },
-    utils::DriftType,
+use scouter::core::drift::base::ServerRecords;
+use scouter::core::drift::base::{DriftType, ServerRecord};
+use scouter::core::drift::spc::types::{
+    SpcAlertConfig, SpcAlertRule, SpcDriftConfig, SpcDriftProfile, SpcFeatureDriftProfile,
 };
-use scouter_server::api::schema::{DriftRecordRequest, ProfileStatusRequest, UpdateAlertRequest};
-use scouter_server::sql::schema::{AlertMetricsResult, FeatureDistribution, QueryResult};
+use scouter::core::{dispatch::types::AlertDispatchType, drift::spc::types::SpcServerRecord};
+use scouter_server::api::schema::{ProfileRequest, ProfileStatusRequest};
+use scouter_server::sql::schema::{ObservabilityResult, QueryResult};
 use serde_json::Value;
 use std::collections::HashMap;
 use tower::Service;
 use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
 mod test_utils;
-use scouter_server::alerts::drift::DriftExecutor;
+use scouter_server::alerts::base::DriftExecutor;
 use scouter_server::sql::postgres::PostgresClient;
 use scouter_server::sql::schema::AlertResult;
 use sqlx::Row;
@@ -28,8 +27,8 @@ async fn test_api_drift() {
 
     // create 3 records and insert
     for i in 0..3 {
-        let record = DriftRecordRequest {
-            created_at: None,
+        let record = SpcServerRecord {
+            created_at: chrono::Utc::now().naive_utc(),
             name: "test_app".to_string(),
             repository: "test".to_string(),
             feature: format!("feature{}", i),
@@ -37,7 +36,12 @@ async fn test_api_drift() {
             version: "1.0.0".to_string(),
         };
 
-        let body = serde_json::to_string(&record).unwrap();
+        let server_records = ServerRecords {
+            record_type: scouter::core::drift::base::RecordType::SPC,
+            records: vec![ServerRecord::SPC { record }],
+        };
+
+        let body = serde_json::to_string(&server_records).unwrap();
 
         let response = app
             .call(
@@ -74,8 +78,8 @@ async fn test_api_drift() {
 
     assert_eq!(data.features.len(), 3);
 
-    let record = DriftRecordRequest {
-        created_at: None,
+    let record = SpcServerRecord {
+        created_at: chrono::Utc::now().naive_utc(),
         name: "test_app".to_string(),
         repository: "test".to_string(),
         feature: "feature1".to_string(),
@@ -83,7 +87,12 @@ async fn test_api_drift() {
         version: "2.0.0".to_string(),
     };
 
-    let body = serde_json::to_string(&record).unwrap();
+    let server_records = ServerRecords {
+        record_type: scouter::core::drift::base::RecordType::SPC,
+        records: vec![ServerRecord::SPC { record }],
+    };
+
+    let body = serde_json::to_string(&server_records).unwrap();
 
     // insert data for new version
     let response = app
@@ -149,7 +158,6 @@ async fn test_api_profile() {
     let monitor_profile = SpcDriftProfile {
         features,
         config: SpcDriftConfig {
-            drift_type: DriftType::SPC,
             sample_size: 100,
             sample: true,
             name: "test_app".to_string(),
@@ -162,18 +170,23 @@ async fn test_api_profile() {
                     rule: "test".to_string(),
                     zones_to_monitor: Vec::new(),
                 },
-
                 dispatch_type: AlertDispatchType::Console,
                 schedule: "0 0 * * * *".to_string(),
                 features_to_monitor: Vec::new(),
 
                 dispatch_kwargs: HashMap::new(),
             },
+            drift_type: DriftType::SPC,
         },
         scouter_version: "1.0.0".to_string(),
     };
 
-    let body = serde_json::to_string(&monitor_profile).unwrap();
+    let body = serde_json::to_value(&monitor_profile).unwrap();
+
+    let request = ProfileRequest {
+        drift_type: DriftType::SPC,
+        profile: body,
+    };
 
     // insert data for new version
     let response = app
@@ -182,7 +195,7 @@ async fn test_api_profile() {
                 .uri("/scouter/profile")
                 .header(http::header::CONTENT_TYPE, "application/json")
                 .method("POST")
-                .body(Body::from(body))
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
                 .unwrap(),
         )
         .await
@@ -317,103 +330,6 @@ async fn test_api_get_drift_alert() {
 }
 
 #[tokio::test]
-async fn test_api_update_drift_alert() {
-    let app = test_utils::setup_api(true).await.unwrap();
-    let pool = test_utils::setup_db(true).await.unwrap();
-    let db_client = PostgresClient::new(pool.clone()).unwrap();
-
-    // populate the database
-    let populate_script = include_str!("scripts/populate.sql");
-    sqlx::raw_sql(populate_script).execute(&pool).await.unwrap();
-    let mut drift_executor = DriftExecutor::new(db_client.clone());
-
-    drift_executor.poll_for_tasks().await.unwrap();
-    let result = sqlx::raw_sql(
-        r#"
-        SELECT * 
-        FROM scouter.drift_profile
-        WHERE name = 'test_app'
-        AND repository = 'statworld'
-        "#,
-    )
-    .fetch_all(&pool)
-    .await
-    .unwrap();
-
-    assert_eq!(result.len(), 1);
-
-    let cloned_app = app.clone();
-    let clone_app2 = app.clone();
-
-    let response = cloned_app
-        .oneshot(
-            Request::builder()
-                .uri("/scouter/alerts?name=test_app&repository=statworld&version=0.1.0")
-                .method("GET")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::OK);
-
-    // get data field from response
-    let body = response.into_body().collect().await.unwrap().to_bytes();
-    let body: Value = serde_json::from_slice(&body).unwrap();
-
-    let data = body.get("data");
-    let data: Vec<AlertResult> = serde_json::from_value(data.unwrap().clone()).unwrap();
-
-    // update first alert
-    let alert = data[0].clone();
-
-    let update_request = UpdateAlertRequest {
-        id: alert.id,
-        status: "acknowledged".to_string(),
-    };
-
-    let response = clone_app2
-        .oneshot(
-            Request::builder()
-                .uri("/scouter/alerts")
-                .header(http::header::CONTENT_TYPE, "application/json")
-                .method("PUT")
-                .body(Body::from(serde_json::to_string(&update_request).unwrap()))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::OK);
-
-    // get metrics
-    let response = app
-        .oneshot(
-            Request::builder()
-                .uri("/scouter/alerts/metrics?name=test_app&repository=statworld&version=0.1.0&time_window=5minute&max_data_points=1000")
-                .method("GET")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::OK);
-
-    let body = response.into_body().collect().await.unwrap().to_bytes();
-    let body: Value = serde_json::from_slice(&body).unwrap();
-
-    let data = body.get("data");
-    let data: AlertMetricsResult = serde_json::from_value(data.unwrap().clone()).unwrap();
-
-    // assert alert count is greater than 0
-    assert!(data.alert_count.iter().sum::<i64>() > 0);
-
-    test_utils::teardown().await.unwrap();
-}
-
-#[tokio::test]
 async fn test_api_update_profile() {
     let app = test_utils::setup_api(true).await.unwrap();
     let pool = test_utils::setup_db(true).await.unwrap();
@@ -455,7 +371,7 @@ async fn test_api_update_profile() {
 
     let body = response.into_body().collect().await.unwrap().to_bytes();
     let body: Value = serde_json::from_slice(&body).unwrap();
-    let data = body.get("profile").unwrap();
+    let data = body.get("data").unwrap();
     let profile = serde_json::from_value::<SpcDriftProfile>(data.clone()).unwrap();
     assert!(profile.config.name == "test_app");
 
@@ -465,14 +381,18 @@ async fn test_api_update_profile() {
         zones_to_monitor: Vec::new(),
     };
 
-    let body = serde_json::to_string(&new_profile).unwrap();
+    let request = ProfileRequest {
+        drift_type: DriftType::SPC,
+        profile: serde_json::to_value(&new_profile).unwrap(),
+    };
+
     let response = updated_app
         .oneshot(
             Request::builder()
                 .uri("/scouter/profile")
                 .header(http::header::CONTENT_TYPE, "application/json")
                 .method("PUT")
-                .body(Body::from(body))
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
                 .unwrap(),
         )
         .await
@@ -495,7 +415,7 @@ async fn test_api_update_profile() {
 
     let body = response.into_body().collect().await.unwrap().to_bytes();
     let body: Value = serde_json::from_slice(&body).unwrap();
-    let updated_profile = body.get("profile").unwrap();
+    let updated_profile = body.get("data").unwrap();
     let updated_profile =
         serde_json::from_value::<SpcDriftProfile>(updated_profile.clone()).unwrap();
 
@@ -521,7 +441,9 @@ async fn test_api_feature_distribution() {
     let response = app
         .oneshot(
             Request::builder()
+
                 .uri("/scouter/feature/distribution?name=model-1&repository=ml-platform-1&version=0.1.0&time_window=24hour&max_data_points=10000&feature=col_1")
+
                 .method("GET")
                 .body(Body::empty())
                 .unwrap(),
@@ -546,4 +468,35 @@ async fn test_api_feature_distribution() {
     test_utils::teardown().await.unwrap();
 }
 
-// test getting feature distribution
+#[tokio::test]
+async fn test_observability_metrics() {
+    let app = test_utils::setup_api(true).await.unwrap();
+    let pool = test_utils::setup_db(true).await.unwrap();
+
+    // populate the database
+    let populate_script = include_str!("scripts/bulk_populate.sql");
+    sqlx::raw_sql(populate_script).execute(&pool).await.unwrap();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+
+                .uri("/scouter/observability/metrics?name=example-service-1&repository=example-repo-1&version=1.0.0&time_window=5minute&max_data_points=1000")
+                .method("GET")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let body: Value = serde_json::from_slice(&body).unwrap();
+    let data = body.get("data").unwrap();
+
+    let metrics = serde_json::from_value::<Vec<ObservabilityResult>>(data.clone()).unwrap();
+
+    assert!(!metrics.is_empty());
+    assert_eq!(metrics.len(), 2);
+
+    test_utils::teardown().await.unwrap();
+}

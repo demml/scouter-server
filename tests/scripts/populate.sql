@@ -1,5 +1,5 @@
 -- Insert initial data into scouter.drift_profile
-INSERT INTO scouter.drift_profile (created_at, updated_at, name, repository, version, profile, active, schedule, next_run, previous_run)
+INSERT INTO scouter.drift_profile (created_at, updated_at, name, repository, version, profile, drift_type, active, schedule, next_run, previous_run)
 VALUES
   (
     timezone('utc', now()),
@@ -50,23 +50,22 @@ VALUES
         "repository": "statworld",
         "version": "0.1.0",
         "alert_config": {
-            "alert_dispatch_type": "Console",
+            "dispatch_type": "Console",
             "schedule": "0 0 0 * * *",
-            "alert_rule": {
-                  "process": {
+            "rule": {
                     "rule": "4 4 4 8 2 4 1 1",
                     "zones_to_monitor": ["Zone 1", "Zone 2", "Zone 3", "Zone 4"]
-                  },
-                  "percentage": null
             },
             "features_to_monitor": ["col_1", "col_3"],
-            "alert_kwargs": {}
+            "dispatch_kwargs": {}
         },
         "feature_map": null,
-        "targets": []
+        "targets": [],
+        "drift_type": "SPC"
       },
 	"scouter_version": "0.1.0"
     }',
+    'SPC',
     true,
     '0 0 0 * * *',
     timezone('utc', now() - interval '1 days'),
@@ -121,23 +120,22 @@ VALUES
         "repository": "mathworld",
         "version": "0.1.0",
         "alert_config": {
-            "alert_dispatch_type": "Console",
+            "dispatch_type": "Console",
             "schedule": "0 0 0 * * *",
-            "alert_rule": {
-                  "process": {
+            "rule": {
                     "rule": "8 16 4 8 2 4 1 1",
                     "zones_to_monitor": ["Zone 1", "Zone 2", "Zone 3", "Zone 4"]
-                  },
-                  "percentage": null
             },
             "features_to_monitor": [],
-            "alert_kwargs": {}
+            "dispatch_kwargs": {}
         },
         "feature_map": null,
-        "targets": []
+        "targets": [],
+        "drift_type": "SPC"
       },
 	  "scouter_version": "0.1.0"
       }',
+      'SPC',
       false,
       '0 0 0 * * *',
        timezone('utc', now() - interval '1 days'),
@@ -192,23 +190,22 @@ VALUES
         "repository": "opsml",
         "version": "0.1.0",
         "alert_config": {
-            "alert_dispatch_type": "Console",
+            "dispatch_type": "Console",
             "schedule": "0 0 0 * * *",
-            "alert_rule": {
-                  "process": {
+            "rule": {
                     "rule": "16 16 4 8 2 4 1 1",
                     "zones_to_monitor": ["Zone 1", "Zone 2", "Zone 3", "Zone 4"]
-                  },
-                  "percentage": null
             },
             "features_to_monitor": [],
-            "alert_kwargs": {}
+            "dispatch_kwargs": {}
         },
         "feature_map": null,
-        "targets": []
+        "targets": [],
+        "drift_type": "SPC"
       },
 	 "scouter_version": "0.1.0"
     }',
+    'SPC',
     true,
     '0 0 0 * * *',
     timezone('utc', now() - interval '1 days'),
@@ -263,23 +260,22 @@ VALUES
         "repository": "opsml",
         "version": "0.1.0",
         "alert_config": {
-            "alert_dispatch_type": "Console",
+            "dispatch_type": "Console",
             "schedule": "0 0 0 * * *",
-            "alert_rule": {
-                  "process": {
+            "rule": {
                     "rule": "8 16 4 8 2 4 1 1",
                     "zones_to_monitor": ["Zone 1", "Zone 2", "Zone 3", "Zone 4"]
-                  },
-                  "percentage": null
             },
             "features_to_monitor": [],
-            "alert_kwargs": {}
+            "dispatch_kwargs": {}
         },
         "feature_map": null,
-        "targets": []
+        "targets": [],
+        "drift_type": "SPC"
       },
       "scouter_version": "0.1.0"
       }',
+      'SPC',
       false,
       '0 0 0 * * *',
       timezone('utc', now() - interval '1 days'),

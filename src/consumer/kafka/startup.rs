@@ -1,5 +1,6 @@
 #[cfg(feature = "kafka")]
 pub mod kafka_startup {
+
     use crate::consumer::base::MessageHandler;
     use crate::consumer::kafka::consumer::kafka_consumer::start_kafka_background_poll;
     use crate::sql::postgres::PostgresClient;

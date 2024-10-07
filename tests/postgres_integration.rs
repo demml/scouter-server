@@ -1,10 +1,11 @@
-use std::collections::BTreeMap;
-
-use scouter::core::spc::types::SpcDriftServerRecord;
 use sqlx::Row;
 
+use scouter_server::api::schema::{DriftAlertRequest, DriftRequest};
 use scouter_server::sql::postgres::PostgresClient;
 mod test_utils;
+use scouter::core::drift::spc::types::SpcServerRecord;
+use scouter_server::api::schema::ServiceInfo;
+use std::collections::BTreeMap;
 
 #[tokio::test]
 async fn test_postgres_client() {
@@ -12,7 +13,7 @@ async fn test_postgres_client() {
     let db_client = PostgresClient::new(pool.clone()).unwrap();
 
     // test inserting record
-    let record = SpcDriftServerRecord {
+    let record = SpcServerRecord {
         created_at: chrono::Utc::now().naive_utc(),
         name: "test_app".to_string(),
         repository: "test".to_string(),
@@ -21,7 +22,7 @@ async fn test_postgres_client() {
         version: "1.0.0".to_string(),
     };
 
-    db_client.insert_drift_record(&record).await.unwrap();
+    db_client.insert_spc_drift_record(&record).await.unwrap();
 
     let result = db_client
         .raw_query(
@@ -37,7 +38,7 @@ async fn test_postgres_client() {
 
     // iterate over the result and create DriftRecord
     for row in result {
-        let record = SpcDriftServerRecord {
+        let record = SpcServerRecord {
             created_at: row.get("created_at"),
             name: row.get("name"),
             repository: row.get("repository"),
@@ -56,15 +57,14 @@ async fn test_postgres_client() {
     // test querying drift records
     // subtract 1 minute from created at
     let limit_timestamp = record.created_at - chrono::Duration::minutes(1);
+    let service_info = ServiceInfo {
+        name: "test_app".to_string(),
+        repository: "test".to_string(),
+        version: "1.0.0".to_string(),
+    };
 
     let result = db_client
-        .get_drift_records(
-            "test_app",
-            "test",
-            "1.0.0",
-            limit_timestamp.to_string().as_str(),
-            &[],
-        )
+        .get_drift_records(&service_info, limit_timestamp.to_string().as_str(), &[])
         .await
         .unwrap();
 
@@ -77,13 +77,7 @@ async fn test_postgres_client() {
     for i in 0..3 {
         let feature_name = format!("test_feature_{}", i);
         db_client
-            .insert_drift_alert(
-                &record.name,
-                &record.repository,
-                &record.version,
-                &feature_name,
-                &alerts,
-            )
+            .insert_drift_alert(&service_info, &feature_name, &alerts)
             .await
             .unwrap();
         // sleep for 1 second
@@ -91,33 +85,51 @@ async fn test_postgres_client() {
     }
 
     // get alerts
+    let drift_alert_request = DriftAlertRequest {
+        name: record.name.clone(),
+        repository: record.repository.clone(),
+        version: record.version.clone(),
+        limit_timestamp: None,
+        active: Some(true),
+        limit: None,
+    };
     let result = db_client
-        .get_drift_alerts(
-            &record.name,
-            &record.repository,
-            &record.version,
-            None,
-            true,
-            None,
-        )
+        .get_drift_alerts(&drift_alert_request)
         .await
         .unwrap();
 
     assert_eq!(result.len(), 3);
 
+    let drift_alert_request = DriftAlertRequest {
+        name: record.name.clone(),
+        repository: record.repository.clone(),
+        version: record.version.clone(),
+        limit_timestamp: Some(result[0].created_at.to_string()),
+        active: Some(true),
+        limit: Some(50),
+    };
     let result = db_client
-        .get_drift_alerts(
-            &record.name,
-            &record.repository,
-            &record.version,
-            Some(&result[0].created_at.to_string()),
-            true,
-            Some(50),
-        )
+        .get_drift_alerts(&drift_alert_request)
         .await
         .unwrap();
 
     assert_eq!(result.len(), 1);
+
+    let drift_request = DriftRequest {
+        name: record.name.clone(),
+        repository: record.repository.clone(),
+        version: record.version.clone(),
+        time_window: "30minute".to_string(),
+        max_data_points: 1000,
+    };
+
+    //test get_binned_drift_records
+    let result = db_client
+        .get_binned_drift_records(&drift_request)
+        .await
+        .unwrap();
+
+    assert_eq!(result.features.len(), 1);
 
     test_utils::teardown().await.unwrap();
 }

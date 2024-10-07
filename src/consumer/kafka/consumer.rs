@@ -1,20 +1,20 @@
 #[cfg(feature = "kafka")]
 pub mod kafka_consumer {
-
     use crate::consumer::base::MessageHandler;
+
     use anyhow::*;
     use rdkafka::config::ClientConfig;
-    use rdkafka::consumer::Consumer;
-    use scouter::core::spc::types::SpcDriftServerRecord;
-
-    use futures::StreamExt;
     use rdkafka::consumer::CommitMode;
+    use rdkafka::consumer::Consumer;
     use rdkafka::consumer::StreamConsumer;
-    use rdkafka::Message;
+    use rdkafka::message::BorrowedMessage;
+    use rdkafka::message::Message;
+    use scouter::core::drift::base::ServerRecords;
     use std::collections::HashMap;
     use std::result::Result::Ok;
     use tracing::error;
     use tracing::info;
+
     // Get table name constant
 
     #[allow(clippy::too_many_arguments)]
@@ -67,41 +67,51 @@ pub mod kafka_consumer {
     pub async fn stream_from_kafka_topic(
         message_handler: &MessageHandler,
         consumer: &StreamConsumer,
-    ) -> Result<(), anyhow::Error> {
-        let mut stream = consumer.stream();
-        let message = stream.next().await;
-        match message {
-            Some(Ok(msg)) => {
-                let payload = msg.payload().unwrap();
-
-                // print size of payload in bytes
-                info!("Received message with size: {}", payload.len());
-
-                let records: Vec<SpcDriftServerRecord> = match serde_json::from_slice(payload) {
-                    Ok(records) => records,
-                    Err(e) => {
-                        error!("Failed to parse message: {:?}", e);
-                        return Ok(());
-                    }
-                };
-
-                for record in records.iter() {
-                    let inserted = message_handler.insert_drift_record(record).await;
-                    match inserted {
-                        Ok(_) => (),
-                        Err(e) => {
-                            error!("Failed to insert drift record: {:?}", e);
-                        }
+    ) -> Result<()> {
+        loop {
+            match consumer.recv().await {
+                Err(e) => error!("Kafka error: {}", e),
+                Ok(message) => {
+                    if let Err(e) = process_kafka_message(message_handler, consumer, &message).await
+                    {
+                        error!("Error processing Kafka message: {:?}", e);
                     }
                 }
+            }
+        }
+    }
 
-                consumer.commit_message(&msg, CommitMode::Async).unwrap();
-            }
-            Some(Err(e)) => {
-                error!("Failed to receive message: {:?}", e);
-            }
+    async fn process_kafka_message(
+        message_handler: &MessageHandler,
+        consumer: &StreamConsumer,
+        message: &BorrowedMessage<'_>,
+    ) -> Result<()> {
+        let payload = match message.payload_view::<str>() {
             None => {
-                error!("No message received");
+                error!("No payload received");
+                return Ok(());
+            }
+            Some(Ok(s)) => s,
+            Some(Err(e)) => {
+                error!("Error while deserializing message payload: {:?}", e);
+                return Ok(());
+            }
+        };
+
+        let records: ServerRecords = match serde_json::from_str(payload) {
+            Ok(records) => records,
+            Err(e) => {
+                error!("Failed to deserialize message: {:?}", e);
+                return Ok(());
+            }
+        };
+
+        match message_handler.insert_server_records(&records).await {
+            Ok(_) => {
+                consumer.commit_message(message, CommitMode::Async).unwrap();
+            }
+            Err(e) => {
+                error!("Failed to insert drift record: {:?}", e);
             }
         }
 
@@ -127,7 +137,6 @@ pub mod kafka_consumer {
     // # Returns
     //
     // * `Result<(), anyhow::Error>` - The result of the operation
-    #[cfg(feature = "kafka")]
     #[allow(clippy::unnecessary_unwrap)]
     #[allow(clippy::too_many_arguments)]
     pub async fn start_kafka_background_poll(
@@ -154,7 +163,9 @@ pub mod kafka_consumer {
         .unwrap();
 
         loop {
-            stream_from_kafka_topic(&message_handler, &consumer).await?;
+            if let Err(e) = stream_from_kafka_topic(&message_handler, &consumer).await {
+                error!("Error in stream_from_kafka_topic: {:?}", e);
+            }
         }
     }
 }

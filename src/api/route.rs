@@ -1,6 +1,7 @@
 use crate::api::handler::{
-    get_drift, get_drift_alerts, get_feature_distributions, get_profile, health_check,
-    insert_drift, insert_drift_profile, update_drift_alerts, update_drift_profile_status,
+    get_drift, get_drift_alerts, get_feature_distributions, get_observability_metrics, get_profile,
+    health_check, insert_drift, insert_drift_profile, update_drift_alerts,
+    update_drift_profile_status,
 };
 use crate::api::metrics::track_metrics;
 use crate::sql::postgres::PostgresClient;
@@ -53,6 +54,10 @@ pub fn create_router(app_state: Arc<AppState>) -> Router {
         .route(
             &format!("{}/alerts", ROUTE_PREFIX),
             get(get_drift_alerts).put(update_drift_alerts),
+        )
+        .route(
+            &format!("{}/observability/metrics", ROUTE_PREFIX),
+            get(get_observability_metrics),
         )
         .route(
             &format!("{}/alerts/metrics", ROUTE_PREFIX),

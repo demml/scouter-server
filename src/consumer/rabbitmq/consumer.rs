@@ -2,9 +2,10 @@
 pub mod rabbitmq_consumer {
 
     use crate::consumer::base::MessageHandler;
+    use scouter::core::drift::base::ServerRecords;
+
     use futures::StreamExt;
 
-    use scouter::core::spc::types::SpcDriftServerRecord;
     use std::result::Result::Ok;
     use tracing::error;
     use tracing::info;
@@ -46,28 +47,29 @@ pub mod rabbitmq_consumer {
         message_handler: &MessageHandler,
         consumer: &mut Consumer,
     ) -> Result<()> {
+        // start consumer. The `start` method returns a future that resolves to a `Result` once the consumer has started.
         while let Some(delivery) = consumer.next().await {
-            if let Ok(delivery) = delivery {
-                let records: Vec<SpcDriftServerRecord> =
-                    match serde_json::from_slice(delivery.data.as_slice()) {
-                        Ok(records) => records,
-                        Err(e) => {
-                            error!("Failed to parse message: {:?}", e);
-                            return Ok(());
-                        }
-                    };
-
-                for record in records.iter() {
-                    let inserted = message_handler.insert_drift_record(record).await;
-                    match inserted {
+            match delivery {
+                // try loading the message from the delivery. if message serialization fails, log the error
+                Ok(delivery) => match serde_json::from_slice::<ServerRecords>(&delivery.data) {
+                    // insert the records into the database. If insertion fails, log the error
+                    Ok(records) => match message_handler.insert_server_records(&records).await {
+                        // acknowledge the message. If acknowledgment fails, log the error
                         Ok(_) => {
-                            // Acknowledge the message
-                            delivery.ack(BasicAckOptions::default()).await?;
+                            if let Err(e) = delivery.ack(BasicAckOptions::default()).await {
+                                error!("Failed to acknowledge message: {:?}", e);
+                            }
                         }
                         Err(e) => {
                             error!("Failed to insert drift record: {:?}", e);
                         }
+                    },
+                    Err(e) => {
+                        error!("Failed to deserialize message: {:?}", e);
                     }
+                },
+                Err(e) => {
+                    error!("Failed to receive delivery: {:?}", e);
                 }
             }
         }
@@ -95,7 +97,6 @@ pub mod rabbitmq_consumer {
     //
     // * `Result<(), anyhow::Error>` - The result of the operation
 
-    #[cfg(feature = "kafka")]
     pub async fn start_rabbitmq_background_poll(
         message_handler: MessageHandler,
         address: String,
@@ -104,7 +105,9 @@ pub mod rabbitmq_consumer {
         let mut consumer = create_rabbitmq_consumer(&address, &prefetch_count).await?;
 
         loop {
-            stream_from_rabbit_queue(&message_handler, &mut consumer).await?;
+            if let Err(e) = stream_from_rabbit_queue(&message_handler, &mut consumer).await {
+                error!("Error in stream_from_rabbit_queue: {:?}", e);
+            }
         }
     }
 }

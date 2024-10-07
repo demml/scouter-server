@@ -482,7 +482,7 @@ impl PostgresClient {
         })
     }
 
-    async fn run_binned_feature_query(
+    async fn get_spc_binned_feature_values(
         &self,
         bin: &f64,
         feature: String,
@@ -541,7 +541,7 @@ impl PostgresClient {
         let async_queries = features
             .iter()
             .map(|feature| {
-                self.run_binned_feature_query(
+                self.get_spc_binned_feature_values(
                     &bin,
                     feature.to_string(),
                     &params.version,

@@ -608,8 +608,8 @@ impl PostgresClient {
         match binned {
             Ok(result) => Ok(result),
             Err(e) => {
-                error!("Failed to run query: {:?}", e);
-                Err(anyhow!("Failed to run query: {:?}", e))
+                error!("Failed to run feature distribution query: {:?}", e);
+                Err(anyhow!("Failed to run feature distribution query: {:?}", e))
             }
         }
     }

@@ -67,11 +67,19 @@ pub async fn get_feature_distributions(
 
     match query_result {
         Ok(result) => {
-            let json_response = serde_json::json!({
-                "status": "success",
-                "data": result
-            });
-            Ok(Json(json_response))
+            if result.is_none() {
+                let json_response = json!({
+                    "status": "error",
+                    "message": "Feature distribution not found"
+                });
+                return Err((StatusCode::NOT_FOUND, Json(json_response)));
+            } else {
+                let json_response = json!({
+                    "status": "success",
+                    "data": result
+                });
+                return Ok(Json(json_response));
+            }
         }
         Err(e) => {
             error!("Failed to calculate feature distribution: {:?}", e);

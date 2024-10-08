@@ -584,7 +584,7 @@ impl PostgresClient {
     pub async fn get_feature_distribution(
         &self,
         params: &DriftRequest,
-    ) -> Result<FeatureDistribution, anyhow::Error> {
+    ) -> Result<Option<FeatureDistribution>, anyhow::Error> {
         let feature = match &params.feature {
             Some(feature) => feature.clone(),
             None => "".to_string(),
@@ -596,14 +596,14 @@ impl PostgresClient {
 
         let bin = time_window / params.max_data_points as f64;
 
-        let binned: Result<FeatureDistribution, sqlx::Error> = sqlx::query_as(&query.sql)
+        let binned: Result<Option<FeatureDistribution>, sqlx::Error> = sqlx::query_as(&query.sql)
             .bind(bin)
             .bind(time_window)
             .bind(&params.name)
             .bind(&params.repository)
             .bind(&params.version)
             .bind(feature)
-            .fetch_one(&self.pool)
+            .fetch_optional(&self.pool)
             .await;
 
         match binned {

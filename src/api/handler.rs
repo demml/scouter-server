@@ -62,7 +62,7 @@ pub async fn get_feature_distributions(
     params: Query<DriftRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     // validate time window
-
+    info!("Getting feature distribution for {:?}", params);
     let query_result = &data.db.get_feature_distribution(&params).await;
 
     match query_result {

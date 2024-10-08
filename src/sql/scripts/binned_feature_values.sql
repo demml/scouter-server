@@ -1,6 +1,6 @@
 WITH subquery1 AS (
     SELECT
-        date_bin('$1 minutes', created_at, TIMESTAMP '1970-01-01') as created_at,
+        date_bin('.05 minutes', created_at, TIMESTAMP '1970-01-01') as created_at,
         name,
         repository,
         feature,
@@ -8,11 +8,11 @@ WITH subquery1 AS (
         value
     FROM scouter.drift
     WHERE 
-        created_at > timezone('utc', now()) - interval '$2 minute'
-        AND name = $3
-        AND repository = $4
-        AND version = $5
-        AND feature = $6
+        created_at > timezone('utc', now()) - interval '1 minute' * $1
+        AND name = $2
+        AND repository = $3
+        AND version = $4
+        AND feature = $5
 ),
 
 subquery2 AS (

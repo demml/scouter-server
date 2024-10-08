@@ -451,8 +451,8 @@ impl PostgresClient {
             .fetch_one(&self.pool)
             .await
             .map_err(|e| {
-                error!("Failed to run query: {:?}", e);
-                anyhow!("Failed to run query: {:?}", e)
+                error!("Failed to spc feature query: {:?}", e);
+                anyhow!("Failed to spc feature query: {:?}", e)
             });
 
         feature_values
@@ -479,8 +479,8 @@ impl PostgresClient {
                 .await;
 
         observability_metrics.map_err(|e| {
-            error!("Failed to run query: {:?}", e);
-            anyhow!("Failed to run query: {:?}", e)
+            error!("Failed to run observability query: {:?}", e);
+            anyhow!("Failed to run observability query: {:?}", e)
         })
     }
 
@@ -503,12 +503,11 @@ impl PostgresClient {
             .bind(version)
             .bind(feature)
             .fetch_optional(&self.pool)
-            .await;
-
-        binned.map_err(|e| {
-            error!("Failed to run query: {:?}", e);
-            anyhow!("Failed to run query: {:?}", e)
-        })
+            .await
+            .map_err(|e| {
+                error!("Failed to run spc binned query: {:?}", e);
+                anyhow!("Failed to run spc binned query: {:?}", e)
+            })?;
     }
 
     // Queries the database for drift records based on a time window and aggregation
@@ -574,7 +573,7 @@ impl PostgresClient {
                 }
             }
             Err(e) => {
-                error!("Failed to run query: {:?}", e);
+                error!("Failed to run drift record query: {:?}", e);
             }
         });
 
@@ -676,8 +675,8 @@ impl PostgresClient {
                 }
                 Ok(_) => continue,
                 Err(e) => {
-                    error!("Failed to run query: {:?}", e);
-                    return Err(anyhow!("Failed to run query: {:?}", e));
+                    error!("Failed to run drift records query: {:?}", e);
+                    return Err(anyhow!("Failed to run drift records query: {:?}", e));
                 }
             }
         }
@@ -720,8 +719,8 @@ impl PostgresClient {
                 Ok(alert_result)
             }
             Err(e) => {
-                error!("Failed to run query: {:?}", e);
-                Err(anyhow!("Failed to run query: {:?}", e))
+                error!("Failed to run alert metrics query: {:?}", e);
+                Err(anyhow!("Failed to run alert metrics query: {:?}", e))
             }
         }
     }

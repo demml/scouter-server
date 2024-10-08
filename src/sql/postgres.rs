@@ -492,17 +492,17 @@ impl PostgresClient {
         time_window: &i32,
         repository: &str,
         name: &str,
-    ) -> Result<SpcFeatureResult, anyhow::Error> {
+    ) -> Result<Option<SpcFeatureResult>, anyhow::Error> {
         let query = Queries::GetBinnedFeatureValues.get_query();
 
-        let binned: Result<SpcFeatureResult, sqlx::Error> = sqlx::query_as(&query.sql)
+        let binned: Result<Option<SpcFeatureResult>, sqlx::Error> = sqlx::query_as(&query.sql)
             .bind(bin)
             .bind(time_window)
             .bind(name)
             .bind(repository)
             .bind(version)
             .bind(feature)
-            .fetch_one(&self.pool)
+            .fetch_optional(&self.pool)
             .await;
 
         binned.map_err(|e| {
@@ -563,13 +563,15 @@ impl PostgresClient {
 
         query_results.iter().for_each(|result| match result {
             Ok(result) => {
-                query_result.features.insert(
-                    result.feature.clone(),
-                    FeatureResult {
-                        created_at: result.created_at.clone(),
-                        values: result.values.clone(),
-                    },
-                );
+                if let Some(result) = result {
+                    query_result.features.insert(
+                        result.feature.clone(),
+                        FeatureResult {
+                            created_at: result.created_at.clone(),
+                            values: result.values.clone(),
+                        },
+                    );
+                }
             }
             Err(e) => {
                 error!("Failed to run query: {:?}", e);

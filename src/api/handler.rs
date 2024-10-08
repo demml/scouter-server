@@ -224,6 +224,7 @@ pub async fn get_profile(
     State(data): State<Arc<AppState>>,
     params: Query<ServiceInfo>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    info!("Getting drift profile for {:?}", params);
     let profile = &data.db.get_drift_profile(&params).await;
 
     match profile {

@@ -503,11 +503,15 @@ impl PostgresClient {
             .bind(version)
             .bind(feature)
             .fetch_optional(&self.pool)
-            .await
-            .map_err(|e| {
-                error!("Failed to run spc binned query: {:?}", e);
-                anyhow!("Failed to run spc binned query: {:?}", e)
-            })?;
+            .await;
+
+        match binned {
+            Ok(result) => Ok(result),
+            Err(e) => {
+                error!("Failed to run drift record query: {:?}", e);
+                Err(anyhow!("Failed to run drift record query: {:?}", e))
+            }
+        }
     }
 
     // Queries the database for drift records based on a time window and aggregation

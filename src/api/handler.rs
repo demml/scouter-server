@@ -2,6 +2,8 @@ use crate::api::schema::{
     AlertMetricRequest, DriftAlertRequest, DriftRequest, ObservabilityMetricRequest,
     ProfileRequest, ProfileStatusRequest, ServiceInfo, UpdateAlertRequest,
 };
+use crate::sql::schema::AlertMetricsResult;
+
 use crate::consumer::base::ToDriftRecords;
 use scouter::core::drift::base::DriftProfile;
 use scouter::core::drift::base::ServerRecords;
@@ -325,12 +327,13 @@ pub async fn get_drift_alerts(
             Ok(Json(json_response))
         }
         Err(e) => {
+            // default to empty array if no data is found
             error!("Failed to query drift alerts: {:?}", e);
             let json_response = json!({
                 "status": "error",
-                "message": format!("{:?}", e)
+                "data": []
             });
-            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
+            Ok(Json(json_response))
         }
     }
 }
@@ -403,12 +406,26 @@ pub async fn get_alert_metrics(
             Ok(Json(json_response))
         }
         Err(e) => {
+            // create alert metrics with empty arrays if no data is found
             error!("Failed to query alert metrics: {:?}", e);
+
+            let created_at = Vec::new();
+            let alert_count = Vec::new();
+            let active = Vec::new();
+            let acknowledged = Vec::new();
+
+            let empty = AlertMetricsResult {
+                created_at,
+                alert_count,
+                active,
+                acknowledged,
+            };
+
             let json_response = json!({
                 "status": "error",
-                "message": format!("{:?}", e)
+                "data": empty
             });
-            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
+            Ok(Json(json_response))
         }
     }
 }

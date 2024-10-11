@@ -427,10 +427,7 @@ impl PostgresClient {
             .bind(feature)
             .fetch_one(&self.pool)
             .await
-            .map_err(|e| {
-                error!("Failed to spc feature query: {:?}", e);
-                anyhow!("Failed to spc feature query: {:?}", e)
-            });
+            .map_err(|e| anyhow!("Spc feature query failed: {:?}", e));
 
         feature_values
     }
@@ -616,6 +613,29 @@ impl PostgresClient {
         let mut query_result = QueryResult {
             features: BTreeMap::new(),
         };
+
+        // check if query_results has any errors and see if any contain "RowNotFound"
+        // if so, log a warning and return an empty query result
+        if query_results.iter().any(|result| result.is_err()) {
+            let row_not_found = query_results.iter().any(|result| {
+                if let Err(e) = result {
+                    e.to_string().contains("RowNotFound")
+                } else {
+                    false
+                }
+            });
+
+            if row_not_found {
+                warn!(
+                    "Rows not found for drift profile: {}/{}/{}, Timestamp: {:?}. Passing",
+                    service_info.repository,
+                    service_info.name,
+                    service_info.version,
+                    limit_timestamp
+                );
+                return Ok(query_result);
+            }
+        }
 
         let feature_sizes = query_results
             .iter()

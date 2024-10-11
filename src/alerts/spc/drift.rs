@@ -81,6 +81,12 @@ impl SpcDrifter {
             .await
             .with_context(|| "error retrieving raw feature data to compute drift")?;
 
+        // check if there are any features to process. If not, return empty array
+        // this will force an empty return for the task
+        if drift_features.features.is_empty() {
+            return Ok((Array2::zeros((0, 0)), Vec::new()));
+        }
+
         let feature_keys: Vec<String> = drift_features.features.keys().cloned().collect();
 
         let feature_values = drift_features

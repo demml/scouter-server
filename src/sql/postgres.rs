@@ -626,13 +626,6 @@ impl PostgresClient {
             });
 
             if row_not_found {
-                warn!(
-                    "Rows not found for drift profile: {}/{}/{}, Timestamp: {:?}. Passing",
-                    service_info.repository,
-                    service_info.name,
-                    service_info.version,
-                    limit_timestamp
-                );
                 return Ok(query_result);
             }
         }

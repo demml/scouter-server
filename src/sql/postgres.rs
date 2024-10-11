@@ -114,13 +114,11 @@ impl PostgresClient {
             .await
             .with_context(|| "Failed to insert alert into database");
 
-        match query_result {
-            Ok(result) => Ok(result),
-            Err(e) => {
-                error!("Failed to insert alert into database: {:?}", e);
-                Err(anyhow!("Failed to insert alert into database: {:?}", e))
-            }
-        }
+        query_result.map_err(|e| {
+            let msg = format!("Failed to insert alert into database: {:?}", e);
+            error!(msg);
+            anyhow!(msg)
+        })
     }
 
     pub async fn get_drift_alerts(
@@ -163,13 +161,11 @@ impl PostgresClient {
             .fetch_all(&self.pool)
             .await;
 
-        match result {
-            Ok(result) => Ok(result),
-            Err(e) => {
-                error!("Failed to get alerts from database: {:?}", e);
-                Err(anyhow!("Failed to get alerts from database: {:?}", e))
-            }
-        }
+        result.map_err(|e| {
+            let msg = format!("Failed to get alerts from database: {:?}", e);
+            error!(msg);
+            anyhow!(msg)
+        })
     }
 
     // Inserts a drift record into the database
@@ -196,14 +192,11 @@ impl PostgresClient {
             .await
             .with_context(|| "Failed to insert alert into database");
 
-        //drop params
-        match query_result {
-            Ok(result) => Ok(result),
-            Err(e) => {
-                error!("Failed to insert record into database: {:?}", e);
-                Err(anyhow!("Failed to insert record into database: {:?}", e))
-            }
-        }
+        query_result.map_err(|e| {
+            let msg = format!("Failed to insert record into database: {:?}", e);
+            error!(msg);
+            anyhow!(msg)
+        })
     }
 
     // Inserts a drift record into the database
@@ -231,23 +224,16 @@ impl PostgresClient {
             .bind(record.error_count)
             .bind(route_metrics)
             .execute(&self.pool)
-            .await
-            .with_context(|| "Failed to insert observability metrics into database");
+            .await;
 
-        //drop params
-        match query_result {
-            Ok(result) => Ok(result),
-            Err(e) => {
-                error!(
-                    "Failed to insert observability record into database: {:?}",
-                    e
-                );
-                Err(anyhow!(
-                    "Failed to insert observability record into database: {:?}",
-                    e
-                ))
-            }
-        }
+        query_result.map_err(|e| {
+            let msg = format!(
+                "Failed to insert observability record into database: {:?}",
+                e
+            );
+            error!(msg);
+            anyhow!(msg)
+        })
     }
 
     pub async fn insert_drift_profile(
@@ -279,16 +265,13 @@ impl PostgresClient {
             .bind(next_run.naive_utc())
             .bind(next_run.naive_utc())
             .execute(&self.pool)
-            .await
-            .with_context(|| "Failed to insert profile into database");
+            .await;
 
-        match query_result {
-            Ok(result) => Ok(result),
-            Err(e) => {
-                error!("Failed to insert record into database: {:?}", e);
-                Err(anyhow!("Failed to insert record into database: {:?}", e))
-            }
-        }
+        query_result.map_err(|e| {
+            let msg = format!("Failed to insert drift profile: {:?}", e);
+            error!(msg);
+            anyhow!(msg)
+        })
     }
 
     pub async fn update_drift_profile(
@@ -305,16 +288,12 @@ impl PostgresClient {
             .bind(base_args.repository)
             .bind(base_args.version)
             .execute(&self.pool)
-            .await
-            .with_context(|| "Failed to insert profile into database");
+            .await;
 
-        match query_result {
-            Ok(result) => Ok(result),
-            Err(e) => {
-                error!("Failed to update data profile: {:?}", e);
-                Err(anyhow!("Failed to update data profile: {:?}", e))
-            }
-        }
+        query_result.map_err(|e| {
+            error!("Failed to update drift profile: {:?}", e);
+            anyhow!("Failed to update drift profile: {:?}", e)
+        })
     }
 
     pub async fn update_drift_alert(
@@ -325,19 +304,17 @@ impl PostgresClient {
         let query = Queries::UpdateDriftAlert.get_query();
 
         let query_result = sqlx::query(&query.sql)
-            .bind(id)
             .bind(status)
+            .bind(id)
             .execute(&self.pool)
             .await
             .with_context(|| "Failed to update drift alert in database");
 
-        match query_result {
-            Ok(result) => Ok(result),
-            Err(e) => {
-                error!("Failed to update alert status: {:?}", e);
-                Err(anyhow!("Failed to update alert status: {:?}", e))
-            }
-        }
+        query_result.map_err(|e| {
+            let msg = format!("Failed to update alert status: {:?}", e);
+            error!(msg);
+            anyhow!(msg)
+        })
     }
 
     pub async fn get_drift_profile(
@@ -495,7 +472,7 @@ impl PostgresClient {
     ) -> Result<Option<SpcFeatureResult>, anyhow::Error> {
         let query = Queries::GetBinnedFeatureValues.get_query();
 
-        let binned: Result<Option<SpcFeatureResult>, sqlx::Error> = sqlx::query_as(&query.sql)
+        let binned: Result<Option<SpcFeatureResult>, anyhow::Error> = sqlx::query_as(&query.sql)
             .bind(bin)
             .bind(time_window)
             .bind(name)
@@ -503,15 +480,13 @@ impl PostgresClient {
             .bind(version)
             .bind(feature)
             .fetch_optional(&self.pool)
-            .await;
-
-        match binned {
-            Ok(result) => Ok(result),
-            Err(e) => {
+            .await
+            .map_err(|e| {
                 error!("Failed to run drift record query: {:?}", e);
-                Err(anyhow!("Failed to run drift record query: {:?}", e))
-            }
-        }
+                anyhow!("Failed to run drift record query: {:?}", e)
+            });
+
+        binned
     }
 
     // Queries the database for drift records based on a time window and aggregation

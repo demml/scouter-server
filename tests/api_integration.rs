@@ -9,7 +9,7 @@ use scouter::core::drift::spc::types::{
     SpcAlertConfig, SpcAlertRule, SpcDriftConfig, SpcDriftProfile, SpcFeatureDriftProfile,
 };
 use scouter::core::{dispatch::types::AlertDispatchType, drift::spc::types::SpcServerRecord};
-use scouter_server::api::schema::{ProfileRequest, ProfileStatusRequest};
+use scouter_server::api::schema::{ProfileRequest, ProfileStatusRequest, UpdateAlertRequest};
 use scouter_server::sql::schema::FeatureDistribution;
 use scouter_server::sql::schema::{ObservabilityResult, QueryResult};
 use serde_json::Value;
@@ -185,7 +185,7 @@ async fn test_api_profile() {
     let body = serde_json::to_value(&monitor_profile).unwrap();
 
     let request = ProfileRequest {
-        drift_type: DriftType::SPC,
+        drift_type: DriftType::SPC.value(),
         profile: body,
     };
 
@@ -327,6 +327,26 @@ async fn test_api_get_drift_alert() {
 
     assert_eq!(data.len(), 2);
 
+    let request = UpdateAlertRequest {
+        id: data[0].id.clone(),
+        status: "acknowledged".to_string(),
+    };
+
+    //update the alert (put request)
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/scouter/alerts")
+                .header(http::header::CONTENT_TYPE, "application/json")
+                .method("PUT")
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
     test_utils::teardown().await.unwrap();
 }
 
@@ -383,7 +403,7 @@ async fn test_api_update_profile() {
     };
 
     let request = ProfileRequest {
-        drift_type: DriftType::SPC,
+        drift_type: DriftType::SPC.value(),
         profile: serde_json::to_value(&new_profile).unwrap(),
     };
 

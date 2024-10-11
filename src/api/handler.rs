@@ -350,12 +350,14 @@ pub async fn get_observability_metrics(
             Ok(Json(json_response))
         }
         Err(e) => {
+            // if no data is found, return an empty array
             error!("Failed to query observability_metrics: {:?}", e);
             let json_response = json!({
-                "status": "error",
-                "message": format!("{:?}", e)
+                "status": "no observability metrics found",
+                "data": []
+
             });
-            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
+            Ok(Json(json_response))
         }
     }
 }

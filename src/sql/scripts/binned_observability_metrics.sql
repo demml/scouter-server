@@ -110,14 +110,16 @@ left join expanded_status_codes as b
 
 SELECT
     route_name,
+    sum(request_count) as total_request_count,
+    sum(error_count) as total_error_count,
     array_agg(created_at ORDER BY created_at DESC) as created_at,
     array_agg(avg_p5 ORDER BY created_at DESC) as p5,
     array_agg(avg_p25 ORDER BY created_at DESC) as p25,
     array_agg(avg_p50 ORDER BY created_at DESC) as p50,
     array_agg(avg_p95 ORDER BY created_at DESC) as p95,
     array_agg(avg_p99 ORDER BY created_at DESC) as p99,
-    array_agg(total_request_count ORDER BY created_at DESC) as total_request_count,
-    array_agg(total_error_count ORDER BY created_at DESC) as total_error_count,
+    array_agg(total_request_count ORDER BY created_at DESC) as request_count,
+    array_agg(total_error_count ORDER BY created_at DESC) as error_count,
     array_agg(avg_error_latency ORDER BY created_at DESC) as error_latency,
     array_agg(status_counts ORDER BY created_at DESC) as status_counts
 FROM joined

@@ -111,8 +111,8 @@ pub struct ObservabilityResult {
     pub p50: Vec<f64>,
     pub p95: Vec<f64>,
     pub p99: Vec<f64>,
-    pub request_count: Vec<i64>,
-    pub error_count: Vec<i64>,
+    pub request_per_sec: Vec<f64>,
+    pub error_per_sec: Vec<f64>,
     pub error_latency: Vec<f64>,
     pub status_counts: Vec<HashMap<String, i64>>,
 }
@@ -138,8 +138,8 @@ impl<'r> FromRow<'r, PgRow> for ObservabilityResult {
             p50: row.try_get("p50")?,
             p95: row.try_get("p95")?,
             p99: row.try_get("p99")?,
-            request_count: row.try_get("request_count")?,
-            error_count: row.try_get("error_count")?,
+            request_per_sec: row.try_get("request_per_sec")?,
+            error_per_sec: row.try_get("error_per_sec")?,
             error_latency: row.try_get("error_latency")?,
             status_counts,
         })
